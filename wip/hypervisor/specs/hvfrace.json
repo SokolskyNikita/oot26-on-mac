@@ -1,0 +1,36 @@
+[
+ {
+  "label": "hvfrace-diag",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-diag/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_STATS": 1
+  },
+  "desc": "HYPERVISOR, race only logged: expect 'Protection dropped on a page that is GPU-cached' warnings and the usual broken frames",
+  "build_wait": false
+ },
+ {
+  "label": "hvfrace-fix",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_STATS": 1
+  },
+  "desc": "HYPERVISOR, pages marked before they are protected: watch the walk - dark band / missing HUD gone? No warnings expected",
+  "build_wait": false
+ },
+ {
+  "label": "hvfrace-jit-base",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "desc": "JIT reference for the next run (build/release as it is)"
+ },
+ {
+  "label": "hvfrace-jit-fix",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "desc": "JIT with pages marked before they are protected: frame times and picture should match the reference"
+ }
+]

@@ -1,0 +1,22 @@
+--- a/README.md	2026-11-19 04:34:12
++++ b/README.md	2026-11-19 04:34:12
+@@ -34,10 +34,18 @@
+ back afterwards.
+ 
+ A spec is a JSON list of runs: `label`, `desc`, `cfg` (config keys), `env` (`{rd}` = the run folder), `app`, `args`,
+-`repeat`, `phase_frames`, `variants`, `server_calls`, `settle_s` (default 3: seconds with no pipeline build before measuring), `walk` (`bounce`, the default: run in 30-frame chunks and turn round when stuck (two quarter turns: left stick right, then a right-stick click to put the camera behind Link; then forward again); `route`: the old fixed route), `stand_first` (add a standing phase before the walk), `cold_metal_cache` (boot from an empty Metal cache, the real one held aside and restored), `save` / `expect_spawn` (another save; null skips the spawn check), `jsdbg` (`attach` / `arm`), `flicker`, `capture`.
++`repeat`, `phase_frames`, `variants`, `server_calls`, `settle_s` (default 3: seconds with no pipeline build before measuring), `walk` (`bounce`, the default: run in 30-frame chunks and turn round when stuck (two quarter turns: left stick right, then a right-stick click to put the camera behind Link; then forward again); `route`: the old fixed route), `stand_first` (add a standing phase before the walk), `cold_metal_cache` (boot from an empty Metal cache, the real one held aside and restored), `save` / `expect_spawn` (another save; null skips the spawn check), `jsdbg` (`attach` / `arm`), `flicker`, `capture`, `stand_frames` (length of the stand after the walk, default `phase_frames`), `at_end` (steps run once Link has stopped where the walk ended, see `speckhunt.py`: window-capture bursts scored by `whitecount.py` with a sheet and a GIF, debug-server calls, shader-reject groups; `flicker` and `capture` run at the spawn instead; `speck_report.py RUNS_DIR` prints one verdict line per run), `walk_shots` (a window capture after each walk chunk, with a sheet, a GIF and the white share per frame; it changes the walk: on 2026-11-17 Link ended 9 m short of the cave wall with it, so never combine it with `at_end`), `on_corrupt` (steps like `at_end`'s, run only when the run's end picture scores as corrupted; every run's `result.json` gets `picture`: `clipped_pct`, `vivid_pct`, `corrupt`), `build_wait` (false: start even while a variant build is compiling; for runs judged by picture or log, since frame times are skewed).
+ Each run folder holds `result.json` (frame statistics per phase, boot and load times, build counts, positions), the
+ per-present clock `frames.bin`, `eden_log.txt`, screenshots, and on failure a stack sample or screenshot.
+ 
++**Keep the forest save on top.** The game's Load list is newest first, and every default run loads
++`KokiriForest_Child`. After a session that saved somewhere else, load the forest save and save again at once, so it
++does not sink down the list (asked for by the owner on 2026-11-17; done that night at 22:36, slot_02). A spec with `"resave": true` does it
++right after the load: Plus (pause menu), R (System tab, Save is its first entry), A (Save dialog, Cancel selected),
++Up, A (saves over the slot that was loaded), B. The run fails if the slot's `caption.sav` did not change. Leaving
++an area autosaves into slot_00, which also pushes the forest save down. `"hold_file": PATH` keeps the game open
++right after the load for manual debug-server calls until that file is removed.
++
+ Rules the harness follows, from what went wrong: game state comes from memory, never from screenshots; `main`'s
+ address is read from each boot's log (ASLR); never queue specs as separate waiters on "no queue.sh running" (they
+ match their own command lines); a debugger attaches only once the guest is held.

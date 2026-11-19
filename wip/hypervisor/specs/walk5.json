@@ -1,0 +1,76 @@
+[
+ {
+  "label": "walk5-kokiri-hvf",
+  "desc": "5-MINUTE WALK (18000 frames), Kokiri Forest: HYPERVISOR final, ThinLTO build",
+  "phase_frames": 18000,
+  "stand_frames": 300,
+  "leash_m": 45,
+  "at_end": [
+   {
+    "burst": 10,
+    "name": "end"
+   }
+  ],
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final-lto/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  }
+ },
+ {
+  "label": "walk5-gerudo-hvf",
+  "desc": "5-MINUTE WALK (18000 frames), Gerudo Valley: HYPERVISOR final, ThinLTO build",
+  "phase_frames": 18000,
+  "stand_frames": 300,
+  "leash_m": 45,
+  "at_end": [
+   {
+    "burst": 10,
+    "name": "end"
+   }
+  ],
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final-lto/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "save": "GerudoValley_Child",
+  "expect_spawn": null
+ },
+ {
+  "label": "walk5-kokiri-jit",
+  "desc": "5-MINUTE WALK (18000 frames), Kokiri Forest: best JIT (ThinLTO build)",
+  "phase_frames": 18000,
+  "stand_frames": 300,
+  "leash_m": 45,
+  "at_end": [
+   {
+    "burst": 10,
+    "name": "end"
+   }
+  ],
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app"
+ },
+ {
+  "label": "walk5-gerudo-jit",
+  "desc": "5-MINUTE WALK (18000 frames), Gerudo Valley: best JIT (ThinLTO build)",
+  "phase_frames": 18000,
+  "stand_frames": 300,
+  "leash_m": 45,
+  "at_end": [
+   {
+    "burst": 10,
+    "name": "end"
+   }
+  ],
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app",
+  "save": "GerudoValley_Child",
+  "expect_spawn": null
+ },
+ {
+  "label": "walk5-resave",
+  "desc": "Put the Kokiri Forest save back on top of the Load list",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app",
+  "phase_frames": 30,
+  "stand_frames": 30,
+  "resave": true
+ }
+]

@@ -67,7 +67,7 @@ not copy its code.
    archive and shading-model names, then the dictionaries of options, parameters, attributes, samplers and render
    info. Then read each material's option choice strings. Resolve hashed names through
    `Shader/ExternalBinaryString.bfres` (see Evidence 1). Optional, 1 h: read Switch-Toolbox's BfresLibrary
-   source (it opens these files, per `refs/snippets/kabosune_custom_maps.md`) for how version 10 ties hashes to
+   source (it opens these files, per `refs/kabosune/custom-maps.md`) for how version 10 ties hashes to
    names and how per-material values override the shared block. Done means: the candle's two materials print as
    `Model`/`model` plus about 35 named options with values.
 4. **All models, then the go/no-go** (3–4 h; depends on steps 1 and 3). Stream every `Model/*.bfres.zs` (7,896

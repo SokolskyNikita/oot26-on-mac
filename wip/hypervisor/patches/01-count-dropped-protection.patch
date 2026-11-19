@@ -1,0 +1,26 @@
+--- a/src/core/arm/hvf/arm_hvf.cpp	2026-11-17 20:16:55
++++ b/src/core/arm/hvf/arm_hvf.cpp	2026-11-17 20:16:55
+@@ -628,6 +628,23 @@
+             if (True(perms & (write ? Common::MemoryPermission::Write
+                                     : Common::MemoryPermission::Read))) {
+                 m_space.Protect(page_address, Memory::LICHII_PAGESIZE, perms);
++                // Diagnostic: the GPU thread protects a region before it marks its pages cached
++                // (RasterizerMarkRegionCached). A fault in between lands here and drops the
++                // protection of a page that is cached a moment later: its writes go unseen.
++                static std::atomic<u64> grants{}, raced{};
++                const u64 grant = grants.fetch_add(1, std::memory_order_relaxed) + 1;
++                const bool cached_now =
++                    std::as_const(page_table.GetImpl().entries)[address >> Memory::LICHII_PAGEBITS]
++                        .Type() == Common::PageType::RasterizerCachedMemory;
++                if (cached_now) {
++                    const u64 count = raced.fetch_add(1, std::memory_order_relaxed) + 1;
++                    if (count <= 32 || count % 1000 == 0) {
++                        LOG_WARNING(Core_ARM,
++                                    "Protection dropped on a page that is GPU-cached: {} of "
++                                    "address {:#x} at pc {:#x} (#{} of {} grants)",
++                                    write ? "write" : "read", address, pc, count, grant);
++                    }
++                }
+                 return retry();
+             }
+         }

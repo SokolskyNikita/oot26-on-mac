@@ -1,0 +1,38 @@
+--- a/src/core/memory.cpp	2026-11-17 20:16:55
++++ c/src/core/memory.cpp	2026-11-17 20:16:55
+@@ -545,7 +545,14 @@
+             return;
+         }
+ 
+-        if (current_page_table->fastmem_arena) {
++        // When a region becomes cached its pages are marked before they are protected. A fault
++        // on a protected page then always finds it marked: the Hypervisor backend gives a
++        // protected page that is not marked its kernel permissions back, which would leave a
++        // cached page writable and its writes unseen by the GPU's caches.
++        const auto protect = [this, vaddr, size, cached] {
++            if (!current_page_table->fastmem_arena) {
++                return;
++            }
+             Common::MemoryPermission perm{};
+             // EDEN_NX2_NO_REACTIVE=1 drops the read traps on Switch 2 programs. Opt-in: without
+             // them a CPU read of GPU-written memory can see stale data.
+@@ -566,6 +573,9 @@
+             if (cached && perm != Common::MemoryPermission{}) {
+                 ProtectArmedPages(vaddr, size);
+             }
++        };
++        if (!cached) {
++            protect();
+         }
+ 
+         // Iterate over a contiguous CPU address space, which corresponds to the specified GPU
+@@ -624,6 +634,9 @@
+                 }
+             }
+         }
++        if (cached) {
++            protect();
++        }
+     }
+ 
+     /// Read traps replace reactive flushing's blanket read protection of every cached page: only

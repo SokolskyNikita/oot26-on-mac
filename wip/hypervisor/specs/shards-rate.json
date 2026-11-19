@@ -1,0 +1,107 @@
+[
+ {
+  "label": "shards-hvf",
+  "desc": "HYPERVISOR final, defaults: how often does the foliage come out as coloured shards?",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "phase_frames": 120,
+  "stand_frames": 60,
+  "repeat": 10,
+  "on_corrupt": [
+   {
+    "call": "status",
+    "save": "status"
+   },
+   {
+    "call": "trace_record",
+    "params": {
+     "seconds": 3
+    },
+    "timeout": 120,
+    "save": "trace_record"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   }
+  ]
+ },
+ {
+  "label": "shards-hvf-fixed",
+  "desc": "HYPERVISOR final with loads from GPU-cached pages interpreted: corrupted boots gone?",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "phase_frames": 120,
+  "stand_frames": 60,
+  "repeat": 10,
+  "on_corrupt": [
+   {
+    "call": "status",
+    "save": "status"
+   },
+   {
+    "call": "trace_record",
+    "params": {
+     "seconds": 3
+    },
+    "timeout": 120,
+    "save": "trace_record"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   }
+  ],
+  "env": {
+   "EDEN_NX2_HVF_INTERPRET_READS": 1
+  }
+ },
+ {
+  "label": "shards-jit",
+  "desc": "JIT, same MoltenVK (the app-hvfrace-base test app was deleted: rebuild it or use app-mvkp2901)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "phase_frames": 120,
+  "stand_frames": 60,
+  "repeat": 10,
+  "on_corrupt": [
+   {
+    "call": "status",
+    "save": "status"
+   },
+   {
+    "call": "trace_record",
+    "params": {
+     "seconds": 3
+    },
+    "timeout": 120,
+    "save": "trace_record"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   }
+  ]
+ }
+]

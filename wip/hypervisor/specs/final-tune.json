@@ -1,0 +1,102 @@
+[
+ {
+  "label": "fin-jit",
+  "desc": "JIT reference (unpatched build/release)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "repeat": 2
+ },
+ {
+  "label": "fin-default",
+  "desc": "HYPERVISOR final: defaults (loop runner 256, dirty-only on)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2
+ },
+ {
+  "label": "fin-loop0",
+  "desc": "HYPERVISOR final: loop runner off (dirty-only on)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 0
+  }
+ },
+ {
+  "label": "fin-loop64",
+  "desc": "HYPERVISOR final: loop runner 64",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 64
+  }
+ },
+ {
+  "label": "fin-loop1024",
+  "desc": "HYPERVISOR final: loop runner 1024",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 1024
+  }
+ },
+ {
+  "label": "fin-loop4096",
+  "desc": "HYPERVISOR final: loop runner 4096",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 4096
+  }
+ },
+ {
+  "label": "fin-burst32",
+  "desc": "HYPERVISOR final: loop runner off, burst 32",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 0,
+   "EDEN_NX2_HVF_BURST": 32
+  }
+ },
+ {
+  "label": "fin-dirty0",
+  "desc": "HYPERVISOR final: loop runner 256, dirty-only off",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_HVF_DIRTY_ONLY": 0
+  }
+ },
+ {
+  "label": "fin-stats",
+  "desc": "HYPERVISOR final: defaults with exit statistics (for the counters; slower)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 1,
+  "env": {
+   "EDEN_NX2_HVF_STATS": 1
+  }
+ }
+]

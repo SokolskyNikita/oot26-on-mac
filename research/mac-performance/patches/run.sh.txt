@@ -1,0 +1,58 @@
+#!/bin/bash
+# run.sh APP LABEL [ENV=VALUE ...]: one verify run of APP (path to a lichii.app), stopped when the walk starts.
+# Shader caches are left as they are. Prints the standing-phase frame times in thirds.
+set -u
+REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+HERE=$REPO/build/old-trees/sc-update
+APP=$1; LABEL=$2; shift 2
+if [ -e "$HERE/runs/$LABEL" ]; then echo "label $LABEL already used"; exit 1; fi
+if pgrep -f '[l]ichii.app/Contents/MacOS' >/dev/null; then echo "a Lichii is running"; exit 1; fi
+mkdir -p "$HERE/runs"
+# Each configuration keeps its own Vulkan pipeline cache: it stores already-translated shader source, so a cache
+# written by one MoltenVK build would hide another build's translator. CFG names the configuration.
+CFG=${CFG:?set CFG to a configuration name}
+PC="$HOME/.cache/lichii/shader/0400486024dec000/vulkan_pipelines.fork-v54.bin"
+STORE="$HERE/pcache"
+mkdir -p "$STORE/$CFG" "$STORE/_displaced"
+[ -e "$PC" ] && mv "$PC" "$STORE/_displaced/vulkan_pipelines.$(date +%H%M%S).bin"
+# The main shader cache is per configuration too: every build appends its own translations to it.
+MC="$HOME/.cache/lichii/shader/0400486024dec000/lichii-cache.v2.bin"
+[ -e "$MC" ] && mv "$MC" "$STORE/_displaced/lichii-cache.$(date +%H%M%S).bin"
+[ -e "$STORE/$CFG/lichii-cache.v2.bin" ] && cp -p "$STORE/$CFG/lichii-cache.v2.bin" "$MC" && echo "$LABEL: restored $CFG main shader cache" || echo "$LABEL: $CFG starts with no main shader cache"
+[ -e "$STORE/$CFG/vulkan_pipelines.bin" ] && cp -p "$STORE/$CFG/vulkan_pipelines.bin" "$PC" && echo "$LABEL: restored $CFG pipeline cache" || echo "$LABEL: $CFG starts with no pipeline cache"
+# MVK_P60_NO_APPNAP=1: keeps macOS from moving a hidden emulator to the efficiency cores (50-60 ms frames).
+# Only MoltenVK builds from path-60 honour it; other builds ignore it.
+cd "$HERE/../verify" || exit 1
+./verify.py run "$APP" "$LABEL" --out "$HERE/runs/$LABEL" --max-load 100 MVK_P60_NO_APPNAP=1 "$@" > "$HERE/runs/$LABEL.out" 2>&1 &
+cd "$HERE/runs" || exit 1
+timeout 1500 sh -c "sleep 30; until grep -q 'mark walk1' '$LABEL.out' 2>/dev/null || ! pgrep -f '[e]nvironments-v2.*verify.py run $APP $LABEL ' >/dev/null; do sleep 3; done"
+sleep 2
+for p in $(pgrep -f "[e]nvironments-v2.*verify.py run $APP $LABEL "); do kill -TERM "$p"; done
+sleep 8
+# If the driver gave up (the emulator froze or the game crashed) the emulator window is still there: stop it.
+LP=$(sed -n 's/^launched lichii.app pid \([0-9]*\).*/\1/p' "$LABEL.out" | head -1)
+if [ -n "$LP" ] && ps -p "$LP" -o command= | grep -q '[l]ichii.app/Contents/MacOS'; then
+  kill -9 "$LP"; echo "$LABEL: FROZEN OR CRASHED: emulator was still alive after the driver stopped; killed pid $LP"; sleep 3
+fi
+grep -q 'unmapped address' "$LABEL/eden_log.txt" 2>/dev/null && echo "$LABEL: game code crashed (jump to unmapped address)"
+[ -e "$MC" ] && mv -f "$MC" "$STORE/$CFG/lichii-cache.v2.bin" && echo "$LABEL: saved $CFG main shader cache ($(stat -f %z "$STORE/$CFG/lichii-cache.v2.bin") bytes)"
+[ -e "$PC" ] && mv -f "$PC" "$STORE/$CFG/vulkan_pipelines.bin" && echo "$LABEL: saved $CFG pipeline cache ($(stat -f %z "$STORE/$CFG/vulkan_pipelines.bin") bytes)"
+echo "$LABEL marks: $(grep 'mark' "$LABEL.out" | tr '\n' ';' | cut -c1-220)"
+echo "$LABEL load: $(sysctl -n vm.loadavg)"
+python3 - "$LABEL" <<'EOF'
+import struct, re, sys, statistics as S
+r = sys.argv[1]
+marks = dict((m.group(1), int(m.group(2))) for m in re.finditer(r'mark (\S+) frame (\d+)', open(r + '.out').read()))
+try:
+    b = open(r + '/frames.bin', 'rb').read()
+except OSError:
+    print(r, 'no frames recorded'); sys.exit(0)
+t = struct.unpack(f'<{len(b)//8}Q', b)
+if 'loaded-standing' not in marks:
+    print(r, 'never reached the standing phase; frames', len(t)); sys.exit(0)
+a, z = marks['loaded-standing'], min(marks.get('walk1', len(t) - 1), len(t) - 1)
+d = [(t[i + 1] - t[i]) / 1e6 for i in range(a, z)]
+for name, w in (('all', d), ('1st third', d[:len(d)//3]), ('2nd third', d[len(d)//3:2*len(d)//3]), ('last third', d[2*len(d)//3:])):
+    s = sorted(w)
+    print(f"{r} standing {name:10}: frames {len(w):4}  median {S.median(w):5.1f} ms  p10 {s[len(s)//10]:5.1f}  p90 {s[len(s)*9//10]:5.1f}  over 70 ms: {sum(x > 70 for x in w)}")
+EOF

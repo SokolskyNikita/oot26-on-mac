@@ -1,0 +1,46 @@
+[
+ {
+  "label": "rd-new-stats",
+  "desc": "HYPERVISOR: loads from GPU-cached pages interpreted (never opened), with exit statistics",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_INTERPRET_READS": 1,
+   "EDEN_NX2_HVF_STATS": 1
+  }
+ },
+ {
+  "label": "rd-new",
+  "desc": "HYPERVISOR: loads from GPU-cached pages interpreted (never opened)",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_INTERPRET_READS": 1
+  },
+  "repeat": 2
+ },
+ {
+  "label": "rd-old",
+  "desc": "HYPERVISOR: default, a cached page is opened for reading after its first read",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "repeat": 2
+ },
+ {
+  "label": "rd-old-stats",
+  "desc": "HYPERVISOR: default, with exit statistics",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_STATS": 1
+  }
+ }
+]

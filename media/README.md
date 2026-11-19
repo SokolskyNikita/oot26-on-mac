@@ -1,0 +1,33 @@
+# Media
+
+Pictures for showing the work: charts drawn from the write-ups' numbers and the harness's per-frame data, and
+before/after pairs of the rendering fixes. All measured on an Apple M4 Pro (Mac16,8) under macOS 27.0.1, in Kokiri
+Forest, at 1x resolution, handheld. PNGs are 1800 px wide (2x for a 900-px layout) on a near-white background.
+
+The pinned build does not hold 60 fps: its standing medians are 16.4–18.9 ms and its walking medians 18.7–23 ms,
+depending on run and harness ([TRACKER.md](../TRACKER.md)).
+
+Regenerate everything with `media/scripts/make_all.sh` (needs `uv`). Steps whose input is local run data
+(`tools/harness/runs/`, `build/old-trees/`, neither tracked) are skipped with a message when it is missing. Each
+command below is run from `media/`, with `PY="uv run -q --with matplotlib --with numpy --with pillow python"`.
+
+| File | What it shows | Sources | Command |
+| --- | --- | --- | --- |
+| `frame-time-steps.png` | Standing frame time at the Kokiri Forest spawn, one bar per step from stock build 228 to the pinned build, in the order the changes went in, coloured by whose change it is; ranges drawn as whiskers around the midpoint; the 16.7 ms line. Two blocks, because the two harnesses differ by 1–2 ms for the same build ([TRACKER.md](../TRACKER.md), "How to read the numbers"); in the second block each step is an A/B from its own batch and the diamond is that batch's figure without the step. | Every value and its source is a row of [`data/frame-time-steps.csv`](data/frame-time-steps.csv): [research/mac-performance](../research/mac-performance/README.md), "Results, step by step", rows 0–7; [research/path-to-60fps](../research/path-to-60fps/README.md), "Waterfall"; [research/emulator-options](../research/emulator-options/README.md), "Keep-encoder: on by default" and "Parallel shader compiles at boot"; [research/shared-jit-cache](../research/shared-jit-cache/README.md), "Validation before adoption"; TRACKER.md, "In the pinned build", rows 10, 12, 14, 16, 18 | `$PY scripts/frame_time_steps.py data/frame-time-steps.csv frame-time-steps.png` |
+| `walk-frame-times.png` | Frame time over the scripted Kokiri Forest walk (with turns, 310 frames), each frame drawn over its own duration, log axis: the build without the shared JIT code cache (one 645 ms frame where the code cache is flushed and recompiled) against the candidate with the shared 512 MiB cache (worst frame 58 ms). | Run ab-20261118-014956 (local run data, not tracked), labels `merge-gold-1` (without) and `merge-512-2` (with): `frames.bin` and `result.json` marks `walk`..`stand2`. The batch is the validation in [research/shared-jit-cache](../research/shared-jit-cache/README.md), "Validation before adoption" (hitches 3 of 3 → 0 of 3, worst frame 312–645 → 51–60 ms) | `$PY scripts/walk_frame_times.py ../tools/harness/runs/ab-20261118-014956/merge-gold-1 ../tools/harness/runs/ab-20261118-014956/merge-512-2 walk-frame-times.png` |
+| `boot-times.png` | Boot time without and with MoltenVK PR #2901: cold boot from an empty Metal shader cache (455–483 s against 97.4–100.7 s in the pinned build) and the first boot of a new MoltenVK library on a filled cache (206 s against 15.4 s). | [`data/boot-times.csv`](data/boot-times.csv): [research/emulator-options](../research/emulator-options/README.md), "Parallel shader compiles at boot" (table and "In the pinned build"); [research/shared-jit-cache](../research/shared-jit-cache/README.md), "Validation before adoption" (97.4 s) | `$PY scripts/boot_times.py data/boot-times.csv boot-times.png` |
+| `specks-before-after.png`, `specks-before-after.gif` | White specks on the Kokiri cave wall before and after the mesh cull-mode fix, same spot, Link stopped. PNG: the first frame of each burst. GIF (1000 px wide, 0.9 MB): the first 8 frames of each burst side by side, 0.35 s a frame (not real time); one "before" frame is clean, as in the run (7 of 8 speckled). | Before: run ab-20261117-220023 (local run data, not tracked), label `specks-counter-native`, burst `before/` (build before the fix, 7 of 8 frames over the speck threshold in its `result.json`). After: run ab-20261118-000338 (local run data, not tracked), label `wall-practice-rolled-out`, burst `wall/` (0 of 30). Mechanism and counts: [research/mesh-white-specks](../research/mesh-white-specks/README.md), "Proof" | `$PY scripts/pair.py BEFORE AFTER OUT --title … --before-label … --after-label … --note …` (exact arguments in `scripts/make_all.sh`) |
+| `mesh-position-before-after.png` | Native mesh shaders without and with the mesh position fix (Y flip and depth fixup added to the generated Metal source): foliage upside down in the sky and ground grass missing, then a picture that matches stock. | [research/mac-performance](../research/mac-performance/README.md), "Causes found", 4.3 (images `shots/native-mesh-no-position-fix.png`, `shots/native-mesh-with-position-fix.png`); TRACKER.md row 10 | as above, in `scripts/make_all.sh` |
+| `canopy-before-after.png` | MoltenVK main with `maxPushDescriptors` 287 (bare tree canopy, 5 compute pipelines failed) against the limit capped at 16 (leafy canopy, 135 of 135 compute pipelines). The white specks in the after picture are a separate fault. | `build/old-trees/base-5189f8d.standing.jpg` and `push16.standing.jpg` (local, not tracked; runs `base` and `push16` in [research/compute-buffer-bounds](../research/compute-buffer-bounds/README.md)); TRACKER.md row 7 | as above, in `scripts/make_all.sh` |
+| `stock-vs-combined.png` | Stock Lichii build 228 (39.4–39.6 ms standing) against the first combined build, the all-in-one (27.9–29.2 ms), at the spawn; the picture matches by eye. | [research/mac-performance](../research/mac-performance/README.md), "Results, step by step", rows 0 and 2, and the images `shots/stock-228.png`, `shots/all-in-one.png` | as above, in `scripts/make_all.sh` |
+
+Notes on the pictures:
+
+- The before/after pairs show the game area only: the macOS title bar and Lichii's status bar are cropped off. The
+  status bar's fps readout is not a measurement (one "before" frame reads 3 fps during a capture), so it is left out.
+- The last bar of `frame-time-steps.png` uses the standing phase after the walk (`stand2`), which is what the
+  shared-cache validation reports as "Standing p50"; the bars above it use the first standing phase.
+- `frame-time-steps.png`'s "+ mesh cull-mode fix" bar is one warm check run with no same-batch control.
+
+Scripts: [`scripts/style.py`](scripts/style.py) holds the shared colours and fonts; [`scripts/pair.py`](scripts/pair.py)
+makes every before/after pair.

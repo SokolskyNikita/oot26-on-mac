@@ -3,17 +3,18 @@
 `verify.py` boots any Lichii app copy, loads the top save in Kokiri Forest, stands, walks a fixed route twice,
 and saves everything about the run in one directory: frame times, Metal/MoltenVK errors and screenshots. `compare`
 puts two runs side by side and exits nonzero when the candidate is worse. It replaces the manual parts of
-`../measure.sh` (which is left as it is).
+`measure.sh`, an older measurement script of the separate glitch-research repository this one grew out of.
 
 Needs: `uv` (it runs the script with numpy and Pillow), the Command Line Tools (`clang` builds the hook on first
-use), and `../../pad/dsu_server.py` running.
+use), and a DSU pad server bound to Lichii's player 1
+(`dsu_server.py`, also in the glitch-research repository) running.
 
 ## Usage
 
 ```bash
 cd tools/verify
 ./verify.py run /Applications/lichii.app stock228-ref                 # reference
-./verify.py run ../mainline-app/lichii.app my-change MVK_CONFIG_FOO=1  # candidate, optional ENV=VALUE pairs
+./verify.py run /path/to/other/lichii.app my-change MVK_CONFIG_FOO=1  # candidate, optional ENV=VALUE pairs
 ./verify.py compare runs/stock228-ref-<stamp> runs/my-change-<stamp>
 ./verify.py analyze runs/<run>          # redo result.json from a run's files (after changing the error rules)
 ./verify.py lock-status
@@ -68,8 +69,8 @@ hardened runtime. The hook removes itself from the environment, so Lichii's chil
 - **Screenshots, without the screen or focus.** A process may capture its own windows without the Screen Recording
   permission. So the hook captures Lichii's main window from inside, with `CGWindowListCreateImage` on its own
   window id. This works while the window is behind other windows; a minimised window or one on another Space was
-  not tried. `screencapture -l <id>` from the shell fails here (`could not create image from window`), because the
-  shell's app has no Screen Recording permission. The window is captured at 1x (1280 points wide).
+  not tried. `screencapture -l <id>` from a shell fails (`could not create image from window`) when the shell's
+  app has no Screen Recording permission. The window is captured at 1x (1280 points wide).
 - Control is UDP on `127.0.0.1:26799`: `count` returns the frame count, `shot <path>` writes a PNG.
 
 ### Solving the positioning problem: inputs by game frame
@@ -102,11 +103,12 @@ frames over 100 ms, from `frames.bin`. The tool also lists Lichii's own `last 60
 does, each tagged with the phase it ended in. Because phases are measured in frames, both builds render the same
 game content in each phase.
 
-Noise: other sessions compile Lichii and MoltenVK on this machine. During the demonstration runs the load average
-was 14 to 54 (`result.json` → `load_average`). Two stock runs agreed on the walk1 median (41.4 vs 42.9 ms) but not on
-standing or walk2, where shader compiles after a shader cache switch land. Each run records the 1-minute load average at start and end in `result.json`, prints a warning above 8, and
-`run --max-load N` refuses to start above N; `compare` warns when either run was above 8. `compare` counts a
-median more than 10% slower (`--slower`) as worse. Treat smaller differences as noise unless they repeat.
+Noise: builds of Lichii and MoltenVK ran on the same machine. During the demonstration runs the load average was 14 to
+54 (`result.json` → `load_average`). Two stock runs agreed on the walk1 median (41.4 vs 42.9 ms) but not on standing or
+walk2, where shader compiles after a shader cache switch land. Each run records the 1-minute load average at start and
+end in `result.json`, prints a warning above 8, and `run --max-load N` refuses to start above N; `compare` warns when
+either run was above 8. `compare` counts a median more than 10% slower (`--slower`) as worse. Treat smaller differences
+as noise unless they repeat.
 
 ### Errors
 
@@ -149,11 +151,11 @@ For the known-bad result, see "Demonstration" below.
 
 ## Demonstration (2026-11-16)
 
-Runs are in `runs/`. The machine was busy (other sessions compiling), so the load average was 14 to 78 and
+Runs are in `runs/`. The machine was busy (builds running), so the load average was 14 to 78 and
 frame times are noisy; the error and picture columns are the reliable ones.
 
-1. `stock228-ref-20261116-105657`: `/Applications/lichii.app` (build 228, MoltenVK 1.4.1), the reference.
-2. `mainline-asis-20261116-110547`: `../mainline-app` as it stood (Lichii `7c7f723`, MoltenVK main with the
+1. `stock228-ref-20261116-105657`: stock Lichii build 228 (MoltenVK 1.4.1), the reference.
+2. `mainline-asis-20261116-110547`: a local test app (Lichii `7c7f723`, MoltenVK main with the
    push-desc-16 patch, libMoltenVK sha1 88501a77). Against 1: no picture regressions except `walk2-r1` (lighting
    and exposure of the ground differ between the two Lichii builds; same spot, x -27.00 vs -26.98). Errors:
    `compute_buffer_index` 0 -> 5 (the known 5 compute shaders), `pipeline_failed` 0 -> 1, `sampler_array_limit`

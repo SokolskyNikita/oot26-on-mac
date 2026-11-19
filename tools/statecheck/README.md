@@ -57,10 +57,10 @@ Build once, then record and check:
 python3 statecheck.py runs/LABEL
 ```
 
-`record.sh` needs a Lichii `eden-cli` that has `--replay` and a `.lxtrace` file. Its defaults are the build in the
-JIT cache session's folder and the Kokiri cave wall trace of 2026-11-17; `EDEN_CLI=path` and `TRACE=path` choose
+`record.sh` needs a Lichii `eden-cli` that has `--replay` and a `.lxtrace` file. Its defaults point at a local build
+tree and at the Kokiri cave wall trace of 2026-11-17 (local, not tracked); `EDEN_CLI=path` and `TRACE=path` choose
 others, and `FRAMES=n` sets how many presents to replay (default 20). A trace is recorded with the debug server's
-`trace_record` command, which `../debugsrv/ab.py` can call after a walk (Lichii's `docs/nx2/gpu-trace.md` describes
+`trace_record` command, which `../harness/ab.py` can call after a walk (Lichii's `docs/nx2/gpu-trace.md` describes
 the format). The replay needs no game and no emulator lock, and one run takes about
 20 seconds.
 
@@ -123,7 +123,7 @@ All on the Kokiri cave wall trace, 20 presents, 12,234 draws (measured 2026-11-1
 
 | MoltenVK | Result |
 | --- | --- |
-| Without the cull fix (the #2901 build of 2026-11-16, kept as `libMoltenVK.dylib.before-keepenc-2026-11-17` in `../mvk-mesh/path-60/app-mvkp2901`) | 263 cull failures in 16 groups, all mesh pipelines. 223 draws asked for back-face culling and ran with none, never set on that encoder; 40 asked for none and ran with back-face culling left by an earlier draw. Every other rule agrees. |
+| Without the cull fix (the library of the MoltenVK #2901 test build, before the fix) | 263 cull failures in 16 groups, all mesh pipelines. 223 draws asked for back-face culling and ran with none, never set on that encoder; 40 asked for none and ran with back-face culling left by an earlier draw. Every other rule agrees. |
 | With the cull fix | No reports. |
 
 `selftest.py` checks that the rules catch real faults. It applies one deliberate bug at a time to MoltenVK's
@@ -149,7 +149,7 @@ python3 selftest.py --src /path/to/MoltenVK
 
 The tree must already be configured and built with CMake (`--build DIR`, default `build-par`). The source file is
 put back after each fault and the library found beforehand is put back byte for byte at the end, because rebuilding
-the untouched source does not give an identical library here. Do not run it while anything else builds in that tree.
+the untouched source does not give an identical library. Do not run it while anything else builds in that tree.
 It takes a few minutes; `--reuse` keeps fault libraries already in `runs/faults/`.
 
 ## Limits
@@ -168,8 +168,8 @@ It takes a few minutes; `--reuse` keeps fault libraries already in `runs/faults/
 - **A pipeline handle is reused** after the pipeline is destroyed. `statecheck.py` reads the log in order and takes
   the last pipeline created under a handle before each draw; anything else that reads `LABEL.vk.log` must do the
   same.
-- **Out of scope:** wrong shader output with correct state (that needs the shader run on both sides and its outputs compared),
-  Lichii's guest-to-Vulkan translation, and faults that depend on timing, which a replay does not reproduce.
+- **Out of scope:** wrong shader output with correct state (that needs the shader run on both sides and its outputs
+  compared), Lichii's guest-to-Vulkan translation, and faults that depend on timing, which a replay does not reproduce.
 
 ## Next step if it is taken further
 

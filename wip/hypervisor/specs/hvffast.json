@@ -1,0 +1,58 @@
+[
+ {
+  "label": "hvffast-look",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "build_wait": false,
+  "env": {
+   "EDEN_NX2_HVF_STATS": 1,
+   "EDEN_NX2_HVF_LOOP": 256,
+   "EDEN_NX2_HVF_DIRTY_ONLY": 1
+  },
+  "desc": "HYPERVISOR, render fix + loop runner 256 + dirty-only: watch the walk - picture still right? (frame times skewed by builds)"
+ },
+ {
+  "label": "hvffast-jit",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "desc": "JIT reference (unpatched build/release)"
+ },
+ {
+  "label": "hvffast-plain",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "desc": "HYPERVISOR, render fix only, speed switches off"
+ },
+ {
+  "label": "hvffast-loop",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_LOOP": 256,
+   "EDEN_NX2_HVF_DIRTY_ONLY": 1
+  },
+  "desc": "HYPERVISOR, render fix + loop runner 256 + dirty-only write-back"
+ },
+ {
+  "label": "hvffast-burst",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "cfg": {
+   "cpu_backend": 2
+  },
+  "env": {
+   "EDEN_NX2_HVF_BURST": 32,
+   "EDEN_NX2_HVF_DIRTY_ONLY": 1
+  },
+  "desc": "HYPERVISOR, render fix + burst 32 + dirty-only write-back"
+ },
+ {
+  "label": "hvffast-jit-fix",
+  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "desc": "JIT with pages marked before they are protected: should match the JIT reference"
+ }
+]

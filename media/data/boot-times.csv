@@ -1,0 +1,5 @@
+case,variant,lo_s,hi_s,source
+Cold boot: empty Metal shader cache,without MoltenVK PR #2901,455,483,"research/emulator-options/README.md, Parallel shader compiles at boot, table row 'Current (one at a time)'"
+Cold boot: empty Metal shader cache,with MoltenVK PR #2901 (pinned build),97.4,100.7,"research/emulator-options/README.md, Parallel shader compiles at boot ('In the pinned build' paragraph: 97.4-100.7 s; cold boots 99.7-100.7 s in the safety boots); research/shared-jit-cache/README.md, Validation before adoption (97.4 s)"
+First boot of a new MoltenVK library on a filled cache,without MoltenVK PR #2901,206,206,"research/emulator-options/README.md, Parallel shader compiles at boot, table row 'Current (one at a time)'"
+First boot of a new MoltenVK library on a filled cache,with MoltenVK PR #2901,15.4,15.4,"research/emulator-options/README.md, Parallel shader compiles at boot, table row '#2901, compile on first use'"

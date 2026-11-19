@@ -14,17 +14,27 @@ stock compare the pinned build with the same build minus one change, which is ho
 
 | Measure | Before | Pinned build | Before is | Source |
 | --- | --- | --- | --- | --- |
-| Frame time standing at the spawn | 39.4–39.6 ms (25 fps) | 17.1–18.9 ms (53–58 fps) | stock | [mac-performance](research/mac-performance/README.md), [emulator-options](research/emulator-options/README.md) |
-| Frame time on the test walk | 29.2–30.0 ms | 21–23 ms (43–48 fps) | stock plus the open upstream pull requests | [path-to-60fps](research/path-to-60fps/README.md) |
+| Frame time standing at the spawn | 39.4–39.6 ms (25 fps) | 16.5–18.9 ms (53–60 fps), by run and harness | stock | [mac-performance](research/mac-performance/README.md), [emulator-options](research/emulator-options/README.md) |
+| Frame time on the test walk | 29.2–30.0 ms | 18.9–23 ms (43–53 fps), by run and route | stock plus the open upstream pull requests | [path-to-60fps](research/path-to-60fps/README.md) |
 | Worst frame on the walk | 312–645 ms, in 3 of 3 runs | 51–60 ms, no hitch in 3 of 3 runs | without the shared JIT cache | [shared-jit-cache](research/shared-jit-cache/README.md) |
 | Map load | 26.1–26.6 s | 21.8–23.6 s | without the shared JIT cache | same |
-| Memory | 23.5 GB | 20.5 GB | without the shared JIT cache | same |
+| Memory | 23.0 GiB | 20.0 GiB | without the shared JIT cache | same |
 | Cold boot (empty Metal shader cache) | 455–483 s | about 100 s | without MoltenVK #2901 | [emulator-options](research/emulator-options/README.md) |
 | White specks on the Kokiri cave wall | 27 of 30 frames | 0 of 30 | without the cull-mode fix | [mesh-white-specks](research/mesh-white-specks/README.md) |
 
+The most recent runs (2026-11-19, the build `./build.sh` produces, three runs): walking 19.5 / 18.9 / 19.6 ms,
+standing after the walk 16.6 / 16.5 / 16.5 ms, boot to in-game 39.4 / 38.0 / 39.3 s.
+
+![Standing frame time from stock Lichii build 228 to the pinned build](media/frame-time-steps.png)
+
+![Frame times on the test walk without and with the shared JIT code cache](media/walk-frame-times.png)
+
+More pictures, with the source of every number: [media/README.md](media/README.md).
+
 What this is not, yet:
 
-- **Not a steady 60 fps.** No run of the pinned build is at or under 16.7 ms.
+- **Not a steady 60 fps.** Standing still it sits at the game's 60 fps step in the latest runs (medians of
+  16.5–16.6 ms); walking it does not (18.9–19.6 ms, with one frame in twenty over 26 ms).
 - **Not native code execution.** The CPU side is the dynarmic recompiler with one code cache shared by the guest
   cores. Lichii's Hypervisor backend loads twice as fast and walks faster, but 2 of 26 boots had a
   corrupted picture; that work is unfinished ([TRACKER.md](TRACKER.md)).
@@ -85,12 +95,15 @@ To run the game you also need your dump added as a game folder in Lichii and the
 | `research/` | finished write-ups, one folder per topic; start with [research/mac-performance](research/mac-performance/README.md) |
 | `wip/` | unfinished threads |
 | `tools/` | the measurement harness, the Vulkan-to-Metal state check, and the other measurement scripts |
+| `media/` | charts and before/after pictures, with the scripts and data that make them |
 | `build/`, `runs/` | source clones, build output and run data; not tracked |
 
 ## Changing the pinned build
 
 A change goes in as a commit on the `gold` branch of `build/src/lichii` or `build/src/moltenvk`, a re-export of the
-patch series, new tree ids in `versions.lock`, and a row in `TRACKER.md`. Before that it is compared with the
+patch series, new commit and tree ids in `versions.lock`, and a row in `TRACKER.md`. A MoltenVK change that touches
+shader translation also needs a new pipeline cache id there, which costs one boot that translates every shader
+again (about 330 s); other changes keep the caches. Before that it is compared with the
 installed build in the harness: same MoltenVK library in both unless MoltenVK is what changed, several runs each,
 and the recorded pictures looked at, because picture corruption does not show in the logs.
 
