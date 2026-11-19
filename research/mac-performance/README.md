@@ -97,7 +97,8 @@ release carries this fix (see "Upstream state").
 - A bilinear stand-in (`P60_OOT_BILINEAR=1` with the FSR switch): saves 8.0 ms; softer image. Off by default.
 - A shuffle-free multiply through workgroup memory: saves 5.7 ms; output bit-identical to the game's. On by default.
 
-A normal launch of the pinned build sets no environment (its `Info.plist` has no `LSEnvironment` key), so it runs
+A normal launch of the pinned build sets one variable, the App Nap opt-out `MVK_P60_NO_APPNAP=1` (the build had no
+launch environment before 2026-11-19), so it runs
 the game's own network with the shuffle-free multiply.
 
 ### 3. Emulation-layer overhead (about 3.5 ms on the all-in-one)
@@ -304,7 +305,7 @@ States as checked on 2026-11-19, from [TRACKER.md](../../TRACKER.md), "Upstream"
    against 44 s, but 2 of 26 boots had a corrupted picture with clean logs. Its cause is not found, and the backend
    was never compared with the shared JIT cache. See [emulator-options](../emulator-options/README.md) and
    [TRACKER.md](../../TRACKER.md).
-4. **One blown-out picture on 2026-11-19.** One run of the installed pinned build had white and pink over the whole
+4. **One blown-out picture on 2026-11-19.** One run of the build installed before this one (the same source) had white and pink over the whole
    scene (58.7% clipped pixels against a normal 2.9–3.3%) with normal frame times. The next eight runs were clean,
    and 58 earlier scored runs of the JIT builds had none. Cause not found.
 5. **Keep-encoder elsewhere.** Its code was reviewed, but on screen only the Kokiri spawn and walking routes were

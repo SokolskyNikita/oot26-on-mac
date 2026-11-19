@@ -55,7 +55,8 @@ The pins are in [versions.lock](versions.lock).
 | SPIRV-Cross | pinned at `98cbb7c0`, which has [#2721](https://github.com/KhronosGroup/SPIRV-Cross/pull/2721) (tksuoran) and [#2686](https://github.com/KhronosGroup/SPIRV-Cross/pull/2686) (dttdrv) | |
 
 Every change, with its measured effect and evidence, is a row in [TRACKER.md](TRACKER.md), next to what was tried
-and not adopted and what is worth doing next.
+and not adopted and what is worth doing next. What is wrong, or may be wrong, with the build as pinned is in
+[KNOWN-ISSUES.md](KNOWN-ISSUES.md), and only there.
 
 ## Building it
 

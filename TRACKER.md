@@ -1,5 +1,7 @@
 # Tracker
 
+Faults of the pinned build are listed in [KNOWN-ISSUES.md](KNOWN-ISSUES.md), not here.
+
 This file answers three questions about the pinned build in this repository: what is in it and why, what was tried
 and not adopted, and what is worth doing next. The pinned build is Lichii `8c0558a3d3` with the series in
 `patches/lichii/`, and MoltenVK `5189f8de86ec` with the series in `patches/moltenvk/`, running the 2026 Switch 2
