@@ -1,0 +1,22 @@
+# Player 1 on the keyboard: KEY=VALUE as in ~/.config/lichii/qt-config.ini. The pinned setup binds player 1 to a
+# virtual DSU controller instead, so the keyboard does not control the game. To play by hand, close Lichii, put
+# these lines into qt-config.ini in place of the ones with the same keys, and set each key's `\default` line to
+# false. Lichii's own controller settings window does the same thing.
+player_0_button_a="engine:keyboard,toggle:0,code:67"
+player_0_button_b="engine:keyboard,toggle:0,code:88"
+player_0_button_x="engine:keyboard,toggle:0,code:86"
+player_0_button_y="engine:keyboard,toggle:0,code:90"
+player_0_button_lstick="engine:keyboard,toggle:0,code:70"
+player_0_button_rstick="engine:keyboard,toggle:0,code:71"
+player_0_button_l="engine:keyboard,toggle:0,code:81"
+player_0_button_r="engine:keyboard,toggle:0,code:69"
+player_0_button_zl="engine:keyboard,toggle:0,code:82"
+player_0_button_zr="engine:keyboard,toggle:0,code:84"
+player_0_button_plus="engine:keyboard,toggle:0,code:77"
+player_0_button_minus="engine:keyboard,toggle:0,code:78"
+player_0_button_dleft="engine:keyboard,toggle:0,code:16777234"
+player_0_button_dup="engine:keyboard,toggle:0,code:16777235"
+player_0_button_dright="engine:keyboard,toggle:0,code:16777236"
+player_0_button_ddown="engine:keyboard,toggle:0,code:16777237"
+player_0_lstick="engine:analog_from_button,modifier:engine$0keyboard$1toggle$00$1code$016777248,up:engine$0keyboard$1toggle$00$1code$087,down:engine$0keyboard$1toggle$00$1code$083,left:engine$0keyboard$1toggle$00$1code$065,right:engine$0keyboard$1toggle$00$1code$068,modifier_scale:0.500000"
+player_0_rstick="engine:analog_from_button,modifier:engine$0keyboard$1toggle$00$1code$00,up:engine$0keyboard$1toggle$00$1code$073,down:engine$0keyboard$1toggle$00$1code$075,left:engine$0keyboard$1toggle$00$1code$074,right:engine$0keyboard$1toggle$00$1code$076,modifier_scale:0.500000"

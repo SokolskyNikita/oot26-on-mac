@@ -9,6 +9,7 @@ number in this repository was measured with.
 | --- | --- |
 | `nx2_switches.append.txt` | Appended to Lichii's own `dist/nx2_switches.txt` to make the app's `Contents/MacOS/nx2_switches.txt`. One line: `EDEN_NX2_SHARED_JIT_CACHE=512`. |
 | `settings.txt`, `apply-settings.py` | Not used by the build. The emulator settings below as `KEY=VALUE`, and a script that checks them against `~/.config/lichii/qt-config.ini` (`--check`) or applies them. |
+| `keyboard-controls.txt` | Not used by the build. Player 1's bindings for the keyboard, for playing by hand: the pinned setup binds player 1 to a virtual controller, so the keyboard does not control the game. |
 | `launch-env.txt` | `NAME=VALUE` lines written into the app's `Info.plist` (`LSEnvironment`), which apply to launches through Finder, the Dock or `open`. One is set: the App Nap opt-out. The bilinear stand-in for the game's upscaling network is in the file, commented out: it measured no faster (walking 19.0 ms against 19.1 ms on 2026-11-19). The harness starts the binary directly and sets the App Nap opt-out itself. |
 
 Active switches in the assembled app: `EDEN_NX2_SPLIT=2` and `EDEN_NX2_FENCE_BATCH=1` (Lichii's own defaults) and
