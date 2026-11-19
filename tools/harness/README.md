@@ -116,7 +116,8 @@ and puts the master back afterwards. A missing master stops the batch with the `
 
 A spec is a JSON list of runs: `label`, `desc`, `cfg` (config keys), `env` (`{rd}` = the run folder), `app`
 (default `${REPO}/build/app/lichii.app`; `${REPO}` stands for this repository's folder in any spec), `args`,
-`repeat`, `phase_frames`, `variants`, `server_calls`, `settle_s` (default 3: seconds with no pipeline build before
+`repeat`, `phase_frames`, `variants`, `server_calls`, `lock_minutes` (the lock's lease for this run: minutes without
+a reported step after which another taker may evict it; default 30, 5 to 90; see [../verify/README.md](../verify/README.md), "The lock"), `settle_s` (default 3: seconds with no pipeline build before
 measuring), `walk` (`bounce`, the default: run in 30-frame chunks and turn round when stuck (two quarter turns: left
 stick right, then a right-stick click to put the camera behind Link; then forward again); `route`: the old fixed
 route), `stand_first` (add a standing phase before the walk), `cold_metal_cache` (boot from an empty Metal cache, the
@@ -189,6 +190,13 @@ INSTALLATION.md says). The harness reads game state from memory and does not nee
 position save and restore, R + D-pad up / down) and `flicker` (which hides its watch panel). `../verify/verify.py
 run` needs it: it finds the spawn point from the tool's watch panel. The numbers in this repository were measured
 with it installed.
+
+For each run the harness switches off the tool's binds that collide with buttons it presses, and puts the tool's
+`settings.ini` back afterwards (the owner's file is kept beside it as `settings.ini.harness-saved` during the run).
+One bind collides: since 0.0.9 the right-stick click is the tool's "ragdoll" command, which knocks Link over, and
+the harness clicks the right stick to put the camera behind Link whenever it turns him at a wall. Runs made with
+0.0.9 before this was handled (2026-11-19, run ab-20261119-053233) have Link lying on the ground for part of the
+walk and are not valid; walks with no turn are unaffected.
 
 ## Rules the harness follows
 

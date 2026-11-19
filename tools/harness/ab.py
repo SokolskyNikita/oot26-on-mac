@@ -39,6 +39,8 @@ JSDBG = Path(os.environ.get("OOT26_JSDBG_DIR", REPO.parent / "emulator/debug"))
 HOOK_PORT = 26799
 sys.path.insert(0, str(HERE))
 sys.path.insert(1, str(REPO / "tools/speckcheck"))   # speckhunt, whitecount: at_end, walk_shots, on_corrupt
+sys.path.insert(2, str(REPO / "tools/verify"))       # emulock: the emulator lock and its lease
+import emulock  # noqa: E402
 
 
 class Home:
@@ -138,6 +140,39 @@ def find_game(repo):
 
 
 GAME = find_game(REPO)
+
+# The practice tool (sloperinaGZ) reads its settings at boot. Binds of its commands that collide with buttons the
+# harness presses are switched off for a harness run and put back afterwards. R3: the tool's "ragdoll" command since
+# 0.0.9 (it knocks Link over); the harness clicks the right stick to put the camera behind Link when it turns him.
+TOOL_BINDS_OFF = {"bind_ragdoll": "unbound"}
+
+
+def tool_settings(home):
+    return home.dirs["data"] / "sdmc/sloperinaGZ/settings.ini"
+
+
+def tool_binds_set(home):
+    """Write the harness's binds into the practice tool's settings, keeping the owner's file beside it. A copy that
+    is already there is from a run that was killed before it could put the file back: that copy is the owner's."""
+    f = tool_settings(home)
+    if not f.exists():
+        return
+    saved = f.with_name(f.name + ".harness-saved")
+    if saved.exists():
+        f.write_text(saved.read_text())
+    else:
+        saved.write_text(f.read_text())
+    lines = [l for l in f.read_text().splitlines() if l.split("=", 1)[0] not in TOOL_BINDS_OFF]
+    f.write_text("\n".join(lines + [f"{k}={v}" for k, v in TOOL_BINDS_OFF.items()]) + "\n")
+
+
+def tool_binds_restore(home):
+    f = tool_settings(home)
+    saved = f.with_name(f.name + ".harness-saved")
+    if saved.exists():
+        f.write_text(saved.read_text())
+        saved.unlink()
+
 
 def set_cfg(over):
     lines = MASTER.read_text().splitlines()
@@ -474,6 +509,7 @@ def _one_run(spec, out, attempt="1/1"):
                          "blind, which is not reliable (2026-11-17)")
     h = run_home(spec); use_home(h); h.check()
     set_cfg(spec.get("cfg", {}))
+    tool_binds_set(h)
     env = dict(os.environ)
     env.update(h.env())                               # a private data root, when the run has one
     env.update({"MVK_P60_NO_APPNAP": "1", "VERIFY_DIR": str(rd), "VERIFY_PORT": str(HOOK_PORT),
@@ -491,6 +527,7 @@ def _one_run(spec, out, attempt="1/1"):
     with open(rd / "stderr.log", "wb") as err:
         proc = subprocess.Popen([str(app / "Contents/MacOS/lichii"), *spec.get("args", []), str(GAME)], env=env, stdout=err,
                                 stderr=subprocess.STDOUT, start_new_session=True)
+    emulock.set_lock_lichii(proc.pid)   # so that whoever takes the lock over can stop this Lichii
     jsdbg = None
     if spec.get("jsdbg"):
         # Attach only once the guest is held for the debugger: a continue sent before that is lost and the guest
@@ -513,7 +550,10 @@ def _one_run(spec, out, attempt="1/1"):
     alive = lambda: proc.poll() is None
     session = CONFIG.get("session_name", "emu-options")
     desc = (spec.get("desc") or f"Check frame time at the spawn with {spec['label']}")[:120]
-    title = lambda step: hook(f"title {session} \u00b7 {spec['label']} \u00b7 {attempt} \u00b7 {step} \u2016 {desc}")
+    # Every step reported is a sign of progress: it renews the lock's lease (30 minutes, or the spec's "lock_minutes",
+    # 5 to 90), so a run that hangs gives the emulator up after that long instead of holding it for ever.
+    title = lambda step: (emulock.renew_lock(spec.get("lock_minutes")),
+                          hook(f"title {session} \u00b7 {spec['label']} \u00b7 {attempt} \u00b7 {step} \u2016 {desc}"))
     mark = lambda name: (res["marks"].__setitem__(name, count()), title(name), tmark(res, name))
     try:
         t0 = time.time(); tmark(res, "start")
@@ -799,6 +839,7 @@ def _one_run(spec, out, attempt="1/1"):
         if LOG.exists():
             (rd / "eden_log.txt").write_bytes(LOG.read_bytes())
         CFG.write_text(MASTER.read_text())
+        tool_binds_restore(h)
     fb = rd / "frames.bin"
     ts = list(struct.unpack(f"<{fb.stat().st_size // 8}Q", fb.read_bytes())) if fb.exists() else []
     m = res["marks"]
@@ -957,6 +998,9 @@ def preflight(spec):
 
 
 def main():
+    # Asked to stop (the lock tool passes SIGTERM on, also when the lock is taken over): leave through the `finally`
+    # blocks, which kill this run's Lichii and put the config back.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     argv = sys.argv[1:]
     opt = lambda name: argv[argv.index(name) + 1] if name in argv else None
     if "--make-master" in argv:

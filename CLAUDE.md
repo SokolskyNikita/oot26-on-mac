@@ -12,8 +12,16 @@ build and what was tried: [TRACKER.md](TRACKER.md). What is wrong with it: [KNOW
    launch script.
 2. **One emulator at a time: the lock.** `~/.local/share/lichii/verify.lock` is held by whoever runs Lichii.
    `queue.sh` takes it. Anything else that starts Lichii runs as `tools/verify/verify.py with-lock -- COMMAND`. Check
-   with `tools/verify/verify.py lock-status` before starting; if it is held, wait. Never kill a Lichii you did not
-   start, and never remove the lock by hand unless `lock-status` shows a dead owner.
+   with `tools/verify/verify.py lock-status` before starting. By default, wait for a held lock: the holder is
+   probably someone's useful run. The lock has a lease (30 minutes from the holder's last sign of progress, 5 to 90
+   by choice), and a taker evicts a holder whose lease has run out without being asked.
+   **Exceptions happen.** A holder can hang, loop, or have been started by mistake, and waiting out a lease then only
+   loses time. When the evidence says so (`lock-status`, the holder's label and age, a log or window that has not
+   moved, an owner that is your own earlier run), evict it with
+   `tools/verify/verify.py break-lock --reason "what you saw"`, which stops it in order and logs the reason, rather
+   than with a bare `kill` or by deleting the lock folder. Say in your report that you did and why. The same
+   judgment applies to a Lichii that holds no lock: leave one the owner of the machine is using, stop a leftover
+   with `kill -9`.
 3. **Input goes through Lichii's debug server.** The harness sends buttons and sticks with the debug server's
    `input` and `input_sequence` calls (`tools/harness/dbg.py`). No controller server is needed. The DSU pad in
    `tools/pad/` exists only for `tools/verify/verify.py run` (which starts it itself) and for older live drivers in

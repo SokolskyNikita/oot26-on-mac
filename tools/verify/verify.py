@@ -8,8 +8,9 @@
     ./verify.py run APP LABEL [ENV=VALUE ...] [--out DIR] [--lock-wait SECONDS]
     ./verify.py compare REF_RUN CAND_RUN [--tile T] [--frac F]
     ./verify.py analyze RUN                         # redo result.json from a run's files
-    ./verify.py with-lock [--lock-wait S] -- CMD... # run any command (e.g. measure.sh) holding the emulator lock
-    ./verify.py lock-status
+    ./verify.py with-lock [--lock-wait S] [--lock-minutes M] -- CMD... # run any command (e.g. measure.sh) holding the emulator lock
+    ./verify.py lock-status                         # exit code 0 free, 1 held, 2 held but stale or past its lease
+    ./verify.py break-lock --reason "why"           # evict a holder that is stuck or wrong
     ./verify.py build-hook                          # build the frame hook (also done by run, and by the harness)
 
 APP is a .app bundle (e.g. /Applications/lichii.app or build/app/lichii.app). See README.md.
@@ -37,7 +38,6 @@ REPO = HERE.parents[1]
 LOG = Path.home() / ".local/share/lichii/log/eden_log.txt"
 CONFIG = Path.home() / ".config/lichii/qt-config.ini"
 CACHE = Path.home() / ".cache/lichii/shader"
-LOCK = Path.home() / ".local/share/lichii/verify.lock"
 PAD = ("127.0.0.1", 26761)                    # dsu_server.py control socket
 PAD_SERVER = REPO / "tools/pad/dsu_server.py"  # the virtual controller Lichii's player 1 is bound to
 HOOK_PORT = 26799
@@ -85,80 +85,9 @@ FRAC_THRESHOLD = 0.10                          # fail a shot when more than this
 
 
 # --------------------------------------------------------------------------------------------------------- lock
-def pid_alive(pid):
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-
-
-def lichii_pids():
-    """Every running Lichii (any copy). Matches the process name, so shells mentioning lichii don't count."""
-    out = subprocess.run(["pgrep", "-x", "lichii"], capture_output=True, text=True).stdout.split()
-    return [int(p) for p in out]
-
-
-def lock_owner():
-    try:
-        return json.loads((LOCK / "owner.json").read_text())
-    except (OSError, ValueError):
-        return None
-
-
-def take_lock(label, app, wait_s):
-    """mkdir is atomic: whoever creates LOCK owns the emulator. Waits up to wait_s for the lock and for any Lichii
-    this tool did not start to go away; never kills one."""
-    deadline = time.time() + wait_s
-    said = None
-    while True:
-        try:
-            LOCK.mkdir()
-        except FileExistsError:
-            owner = lock_owner()
-            if owner is None:
-                # Created but owner not written yet, or a crash between the two: stale after 60 s.
-                age = time.time() - LOCK.stat().st_mtime if LOCK.exists() else 0
-                if age > 60:
-                    print(f"lock: removing stale lock with no owner ({age:.0f} s old)")
-                    shutil.rmtree(LOCK, ignore_errors=True)
-                    continue
-                why = "lock being taken by someone"
-            elif not pid_alive(owner["pid"]):
-                print(f"lock: removing stale lock of dead pid {owner['pid']} ({owner.get('label')})")
-                shutil.rmtree(LOCK, ignore_errors=True)
-                continue
-            else:
-                why = f"lock held by pid {owner['pid']} ({owner.get('label')}, since {owner.get('started')})"
-        else:
-            (LOCK / "owner.json").write_text(json.dumps({
-                "pid": os.getpid(), "label": label, "app": str(app),
-                "started": dt.datetime.now().isoformat(timespec="seconds"), "lichii_pid": None}))
-            foreign = lichii_pids()
-            if not foreign:
-                return
-            release_lock()
-            why = f"a Lichii this tool did not start is running (pid {', '.join(map(str, foreign))})"
-        if time.time() > deadline:
-            raise SystemExit(f"lock: gave up after {wait_s} s: {why}")
-        if why != said:
-            print(f"lock: waiting ({why})", flush=True)
-            said = why
-        time.sleep(10)
-
-
-def release_lock():
-    owner = lock_owner()
-    if owner is None or owner["pid"] == os.getpid():
-        shutil.rmtree(LOCK, ignore_errors=True)
-
-
-def set_lock_lichii(pid):
-    owner = lock_owner()
-    owner["lichii_pid"] = pid
-    (LOCK / "owner.json").write_text(json.dumps(owner))
+# The lock lives in emulock.py (shared with the harness): one emulator at a time, with a lease that the holder renews.
+from emulock import (LOCK, OWNER_ENV, break_lock, lease_minutes, lichii_pids, lock_owner, pid_alive,  # noqa: E402,F401
+                     release_lock, renew_lock, set_lock_lichii, status as lock_status, take_lock, update_lock)
 
 
 # ---------------------------------------------------------------------------------------------------- controls
@@ -741,9 +670,33 @@ def cmd_with_lock(a):
     cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
     if not cmd:
         raise SystemExit("with-lock: no command")
-    take_lock("with-lock: " + " ".join(cmd)[:80], "", a.lock_wait)
+    take_lock("with-lock: " + " ".join(cmd)[:80], "", a.lock_wait, a.lock_minutes)
+    proc = None
+
+    def stop(*_):
+        # Asked to stop (Ctrl-C, SIGTERM, or an eviction): pass it on so the command can kill its Lichii and put the
+        # config back, give it 20 s, then kill its process group.
+        if proc and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+                proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+            except (ProcessLookupError, PermissionError):   # already gone (an evictor signals the group too)
+                pass
+        release_lock()
+        sys.exit(143)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
     try:
-        return subprocess.call(cmd)
+        # Its own process group, so the whole command can be stopped; it may renew the lease (emulock.renew_lock).
+        proc = subprocess.Popen(cmd, start_new_session=True, env={**os.environ, OWNER_ENV: str(os.getpid())})
+        update_lock(child_pgid=proc.pid)
+        return proc.wait()
     finally:
         release_lock()
 
@@ -768,8 +721,15 @@ def main():
     an.add_argument("run")
     w = sub.add_parser("with-lock")
     w.add_argument("--lock-wait", type=int, default=1800)
+    w.add_argument("--lock-minutes", type=float, default=None,
+                   help="lease: minutes without a sign of progress after which the lock may be taken over "
+                        "(default 30, or OOT26_LOCK_MINUTES; 5 to 90)")
     w.add_argument("cmd", nargs=argparse.REMAINDER)
     sub.add_parser("lock-status")
+    rn = sub.add_parser("renew-lock", help="push the lease out from now (for the command running under with-lock)")
+    rn.add_argument("--lock-minutes", type=float, default=None)
+    bl = sub.add_parser("break-lock", help="evict the holder now: for a holder that is stuck or wrong")
+    bl.add_argument("--reason", required=True, help="why; written to the log beside the lock")
     sub.add_parser("build-hook")
     a = p.parse_args()
     if a.cmd_name == "run":
@@ -786,10 +746,17 @@ def main():
         build_hook()
         print(HOOK_LIB)
         return 0
-    owner = lock_owner()
-    print(f"lock {LOCK}: " + (json.dumps(owner) if owner else ("held, no owner file" if LOCK.exists() else "free"))
-          + f"; running Lichii pids: {lichii_pids() or 'none'}")
-    return 0
+    if a.cmd_name == "renew-lock":
+        ok = renew_lock(a.lock_minutes, every_s=0)
+        print(lock_status()[0] if ok else "renew-lock: this process does not hold the lock")
+        return 0 if ok else 1
+    if a.cmd_name == "break-lock":
+        break_lock(a.reason)
+        print(lock_status()[0])
+        return 0
+    line, code = lock_status()
+    print(line)
+    return code
 
 
 if __name__ == "__main__":

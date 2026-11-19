@@ -1,0 +1,45 @@
+dynarmic arm64: ISB on JIT entry, for code memory reused after a full clear
+
+NOT BUILT, NOT RUN. Written and reviewed by reading only (2026-11-19).
+
+Applies on top of dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch (Lichii PR #2101 head
+72ff982a3c plus that patch); checked with `git apply --check` on the file as that patch leaves it.
+It adds to that patch and supersedes nothing.
+
+Every Jit::Impl::Enter that is about to run code executes one ISB after the core is marked running.
+A full clear runs only while no core is marked running, so every core passes this ISB between the
+clear and running any code emitted over the reused memory. Entries happen once per Run/Step call,
+not per block. Does not cover: a block published by another core while this core stays in the JIT
+(the case the #2180 text argues is safe without an ISB, since that memory held no earlier code
+since the last clear).
+
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp b/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
+index c4b3a9f..65d13ba 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
+@@ -246,6 +246,12 @@ private:
+     }
+ };
+ 
++/// ISB: discards instructions this core fetched before code memory was rewritten by another core.
++/// (Inline assembly as in oaknut's CodeBlock::invalidate.)
++inline void InstructionSynchronizationBarrier() {
++    __asm__ volatile("isb" ::: "memory");
++}
++
+ std::shared_ptr<SharedCodeCache> MakeSharedCodeCache() {
+     return std::make_shared<SharedCodeCache>();
+ }
+@@ -464,6 +470,12 @@ private:
+             }
+             const CodePtr entry_point = GetBlock(descriptor);
+             if (entry_point != cache->address_space->ReturnFromRunCode()) {
++                // Code memory is reused after a full clear, and other cores may have emitted and invalidated
++                // new code over it while this core was out of the JIT. Their invalidation is complete (their
++                // sys_icache_invalidate ends with DSB) and ordered before this point by the cache's locks and
++                // atomics, but this core may still hold instructions fetched from the old contents: a context
++                // synchronization event discards them. Entries are per Run or Step, not per block, so it is cheap.
++                InstructionSynchronizationBarrier();
+                 return entry_point;
+             }
+             // The cache is full and other Jits run its code: wait for the clear.

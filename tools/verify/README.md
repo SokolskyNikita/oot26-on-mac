@@ -46,20 +46,35 @@ have (check them by hand).
 
 ## The lock
 
-Only one emulator may run at a time: two spoil every measurement, and there is one config and one shader cache.
+Only one emulator may run at a time: two spoil every measurement, and there is one config and one shader cache. The
+code is `emulock.py`, shared with the harness.
 
 - The lock is the directory `~/.local/share/lichii/verify.lock`. `mkdir` either creates it (you own it) or fails
-  (someone else does), so taking it is atomic. `owner.json` inside holds the owner's pid, label, app, start time
-  and the pid of the Lichii it started.
-- After taking it, the tool also checks for any running process named `lichii`. If one is running, the tool did not
-  start it: it releases the lock and waits. It never kills a Lichii it did not start.
-- Waiting is bounded: `--lock-wait` seconds (default 1800), checking every 10 s, then it gives up with the reason.
-- Stale locks: if the owner's pid is dead, or the directory has had no `owner.json` for 60 s, it is removed.
-- Released on every exit, including SIGTERM and Ctrl-C (it kills its Lichii first). Release removes the
-  directory only if `owner.json` names this process.
+  (someone else does), so taking it is atomic. `owner.json` inside holds the owner's pid, label, start time, the pid
+  of the Lichii it started, and the lease.
+- **The lease.** A lock is valid for 30 minutes from its owner's last sign of progress. The harness renews it at
+  every step it reports (boot progress, menus, each phase), so a batch of any length keeps the lock while it works,
+  and a run that hangs gives the emulator up after 30 minutes. Change the length, between 5 and 90 minutes, with
+  `--lock-minutes M` on `with-lock`, `"lock_minutes": M` in a spec entry, or `OOT26_LOCK_MINUTES`. A command that
+  runs under `with-lock` and reports nothing has the lease from its start: give a long one a longer lease, or have
+  it call `./verify.py renew-lock` as it goes.
+- **Who may take a held lock.** Whoever wants the lock waits (`--lock-wait` seconds, default 1800, checking every
+  10 s) while the lease is valid. It takes the lock over when the owner's pid is dead, when the directory has had no
+  `owner.json` for 60 s, or when the lease has run out. Taking over from a live owner is an eviction: the owner and
+  its command get SIGTERM (the harness then kills its Lichii and puts the config back), and after 25 s whatever is
+  left is killed, including the Lichii the owner recorded.
+- **Breaking a lock by hand.** `./verify.py break-lock --reason "why"` evicts the holder now, whatever its lease
+  says. It is for a holder that is plainly stuck or wrong (a hung boot, a run started by mistake, a batch that must
+  give way). Look first: `./verify.py lock-status` shows the owner, its label, how long is left on the lease and its
+  Lichii. Every eviction and its reason is written to `~/.local/share/lichii/verify.lock.log`.
+- After taking the lock, the tool also checks for any running process named `lichii`. If one is running, the tool
+  did not start it: it releases the lock and waits. A Lichii that holds no lock is yours to judge: a session the
+  owner of the machine is playing is left alone; a leftover from a crashed script can be stopped with `kill -9`.
+- Released on every exit, including SIGTERM and Ctrl-C (it stops its command and its Lichii first). Release removes
+  the directory only if `owner.json` names this process.
+- `lock-status` exits 0 when the lock is free, 1 when it is held, 2 when it is held but stale or past its lease.
 - Anything else that starts Lichii must run under the lock too: `./verify.py with-lock -- COMMAND`. A script that
-  kills running emulators (`pkill -9 -f '[l]ichii.app/Contents/MacOS'`) without holding the lock would kill a
-  measurement in progress; check `./verify.py lock-status` first.
+  kills running emulators without holding the lock would kill a measurement in progress.
 
 ## How it works
 
