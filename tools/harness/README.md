@@ -103,6 +103,15 @@ does not sink down the list. A spec with `"resave": true` does it right after th
 loaded), B. The run fails if the slot's `caption.sav` did not change. Leaving an area autosaves into slot_00, which
 also pushes the forest save down.
 
+## The game version
+
+Every run is game 1.1.1 (main build id `E0F3CCFA…`). A `.nup` dump that holds the base game and the update cannot be
+booted as 1.0.0: Lichii's loader for that format always applies the newest update package in the file, and
+switching `Update` off under `[DisabledAddOns]` changes nothing (tried on 2026-11-19 in a private data root; the
+log still named build `E0F3CCFA…`). Testing 1.0.0 would need a base-only dump, or a loader switch that skips the
+update package (`FindBestUpdatePackage` in `src/core/loader/nup.cpp`); neither exists here, and the harness has no
+option for it.
+
 ## Running
 
 ```bash
