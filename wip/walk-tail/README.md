@@ -53,7 +53,7 @@ texture cache churn (events are five times sparser around a stalled command buff
 | `build-test-app.sh` | Links a test app from the pinned build trees without touching them (`build/p99probe/app/lichii.app`, its own bundle id): the pinned app with the two experiment patches `patches/experiments/moltenvk-frameprof-dump-long-buffers-2026-11-19.patch` and `patches/experiments/lichii-thread-stats-slow-frames-2026-11-19.patch` |
 | `specs/test-app.json`, `specs/test-app-quiet.json` | The test app's runs in a private data root (`python3 tools/harness/ab.py --make-home build/p99probe/home --with-shader-cache`): per-encoder timing of long command buffers, and the per-frame thread report |
 | `specs/follow-ups.json` | The runs that ruled causes out: the sync trace alone, harness calls every 120 frames, the profiler with the texture cache trace, the file-read trace |
-| `specs/shard-hunt.json` | Twenty watched boots looking for the canopy shards of KNOWN-ISSUES KI-29 (run beside `tools/speckcheck/shotwatch.py --on-bad`) |
+| `specs/shard-hunt.json` | Twenty watched boots looking for the canopy shards of KNOWN-ISSUES KI-29 (run beside `tools/speckcheck/shotwatch.py --on-bad`). Its run of 2026-11-19 found none: 20 boots clean (run ab-20261119-100116) |
 
 ## Next
 
