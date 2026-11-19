@@ -100,7 +100,7 @@ shards over the foliage. `shards-hvf-r9` (`tools/harness/runs/ab-20261118-002819
 white and pink. Each was wrong for the whole run; neighbouring boots were clean; the logs match clean runs'.
 Frame times of the corrupted runs are normal.
 
-**How often [measured]:** every Kokiri run picture of 2026-11-17/18 scored with `scripts/persist.py`
+**How often [measured]:** every Kokiri run picture of 2026-11-17/18 scored with `tools/harness/persist.py`
 `picture_metrics`: Hypervisor after the swap to the #2901 + cull-fix MoltenVK 2 of 26; JIT after the swap 0 of
 15; Hypervisor before the swap 0 of 9 (too few to clear anything). The JIT half of the dedicated check
 (`shards-jit`, 10 boots planned) stopped after one clean boot.
@@ -139,7 +139,7 @@ the CPU).
    `scripts/hvf-interp-test` to the loop runner's ALU and branch handling.
 6. 5-minute walks (18,000 frames, 45 m leash), Kokiri Forest and Gerudo Valley, best Hypervisor against best JIT:
    `specs/walk5.json`. Never run.
-7. ThinLTO Hypervisor (`build-final.sh build/release-lto …`) against the best JIT, then against the current pinned
+7. ThinLTO Hypervisor (`scripts/build-final.sh build/release-lto hvf-final-lto`, after configuring that tree) against the best JIT, then against the current pinned
    build with the shared JIT cache; other maps including a map change.
 8. Measure on an idle machine with several runs per setup (every Hypervisor number so far was taken at load 6-16).
 9. Smaller open items: the JIT-with-fix run that booted in 52.8 s against 16.5 s (one run, never looked at);
@@ -164,39 +164,67 @@ against. So every patch here was made against "the series from 0001 on", and all
 | `patches/02-mark-before-protect.patch` | Mark pages before protecting them (made on top of 01; also applies alone) | Yes |
 | `patches/03-hvf-final.patch` | The whole change against the pristine files: experiments + 01 + 02 + `ProtectForCaching` / `ReprotectIfCached`, loop 256 and dirty-only on by default, opt-in `EDEN_NX2_HVF_INTERPRET_READS` | Yes (498 lines, the same length as the one that built `app-hvf-final`) |
 | `patches/experiments/hvf-experiments-2026-11-17.patch` (tracked, outside this folder) | Loop runner, burst, dirty-only, stats switches (only `arm_hvf.cpp`) | Yes. 03 contains all of it; do not apply both |
-| `scripts/make-final.py OUTDIR` | Generates 03 from the pristine files + experiments + 01 + 02 | See note below |
-| `scripts/build-final.sh BUILD NAME` | Builds `app-NAME` from 03 by recompiling two `.cpp` files into a copy of a build tree's `libcore.a` and relinking; never touches the shared source | Needs `P60` set and `$P60/lichii/build/BUILD/compile_commands.json` |
-| `scripts/build-apps.sh` | Builds the race test apps (`app-hvfrace-base/-diag/-fix/-fast`) the same way | Same |
-| `scripts/run-ab.py` | Runs a worktree copy of the harness as if it were the main one | Written for the old layout |
-| `scripts/persist.py` | Per-pixel persistence of white over a burst; `picture_metrics(png)`: `clipped_pct`, `vivid_pct`, `corrupt` (clipped > 15 % or vivid > 0.15 %) | Imported by the harness change |
+| `scripts/make-final.py OUTDIR` | Generates 03 from the pristine files of `build/src/lichii` + the experiments patch + 01 + 02 | Reproduces `patches/03-hvf-final.patch` byte for byte (checked 2026-11-19, with the files' times set to the ones in 03's headers) |
+| `scripts/build-final.sh [BUILD [NAME]]` | Builds `build/hvf/app-NAME/lichii.app` from 03 by recompiling two `.cpp` files into a copy of a build tree's `libcore.a` and relinking; never touches the source or the build tree | Needs `build/src/lichii/BUILD/compile_commands.json` (default `build/release`, made by `./build.sh`) and the pinned app |
+| `scripts/build-apps.sh` | Builds the race test apps (`build/hvf/app-hvfrace-base/-diag/-fix/-fast`) the same way | Same, `build/release` only |
+| `tools/harness/persist.py` (moved there) | Per-pixel persistence of white over a burst; `picture_metrics(png)`: `clipped_pct`, `vivid_pct`, `corrupt` (clipped > 15 % or vivid > 0.15 %) | Used by the harness on every run |
 | `scripts/hvf-interp-test/` | Interpreter-vs-CPU differential test (`run.sh N SEED`; needs `LICHII=` a built tree) | Its copy of the `DC ZVA`/`ST1` code must track `arm_hvf.cpp` |
-| `specs/*.json` | Harness specs: `hvfrace`, `hvffast`, `final-tune` (section 3 batch), `shards-rate`, `read-path`, `walk5`, `wall`, `kokiri-debug`, `resave` | App paths point at `emulator/mvk-mesh/path-60/…`; most named apps are deleted (only `app-hvf-final`, `app-mvkp2901` remain, under `build/old-trees/path-60/`); `resave.json`'s `hold_file` names a folder that no longer exists |
-| `harness-changes/ab.py.patch` | All harness options added by this work (see below) | Applies cleanly (`patch -p1`, dry run) to the current `tools/harness/ab.py` |
-| `harness-changes/README.md.patch` | The matching harness README text (spec keys and the resave procedure; `leash_m` was never documented) | Does not apply to the current, reflowed `tools/harness/README.md`; merge the text by hand |
+| `specs/*.json` | Harness specs: `hvfrace`, `hvffast`, `final-tune` (section 3 batch), `shards-rate`, `read-path`, `walk5`, `wall`, `kokiri-debug`, `resave` | Apps are `${REPO}/build/hvf/app-NAME/lichii.app` (none built yet) or, for the JIT reference that was `app-mvkp2901`, the pinned app `${REPO}/build/app/lichii.app` |
 | `render-bug-writeup.md` | The full original write-up, sections 1-6 (paths rewritten) | |
 | `rendering-faults/README.md` | Catalogue of every rendering fault found up to 2026-11-17 and a playbook for the next one | General, not Hypervisor-specific |
 
-**Paths in the scripts and specs.** Absolute paths of the machine the work was done on are replaced by two
-placeholders: `OLD_REPO` (the glitch-research repository this one was split from; what was `OLD_REPO/emulator/mvk-mesh`
-was `build/old-trees` here until it was deleted on 2026-11-19, and `OLD_REPO/emulator/debugsrv` is `tools/harness`) and `OLD_WORKTREE` (a checkout that
-no longer exists). Replace them before running anything.
+**Paths in the scripts and specs.** The scripts find the repository with `git rev-parse --show-toplevel` and use
+this layout: the pinned Lichii source `build/src/lichii` (branch `gold`; `LICHII_SRC` for another tree) and its build
+tree `build/src/lichii/build/release`, both made by `./build.sh`; the experiments patch
+`patches/experiments/hvf-experiments-2026-11-17.patch`; patches 01-03 in `patches/` here. Test apps go to
+`build/hvf/app-NAME/lichii.app`, work files to `build/hvf/work/` (ignored by git). Each test app is a copy of the
+pinned app `build/app/lichii.app` with its own `lichii` binary, so it carries the pinned `libMoltenVK.dylib` (the
+shader caches stay valid; a different library makes the next boot compile every shader again), the pinned
+`nx2_switches.txt` (which turns on the shared JIT cache; the Hypervisor backend does not use the JIT for game code)
+and the pinned Info.plist. Specs name apps as `${REPO}/…`, which the harness expands.
 
-**Running the scripts.** Their contents are unchanged, so their default paths are the old layout. `make-final.py`
-reads `$P60/lichii` (set `P60=build/src`, whose `lichii` has the three files unchanged), the experiments patch from
-`$P60/../../debugsrv/patches/` and 01/02 from `../../investigations/hypervisor-render-bug/` relative to itself. In
-the new layout, either edit those three constants or give it a scratch layout with those names (symlinks); it only
-reads them and writes `OUTDIR`. `03-hvf-final.patch` here was regenerated exactly that way from the old tree.
+**Running the scripts.** Nothing here has been built or run since the recovery. From the repository root, after
+`./build.sh`:
 
-**Harness changes** (`harness-changes/ab.py.patch`, against the parent of `97efae6`; the current `ab.py` is that
-file with relocated paths): `build_wait: false` (do not wait for builds), `resave: true` (Plus, R, A, Up, A, B
+```bash
+python3 wip/hypervisor/scripts/make-final.py /tmp/hvf-final   # optional check: diff /tmp/hvf-final/hvf-final.patch with patches/03
+wip/hypervisor/scripts/build-final.sh                          # -> build/hvf/app-hvf-final/lichii.app
+wip/hypervisor/scripts/build-apps.sh                           # -> build/hvf/app-hvfrace-{base,diag,fix,fast}/lichii.app
+wip/hypervisor/scripts/hvf-interp-test/run.sh 100000 1         # interpreter vs CPU; no emulator needed
+```
+
+`build-final.sh` runs `make-final.py` into `build/hvf/work/final` when that folder has no patched files yet; delete
+it after changing `make-final.py` or its inputs. Then the specs, each under the emulator lock. Boot a new app once
+first and look at its pictures (both corruptions had clean logs):
+
+```bash
+cd tools/harness
+./queue.sh ../../wip/hypervisor/specs/read-path.json      # cost of EDEN_NX2_HVF_INTERPRET_READS (app-hvf-final)
+./queue.sh ../../wip/hypervisor/specs/shards-rate.json    # corruption rate, 3 x 10 boots (app-hvf-final, the pinned app)
+./queue.sh ../../wip/hypervisor/specs/final-tune.json     # the section 3 tuning batch (app-hvfrace-base, app-hvf-final)
+./queue.sh ../../wip/hypervisor/specs/hvfrace.json        # the race, logged and fixed (build-apps.sh's apps)
+./queue.sh ../../wip/hypervisor/specs/hvffast.json        # the speed switches (build-apps.sh's apps)
+./queue.sh ../../wip/hypervisor/specs/wall.json           # bursts at the cave wall (build-apps.sh's apps, app-hvfrace-ltojit)
+./queue.sh ../../wip/hypervisor/specs/kokiri-debug.json   # cave-wall bursts under several switches, on the pinned app
+./queue.sh ../../wip/hypervisor/specs/walk5.json          # 5-minute walks (app-hvf-final-lto, app-hvfrace-ltojit)
+./queue.sh ../../wip/hypervisor/specs/resave.json         # load the forest save and hold; rm wip/hypervisor/local/HOLD to go on
+```
+
+`app-hvf-final-lto` needs a ThinLTO build tree (`scripts/build-final.sh build/release-lto hvf-final-lto`), and
+`app-hvfrace-ltojit` is that tree's own JIT app copied to `build/hvf/app-hvfrace-ltojit/` with the pinned
+`libMoltenVK.dylib`. `./build.sh` makes neither, so `wall.json`'s last run and `walk5.json` need such a tree
+configured by hand first. `walk5.json` also needs a Gerudo Valley save (`GerudoValley_Child`).
+
+**Harness changes**, merged into `tools/harness/ab.py` on 2026-11-19 and documented in its README:
+`build_wait: false` (do not wait for builds), `resave: true` (Plus, R, A, Up, A, B
 right after the load), `hold_file` / `hold_max_s` (hold the game for manual debug-server calls), `walk_shots`
 (screenshot per walk chunk; changes the walk, do not combine with an end burst), `stand_frames`, `at_end` (steps
 from `tools/speckcheck/speckhunt.py`), `leash_m` (turn round when that far from the start, for long walks; never
 run), and for every run a `picture` score in `result.json` plus `on_corrupt` steps that run only on a corrupted
-boot (scoring tested on three stored pictures, never in a batch). The patch imports `speckhunt`, `whitecount` and
-`persist` from the harness folder: copy `scripts/persist.py` there and make `tools/speckcheck/` importable.
-`tools/speckcheck/speckhunt.py` is a newer superset of the copy that was in `97efae6`; `whitecount.py` and
-`speck_report.py` there are identical to it, so they are not duplicated here.
+boot (`on_corrupt` has never triggered; the score rated the two smoke runs of 2026-11-19 clean). Each option is off
+unless a spec sets it. `ab.py` imports `persist` from its own folder and `speckhunt` / `whitecount` from
+`tools/speckcheck/` (a newer superset of the copy that was in `97efae6`). `scripts/run-ab.py`, which ran a worktree
+copy of the harness, is gone: the main harness has the options now.
 
 **Rendering-faults catalogue.** Written before the white specks were solved: its section 2.2 says "fix in
 progress"; the fix (MoltenVK mesh cull mode) is now in the pinned build, see `research/mesh-white-specks/`. Two

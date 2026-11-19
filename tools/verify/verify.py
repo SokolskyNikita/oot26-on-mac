@@ -10,6 +10,7 @@
     ./verify.py analyze RUN                         # redo result.json from a run's files
     ./verify.py with-lock [--lock-wait S] -- CMD... # run any command (e.g. measure.sh) holding the emulator lock
     ./verify.py lock-status
+    ./verify.py build-hook                          # build the frame hook (also done by run, and by the harness)
 
 APP is a .app bundle (e.g. /Applications/lichii.app or build/app/lichii.app). See README.md.
 """
@@ -38,6 +39,7 @@ CONFIG = Path.home() / ".config/lichii/qt-config.ini"
 CACHE = Path.home() / ".cache/lichii/shader"
 LOCK = Path.home() / ".local/share/lichii/verify.lock"
 PAD = ("127.0.0.1", 26761)                    # dsu_server.py control socket
+PAD_SERVER = REPO / "tools/pad/dsu_server.py"  # the virtual controller Lichii's player 1 is bound to
 HOOK_PORT = 26799
 LOAD_WARN = 8.0                                # 1-minute load average above which a run warns (14 cores here)
 HOOK_SRC, HOOK_LIB = HERE / "hook.m", HERE / "build/libverifyhook.dylib"
@@ -310,6 +312,32 @@ def cache_files():
     return sorted(p for p in CACHE.rglob("*") if p.is_file()) if CACHE.exists() else []
 
 
+def pad_answers():
+    try:
+        Udp(PAD, 1.0).ask("state")
+        return True
+    except OSError:
+        return False
+
+
+def start_pad():
+    """The virtual controller (../pad/dsu_server.py). One already answering on the control port is used as it is
+    and left running; otherwise one is started here and returned, to be stopped when the run ends."""
+    if pad_answers():
+        return None
+    proc = subprocess.Popen([sys.executable, str(PAD_SERVER)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True)
+    for _ in range(50):
+        if pad_answers():
+            print(f"started the virtual pad ({PAD_SERVER.name}, pid {proc.pid})", flush=True)
+            return proc
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    proc.kill()
+    raise SystemExit(f"could not start the virtual pad {PAD_SERVER} (is 127.0.0.1:26760 or :26761 taken?)")
+
+
 def build_hook():
     if not HOOK_LIB.exists() or HOOK_LIB.stat().st_mtime < HOOK_SRC.stat().st_mtime:
         HOOK_LIB.parent.mkdir(exist_ok=True)
@@ -329,10 +357,6 @@ def cmd_run(a):
     run_dir = Path(a.out).resolve() if a.out else HERE / "runs" / f"{a.label}-{stamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
     build_hook()
-    try:
-        Udp(PAD, 1.0).ask("state")
-    except OSError:
-        raise SystemExit("the virtual pad isn't running: start emulator/pad/dsu_server.py first")
 
     load1 = os.getloadavg()[0]
     if a.max_load and load1 > a.max_load:
@@ -340,7 +364,7 @@ def cmd_run(a):
     if load1 > LOAD_WARN:
         print(f"WARNING: load average {load1:.1f} (> {LOAD_WARN}): frame times will be noisy", flush=True)
     take_lock(a.label, app, a.lock_wait)
-    proc = None
+    proc = pad_proc = None
     meta = {"label": a.label, "app": str(app), "env": env_pairs, "started": stamp, "run_dir": str(run_dir)}
 
     def cleanup(*_):
@@ -351,6 +375,9 @@ def cmd_run(a):
             Udp(PAD, 1.0).ask("reset")
         except OSError:
             pass
+        if pad_proc and pad_proc.poll() is None:  # only a server this run started
+            pad_proc.kill()
+            pad_proc.wait()
         release_lock()
 
     signal.signal(signal.SIGTERM, lambda *_: (cleanup(), sys.exit(143)))
@@ -360,6 +387,7 @@ def cmd_run(a):
         meta["config_before"] = file_state([CONFIG])
         meta["app_files"] = file_state([exe, *sorted((app / "Contents/Frameworks").glob("libMoltenVK*"))])
         meta["cache_before"] = file_state(cache_files())
+        pad_proc = start_pad()
         Udp(PAD).ask("reset")
         old = LOG.stat() if LOG.exists() else None
         env = dict(os.environ)
@@ -742,6 +770,7 @@ def main():
     w.add_argument("--lock-wait", type=int, default=1800)
     w.add_argument("cmd", nargs=argparse.REMAINDER)
     sub.add_parser("lock-status")
+    sub.add_parser("build-hook")
     a = p.parse_args()
     if a.cmd_name == "run":
         return cmd_run(a)
@@ -753,6 +782,10 @@ def main():
         return 0
     if a.cmd_name == "with-lock":
         return cmd_with_lock(a)
+    if a.cmd_name == "build-hook":
+        build_hook()
+        print(HOOK_LIB)
+        return 0
     owner = lock_owner()
     print(f"lock {LOCK}: " + (json.dumps(owner) if owner else ("held, no owner file" if LOCK.exists() else "free"))
           + f"; running Lichii pids: {lichii_pids() or 'none'}")

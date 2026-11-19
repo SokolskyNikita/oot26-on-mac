@@ -2,7 +2,7 @@
  {
   "label": "kdbg-ref",
   "desc": "KOKIRI DEBUG at the cave wall: reference, no change",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -15,7 +15,7 @@
  {
   "label": "kdbg-sync-gpu",
   "desc": "KOKIRI DEBUG at the cave wall: GPU emulation synchronous (frames rendered in step): gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -31,7 +31,7 @@
  {
   "label": "kdbg-buffer-downloads",
   "desc": "KOKIRI DEBUG at the cave wall: GPU-written buffers downloaded for CPU reads: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -47,7 +47,7 @@
  {
   "label": "kdbg-read-traps-0",
   "desc": "KOKIRI DEBUG at the cave wall: read traps off: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -63,7 +63,7 @@
  {
   "label": "kdbg-gpu-high",
   "desc": "KOKIRI DEBUG at the cave wall: GPU accuracy High: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -79,7 +79,7 @@
  {
   "label": "kdbg-one-core",
   "desc": "KOKIRI DEBUG at the cave wall: one CPU core: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -95,7 +95,7 @@
  {
   "label": "kdbg-mme-skip-defer-0",
   "desc": "KOKIRI DEBUG at the cave wall: macro JIT, skip-same and inline defer off: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -113,7 +113,7 @@
  {
   "label": "kdbg-no-optnone",
   "desc": "KOKIRI DEBUG at the cave wall: MoltenVK without the opt-none tag on mesh shaders: gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [
@@ -129,7 +129,7 @@
  {
   "label": "kdbg-metal-validation",
   "desc": "KOKIRI DEBUG at the cave wall: Metal API and shader validation on: what does Metal report for the grass draws? (slow)",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 600,
   "stand_frames": 120,
   "at_end": [

@@ -2,10 +2,11 @@
 # Builds and runs the interpreter differential test. Needs no emulator: it links the interpreter
 # object of an existing Lichii build.
 #   ./run.sh [iterations] [seed]
-#   LICHII=/path/to/lichii BUILD=build/release ./run.sh
+#   LICHII=/path/to/lichii BUILD=build/release ./run.sh   (default: build/src/lichii of this repository)
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
-LICHII=${LICHII:-$here/../mvk-mesh/path-60/lichii}
+# default: the pinned Lichii source and its build tree (./build.sh)
+LICHII=${LICHII:-$(git -C "$here" rev-parse --show-toplevel)/build/src/lichii}
 BUILD=${BUILD:-build/release}
 obj=$LICHII/$BUILD/src/core/CMakeFiles/core.dir/arm/nce/interpreter_visitor.cpp.o
 src=$LICHII/src/core/arm/nce/interpreter_visitor.cpp

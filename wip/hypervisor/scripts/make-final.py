@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """make-final.py OUTDIR: the finished Hypervisor change as patched copies of three Lichii files and one patch.
 
-Starts from the pristine files in path-60/lichii, applies the speed experiments of 2026-11-17 and the two
-render-race patches, then makes the edits that finish the work:
+Starts from the pristine files in the pinned Lichii source (build/src/lichii, branch gold; $LICHII_SRC for another
+tree whose three files are unchanged since PR #1970), applies the speed experiments of 2026-11-17
+(patches/experiments/hvf-experiments-2026-11-17.patch) and the two render-race patches (../patches/01, 02), then
+makes the edits that finish the work:
 
 - memory.cpp / memory.h: the protection of a region being cached moves into Memory::Impl::ProtectForCaching, and
   Memory::ReprotectIfCached(page) puts a cached page's protection back.
@@ -14,7 +16,8 @@ render-race patches, then makes the edits that finish the work:
 - arm_hvf.cpp: the loop runner (256 instructions) and dirty-only write-back are on by default; EDEN_NX2_HVF_LOOP,
   EDEN_NX2_HVF_BURST and EDEN_NX2_HVF_DIRTY_ONLY still override them.
 
-Writes OUTDIR/src/... (the patched files) and OUTDIR/hvf-final.patch (against the pristine files)."""
+Writes OUTDIR/a/src/... (the pristine files), OUTDIR/b/src/... (the patched ones) and OUTDIR/hvf-final.patch
+(b against a; ../patches/03-hvf-final.patch is this file). Only reads the source tree."""
 import os
 import shutil
 import subprocess
@@ -22,10 +25,10 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-P60 = Path(os.environ.get("P60", "OLD_REPO/emulator/mvk-mesh/path-60"))
-SRC = P60 / "lichii"
-SPEED = P60.parent.parent / "debugsrv/patches/hvf-experiments-2026-11-17.patch"
-RACE = HERE.parent.parent / "investigations/hypervisor-render-bug"
+REPO = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=HERE, text=True).strip())
+SRC = Path(os.environ.get("LICHII_SRC", REPO / "build/src/lichii"))
+SPEED = REPO / "patches/experiments/hvf-experiments-2026-11-17.patch"
+RACE = HERE.parent / "patches"
 FILES = ["src/core/arm/hvf/arm_hvf.cpp", "src/core/memory.cpp", "src/core/memory.h"]
 LOOP_DEFAULT = int(os.environ.get("LOOP_DEFAULT", "256"))
 

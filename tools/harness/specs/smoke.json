@@ -1,0 +1,14 @@
+[
+ {
+  "label": "smoke-warmup",
+  "desc": "Smoke test: warm-up boot of the pinned build (shader caches, file cache)",
+  "app": "${REPO}/build/app/lichii.app",
+  "phase_frames": 300
+ },
+ {
+  "label": "smoke",
+  "desc": "Smoke test: measured run of the pinned build",
+  "app": "${REPO}/build/app/lichii.app",
+  "phase_frames": 300
+ }
+]

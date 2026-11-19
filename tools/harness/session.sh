@@ -4,7 +4,7 @@
 # Stop it with:  touch STOP  (in this folder). It kills its own Lichii, then reports config changes.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-APP=${1:-/Applications/lichii.app}
+APP=${1:-$HERE/../../build/app/lichii.app}   # default: the pinned build (./build.sh)
 # your own dump of the game: $OOT26_DUMP, else dump/ in this repository or beside it
 GAME=${OOT26_DUMP:-$(ls "$HERE"/../../dump/*0400486024DEC000*.nup "$HERE"/../../../dump/*0400486024DEC000*.nup 2>/dev/null | head -1)}
 CFG="$HOME/.config/lichii/qt-config.ini"

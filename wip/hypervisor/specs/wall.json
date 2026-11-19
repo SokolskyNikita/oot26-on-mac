@@ -1,7 +1,7 @@
 [
  {
   "label": "wall-jit-base",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-base/lichii.app",
   "desc": "WHITE SPECKS at the cave wall: JIT, build/release unpatched (reference)",
   "phase_frames": 600,
   "stand_frames": 120,
@@ -14,7 +14,7 @@
  },
  {
   "label": "wall-jit-fix",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fix/lichii.app",
   "desc": "WHITE SPECKS at the cave wall: JIT, pages marked before they are protected - gone?",
   "phase_frames": 600,
   "stand_frames": 120,
@@ -27,7 +27,7 @@
  },
  {
   "label": "wall-hvf-fast",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fast/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -47,7 +47,7 @@
  },
  {
   "label": "wall-jit-ltojit",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-ltojit/lichii.app",
   "desc": "WHITE SPECKS at the cave wall: JIT, ThinLTO build - there too?",
   "phase_frames": 600,
   "stand_frames": 120,

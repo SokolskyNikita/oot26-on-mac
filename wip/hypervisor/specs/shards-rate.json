@@ -2,7 +2,7 @@
  {
   "label": "shards-hvf",
   "desc": "HYPERVISOR final, defaults: how often does the foliage come out as coloured shards?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvf-final/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -37,7 +37,7 @@
  {
   "label": "shards-hvf-fixed",
   "desc": "HYPERVISOR final with loads from GPU-cached pages interpreted: corrupted boots gone?",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvf-final/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -75,7 +75,7 @@
  {
   "label": "shards-jit",
   "desc": "JIT, same MoltenVK (the app-hvfrace-base test app was deleted: rebuild it or use app-mvkp2901)",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 120,
   "stand_frames": 60,
   "repeat": 10,

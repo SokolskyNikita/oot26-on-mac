@@ -6,18 +6,22 @@ puts two runs side by side and exits nonzero when the candidate is worse. It rep
 `measure.sh`, an older measurement script of the separate glitch-research repository this one grew out of.
 
 Needs: `uv` (it runs the script with numpy and Pillow), the Command Line Tools (`clang` builds the hook on first
-use), and a DSU pad server bound to Lichii's player 1
-(`dsu_server.py`, also in the glitch-research repository) running.
+use, or `./verify.py build-hook`), Lichii's player 1 bound to the virtual controller
+[`../pad/dsu_server.py`](../pad/README.md) (`run` starts that server itself when nothing answers on its control port
+and stops it afterwards), and the practice tool sloperinaGZ installed in Lichii (its watch panel tells the spawn
+point; see [../harness/README.md](../harness/README.md), "The practice tool"). The harness only uses the lock and the
+hook from here.
 
 ## Usage
 
 ```bash
 cd tools/verify
-./verify.py run /Applications/lichii.app stock228-ref                 # reference
+./verify.py run ../../build/app/lichii.app pinned-ref              # reference
 ./verify.py run /path/to/other/lichii.app my-change MVK_CONFIG_FOO=1  # candidate, optional ENV=VALUE pairs
 ./verify.py compare runs/stock228-ref-<stamp> runs/my-change-<stamp>
 ./verify.py analyze runs/<run>          # redo result.json from a run's files (after changing the error rules)
 ./verify.py lock-status
+./verify.py build-hook                  # build/libverifyhook.dylib (also built by run and by the harness)
 ./verify.py with-lock -- ./measure.sh LABEL   # run anything else that uses the emulator under the same lock
 ```
 

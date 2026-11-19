@@ -11,7 +11,7 @@
     "name": "end"
    }
   ],
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final-lto/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvf-final-lto/lichii.app",
   "cfg": {
    "cpu_backend": 2
   }
@@ -28,7 +28,7 @@
     "name": "end"
    }
   ],
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvf-final-lto/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvf-final-lto/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -47,7 +47,7 @@
     "name": "end"
    }
   ],
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app"
+  "app": "${REPO}/build/hvf/app-hvfrace-ltojit/lichii.app"
  },
  {
   "label": "walk5-gerudo-jit",
@@ -61,14 +61,14 @@
     "name": "end"
    }
   ],
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-ltojit/lichii.app",
   "save": "GerudoValley_Child",
   "expect_spawn": null
  },
  {
   "label": "walk5-resave",
   "desc": "Put the Kokiri Forest save back on top of the Load list",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-ltojit/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-ltojit/lichii.app",
   "phase_frames": 30,
   "stand_frames": 30,
   "resave": true

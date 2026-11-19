@@ -1,7 +1,7 @@
 [
  {
   "label": "hvfrace-diag",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-diag/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-diag/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -13,7 +13,7 @@
  },
  {
   "label": "hvfrace-fix",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fix/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -25,12 +25,12 @@
  },
  {
   "label": "hvfrace-jit-base",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-base/lichii.app",
   "desc": "JIT reference for the next run (build/release as it is)"
  },
  {
   "label": "hvfrace-jit-fix",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fix/lichii.app",
   "desc": "JIT with pages marked before they are protected: frame times and picture should match the reference"
  }
 ]

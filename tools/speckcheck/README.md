@@ -4,8 +4,7 @@ Write-up: [../../research/mesh-white-specks/README.md](../../research/mesh-white
 
 | File | What |
 | --- | --- |
-| `speck_run.sh SPEC.json` | Runs a spec with the A/B harness (`tools/harness/ab.py`, patched into `ab_at_end.py` here) plus an `at_end` key: steps run once Link stands at the end of the walk. Use an absolute spec path. Waits for the emulator lock |
-| `speckhunt.py` | The `at_end` steps: `burst` (N screenshots, each scored), `call` (a debug-server call), `frames`, `reject_each` (reject shader groups and burst), `watch_written` |
+| `speckhunt.py` | The steps of the harness's `at_end` spec key (run a spec with `../harness/queue.sh`), done once Link stands at the end of the walk: `burst` (N screenshots, each scored), `call` (a debug-server call), `frames`, `reject_each` (reject shader groups and burst), `watch_written` |
 | `whitecount.py` | Speck score: share of pixels with R, G, B ≥ 235 with the HUD masked; a frame counts as speckled above 0.3 %. `python whitecount.py DIR…` scores folders of PNGs |
 | `speck_report.py` | One line per run from `at_end` results |
 | `replay.sh LABEL [ENV=VALUE…]` | Replays the recorded GPU trace offline (no game, no lock) with a Lichii `eden-cli` that has `--replay`, and counts speckled frames. Its default paths point at local build trees that are not part of this repository |

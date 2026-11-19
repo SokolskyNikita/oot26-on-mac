@@ -1,7 +1,7 @@
 [
  {
   "label": "hvffast-look",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fast/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -15,12 +15,12 @@
  },
  {
   "label": "hvffast-jit",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-base/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-base/lichii.app",
   "desc": "JIT reference (unpatched build/release)"
  },
  {
   "label": "hvffast-plain",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fast/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -28,7 +28,7 @@
  },
  {
   "label": "hvffast-loop",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fast/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -40,7 +40,7 @@
  },
  {
   "label": "hvffast-burst",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fast/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fast/lichii.app",
   "cfg": {
    "cpu_backend": 2
   },
@@ -52,7 +52,7 @@
  },
  {
   "label": "hvffast-jit-fix",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-hvfrace-fix/lichii.app",
+  "app": "${REPO}/build/hvf/app-hvfrace-fix/lichii.app",
   "desc": "JIT with pages marked before they are protected: should match the JIT reference"
  }
 ]

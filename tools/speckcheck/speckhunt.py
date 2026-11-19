@@ -1,4 +1,4 @@
-"""Steps a harness run does once Link stands at the end of its walk (spec key "at_end", see speck_run.sh).
+"""Steps a harness run does once Link stands at the end of its walk (spec key "at_end" of tools/harness/ab.py).
 
 Before the steps it reads Link's position from memory (the harness's own reader) every 10 frames until he has
 stood still for 20, and stores where that is and how far from the cave wall spot (result.json: at_end.stand).

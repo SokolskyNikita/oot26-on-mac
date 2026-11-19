@@ -1,27 +1,31 @@
 #!/bin/bash
-# Builds three test apps for the Hypervisor cache-window race without touching the shared Lichii
-# source or its build tree: the patched files are compiled from copies, put into a copy of
-# libcore.a, and the emulator is linked again from build/release's other objects.
+# Builds the test apps for the Hypervisor cache-window race without touching the pinned Lichii
+# source (build/src/lichii) or its build tree (build/release): the patched files are compiled from
+# copies, put into a copy of libcore.a, and the emulator is linked again from build/release's other
+# objects. Apps go to build/hvf/app-hvfrace-NAME/lichii.app, work files to build/hvf/work/race.
 #
-#   app-hvfrace-base   build/release as it is (the reference for the two below)
+#   app-hvfrace-base   build/release as it is (the reference for the ones below)
 #   app-hvfrace-diag   + 01-count-dropped-protection.patch (logs the race)
 #   app-hvfrace-fix    + both patches (logs, and marks pages before protecting them)
 #   app-hvfrace-fast   + both patches and the Hypervisor speed experiments of 2026-11-17 (burst, loop
 #                      runner, dirty-only write-back; each off unless its EDEN_NX2_HVF_* switch is set)
 #
-# Every app gets the libMoltenVK of $MVK_FROM (default app-mvkp2901: PR 2901, which compiles shaders on
-# first use, so a boot on a cold Metal cache takes about a minute instead of many). The Metal cache
-# depends on the MoltenVK binary: use the app whose library warmed it last.
+# Every app is a copy of the pinned app build/app/lichii.app with its own binary, so it carries the
+# pinned libMoltenVK.dylib: the Metal cache depends on the MoltenVK binary, and a different one makes
+# the next boot compile every shader again.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-P60=${P60:-OLD_REPO/emulator/mvk-mesh/path-60}
-PATCHES=$HERE/../../investigations/hypervisor-render-bug
-SPEED=${SPEED:-$P60/../../debugsrv/patches/hvf-experiments-2026-11-17.patch}
-SRC=$P60/lichii
+REPO=$(git -C "$HERE" rev-parse --show-toplevel)
+PATCHES=$HERE/../patches
+SPEED=${SPEED:-$REPO/patches/experiments/hvf-experiments-2026-11-17.patch}
+SRC=${LICHII_SRC:-$REPO/build/src/lichii}
 BLD=$SRC/build/release
-WORK=${WORK:-$P60/hvfrace-work}
-MVK_FROM=${MVK_FROM:-app-mvkp2901}
+PINNED=$REPO/build/app/lichii.app
+OUT=$REPO/build/hvf
+WORK=${WORK:-$OUT/work/race}
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+[ -f "$BLD/compile_commands.json" ] || { log "no $BLD/compile_commands.json: build Lichii first (./build.sh)"; exit 1; }
+[ -x "$PINNED/Contents/MacOS/lichii" ] || { log "no pinned app $PINNED: run ./build.sh"; exit 1; }
 
 rm -rf "$WORK"; mkdir -p "$WORK/diag/src/core/arm/hvf" "$WORK/fix/src/core/arm/hvf" "$WORK/fix/src/core"
 cp "$SRC/src/core/arm/hvf/arm_hvf.cpp" "$WORK/diag/src/core/arm/hvf/"
@@ -86,22 +90,19 @@ link fix
 link fast
 
 assemble() {  # NAME BINARY
-  local app=$P60/app-hvfrace-$1/lichii.app
-  mkdir -p "$P60/app-hvfrace-$1"; rm -rf "$app"
-  ditto "$BLD/bin/lichii.app" "$app"
+  local app=$OUT/app-hvfrace-$1/lichii.app
+  mkdir -p "$OUT/app-hvfrace-$1"; rm -rf "$app"
+  ditto "$PINNED" "$app"
   # Signed outside the bundle and copied in, as the build does: the bundle holds an unsigned
   # text file, which makes signing in place fail.
   cp "${2:-$BLD/bin/lichii.app/Contents/MacOS/lichii}" "$WORK/signed-$1"
   codesign --force --sign - --entitlements "$SRC/dist/eglantine.entitlements" "$WORK/signed-$1" 2> /dev/null
   cp "$WORK/signed-$1" "$app/Contents/MacOS/lichii"
-  mkdir -p "$app/Contents/Frameworks"
-  cp -p "$P60/$MVK_FROM/lichii.app/Contents/Frameworks/libMoltenVK.dylib" "$app/Contents/Frameworks/libMoltenVK.dylib"
-  cp "$P60/app-practice/lichii.app/Contents/MacOS/nx2_switches.txt" "$app/Contents/MacOS/"
-  log "assembled $app (hypervisor entitlement: $(codesign -d --entitlements - "$app/Contents/MacOS/lichii" 2>&1 | grep -c hypervisor), MoltenVK same as $MVK_FROM: $(cmp -s "$app/Contents/Frameworks/libMoltenVK.dylib" "$P60/$MVK_FROM/lichii.app/Contents/Frameworks/libMoltenVK.dylib" && echo yes || echo NO))"
+  log "assembled $app (hypervisor entitlement: $(codesign -d --entitlements - "$app/Contents/MacOS/lichii" 2>&1 | grep -c hypervisor), MoltenVK same as the pinned app: $(cmp -s "$app/Contents/Frameworks/libMoltenVK.dylib" "$PINNED/Contents/Frameworks/libMoltenVK.dylib" && echo yes || echo NO))"
 }
 assemble base ""
 assemble diag "$WORK/diag/lichii"
 assemble fix "$WORK/fix/lichii"
 assemble fast "$WORK/fast/lichii"
-strings -a "$P60/app-hvfrace-diag/lichii.app/Contents/MacOS/lichii" | grep -c 'Protection dropped on a page that is GPU-cached' | sed 's/^/diag binary carries the warning text: /'
+strings -a "$OUT/app-hvfrace-diag/lichii.app/Contents/MacOS/lichii" | grep -c 'Protection dropped on a page that is GPU-cached' | sed 's/^/diag binary carries the warning text: /'
 log "done"

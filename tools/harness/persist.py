@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""persist.py BURST_DIR...: for a burst of screenshots taken while Link stands still, in how many frames is each
+"""python persist.py BURST_DIR...: for a burst of screenshots taken while Link stands still, in how many frames is each
 pixel clipped white?
 
 The same pixels white in every frame means a fixed cause (wrong instance, position arithmetic). Pixels that come
@@ -11,7 +11,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# whitecount (the white level and the HUD mask) is one of the speck tools, in tools/speckcheck/
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "speckcheck"))
 import whitecount  # noqa: E402
 
 

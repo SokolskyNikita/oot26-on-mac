@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """A/B runs of Lichii settings, driven through the built-in debug server.
 
-    ../verify/verify.py with-lock -- python3 ab.py SPEC.json [--only LABEL ...]
+    ./queue.sh SPEC.json             (under the emulator lock; or ../verify/verify.py with-lock -- python3 ab.py ...)
+    python3 ab.py SPEC.json [--only LABEL ...]
+    python3 ab.py --make-master [--home DIR] [--force]  # the master config, from qt-config.ini, checked first
+    python3 ab.py --make-home DIR [--with-shader-cache]  # a private Lichii data root, copied from the real one
+    python3 ab.py --print-paths [--home DIR] [SPEC.json] # what a run would read and write (launches nothing)
 
 SPEC.json is a list of runs: {"label", "cfg": {key: value}, "env": {NAME: VALUE}, "server": true,
 "app": path, "poll_hz": 0, "repeat": 1}. Each run:
 
-1. restores ~/.config/lichii/qt-config.ini from the master backup, then sets `cfg` (key=value plus key\\default=false);
+1. restores ~/.config/lichii/qt-config.ini from the master (qt-config.ini.harness-master beside it), then sets
+   `cfg` (key=value plus key\\default=false); with "home" (or $OOT26_LICHII_HOME), the private data root's copies;
 2. launches the app with the verify frame hook (frames.bin, one timestamp per presented frame), the debug server
    (unless "server": false) and MVK_P60_NO_APPNAP=1;
 3. loads the save named in config.json ("save": a map name from the saves' captions; the newest save with it,
@@ -25,15 +30,93 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-CFG = Path.home() / ".config/lichii/qt-config.ini"
-MASTER = Path.home() / ".config/lichii/qt-config.ini.before-debugsrv-2026-11-17"
-LOG = Path.home() / ".local/share/lichii/log/eden_log.txt"
+DEFAULT_APP = REPO / "build/app/lichii.app"          # the pinned build, made by ./build.sh
+MASTER_NAME = "qt-config.ini.harness-master"
 HOOK = REPO / "tools/verify/build/libverifyhook.dylib"
-# The lldb logger (jsdbg.py) lives in the glitch-research repository; only "debugger" runs need it
+# The lldb logger (jsdbg.py) lives in the glitch-research repository, not here; only "jsdbg" runs need it, never a
+# measurement. $OOT26_JSDBG_DIR, else emulator/debug beside this repository (where it sits when nested in that one).
 JSDBG = Path(os.environ.get("OOT26_JSDBG_DIR", REPO.parent / "emulator/debug"))
 HOOK_PORT = 26799
-PAD = ("127.0.0.1", 26761)
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(REPO / "tools/speckcheck"))   # speckhunt, whitecount: at_end, walk_shots, on_corrupt
+
+
+class Home:
+    """Where Lichii keeps its state for a run. Without a root: the real folders. With one: a private data root,
+    passed to Lichii as XDG_DATA_HOME / XDG_CACHE_HOME / XDG_CONFIG_HOME = ROOT/share, ROOT/cache, ROOT/config.
+    Lichii (src/common/fs/path_util.cpp, GetDataDirectory and Reinitialize) takes each variable when it is an
+    absolute path, else $HOME/.local/share, $HOME/.cache, $HOME/.config, and appends "lichii" (EDEN_DIR in
+    fs_paths.h) to each; a "user" folder in its working directory would override all three (portable mode)."""
+    REAL = {"config": Path.home() / ".config/lichii", "data": Path.home() / ".local/share/lichii",
+            "cache": Path.home() / ".cache/lichii"}
+
+    def __init__(self, root=None):
+        self.root = Path(root).expanduser().absolute() if root else None
+        if self.root:
+            self.dirs = {"config": self.root / "config/lichii", "data": self.root / "share/lichii",
+                         "cache": self.root / "cache/lichii"}
+        else:
+            self.dirs = dict(self.REAL)
+        self.cfg = self.dirs["config"] / "qt-config.ini"
+        self.master = self.dirs["config"] / MASTER_NAME
+        self.log = self.dirs["data"] / "log/eden_log.txt"
+
+    def env(self):
+        if not self.root:
+            return {}
+        return {"XDG_DATA_HOME": str(self.root / "share"), "XDG_CACHE_HOME": str(self.root / "cache"),
+                "XDG_CONFIG_HOME": str(self.root / "config")}
+
+    def relocate(self, path):
+        """A path under one of the real folders, moved to the same place under this root (others unchanged)."""
+        path = Path(os.path.expanduser(str(path)))
+        for k, real in self.REAL.items():
+            if path == real or real in path.parents:
+                return self.dirs[k] / path.relative_to(real)
+        return path
+
+    def save_dir(self):
+        return self.relocate(CONFIG["save_dir"])
+
+    def real_paths_in(self, f):
+        """Lines of file f that name one of the real folders (a private root's config must not)."""
+        if not f.exists():
+            return []
+        needles = [str(r) for r in self.REAL.values()]
+        return [l for l in f.read_text(errors="replace").splitlines() if any(n in l for n in needles)]
+
+    def check(self, launching=True):
+        """Refuse what would make a run read or write outside its root."""
+        if not self.master.exists():
+            what = f" --home {self.root}" if self.root else ""
+            raise SystemExit(f"no master config {self.master}: the harness restores Lichii's config from it before and "
+                             f"after every run. Create it (Lichii closed, settings as in config/settings.txt) with: "
+                             f"python3 {HERE / 'ab.py'} --make-master{what}")
+        if not self.root:
+            return
+        for f in (self.cfg, self.master):
+            bad = self.real_paths_in(f)
+            if bad:
+                raise SystemExit(f"{f} still names the real Lichii folders, so a run would use them: {bad[:4]}. "
+                                 f"Rewrite them (python3 ab.py --make-home does this) and try again")
+        if launching and (Path.cwd() / "user").is_dir():
+            raise SystemExit(f"{Path.cwd() / 'user'} exists: Lichii would use it (portable mode) instead of {self.root}")
+
+
+def run_home(spec):
+    """The data root of a run: its "home", else $OOT26_LICHII_HOME, else the real folders."""
+    root = spec.get("home") or os.environ.get("OOT26_LICHII_HOME")
+    return Home(root)
+
+
+HOME = Home()
+CFG, MASTER, LOG = HOME.cfg, HOME.master, HOME.log
+
+
+def use_home(h):
+    """Point the module's paths (the config the harness rewrites, its master, the log it reads) at h."""
+    global HOME, CFG, MASTER, LOG
+    HOME, CFG, MASTER, LOG = h, h.cfg, h.master, h.log
 import dbg  # noqa: E402
 from dbg import call, kab  # noqa: E402
 
@@ -83,15 +166,6 @@ def hook(cmd):
 def count():
     r = hook("count")
     return int(r) if r.strip().isdigit() else -1
-
-
-def pad(text):
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(1)
-    s.sendto(text.encode(), PAD); s.recvfrom(256)
-
-
-def pad_tap(btn, hold=0.15):
-    pad(f"press {btn}"); time.sleep(hold); pad(f"release {btn}"); time.sleep(0.15)
 
 
 def wait_frames(n, alive):
@@ -282,7 +356,10 @@ CONFIG = json.loads((HERE / "config.json").read_text())
 def resolve_save(name):
     """List position of the newest save whose caption names map `name` (Area/Map or Map). The Load list is newest
     first, which is the order of the slots' file times. Errors out when no save has that map."""
-    d = Path(os.path.expanduser(CONFIG["save_dir"]))
+    d = HOME.save_dir()
+    if not d.is_dir():
+        raise SystemExit(f"no saves of the game in {d} (config.json save_dir, under Lichii's data folder): boot the "
+                         "game once and save in the area the spec needs (tools/harness/README.md, \"The save\")")
     slots = sorted((x for x in d.glob("slot_*") if (x / "caption.sav").exists()),
                    key=lambda x: (x / "caption.sav").stat().st_mtime, reverse=True)
     for i, sl in enumerate(slots):
@@ -290,8 +367,11 @@ def resolve_save(name):
         maps = set(re.findall(rb"[A-Za-z]+/[A-Za-z_]+", cap))
         if any(m.decode() == name or m.decode().split("/")[1] == name for m in maps):
             return i, sl.name, sorted(m.decode() for m in maps)
-    raise SystemExit(f"no save with map {name!r} in {d}: " + ", ".join(
-        f"{sl.name}={sorted(set(re.findall(rb'[A-Za-z]+/[A-Za-z_]+', (sl / 'caption.sav').read_bytes()[:4096])))}" for sl in slots))
+    raise SystemExit(f"no save with map {name!r} in {d}. The saves there, newest first (the Load list's order): " + (", ".join(
+        f"{sl.name}={sorted(set(m.decode() for m in re.findall(rb'[A-Za-z]+/[A-Za-z_]+', (sl / 'caption.sav').read_bytes()[:4096])))}"
+        for sl in slots) or "none") + ". Make a save there in the game, or set \"save\" (a map name above), "
+        "\"expect_spawn\" (where Link stands after loading it, or null) and/or \"save_index\" (a Load-list position, "
+        "0 = newest) in config.json or in the spec")
 
 
 def ui_screens():
@@ -323,7 +403,7 @@ def navigate_menus(rd, res, save_index, spawn, limit_s=150):
                 raise RuntimeError("stuck: in game but Link's object not found")
             p = pos(actor); res["spawn_pos"] = p
             if spawn and (abs(p[0] - spawn[0]) > 0.5 or abs(p[2] - spawn[2]) > 0.5):
-                raise RuntimeError(f"wrong save loaded: Link at {p}, expected {spawn}")
+                raise RuntimeError(f"wrong save loaded: Link at {p}, expected {spawn} (expect_spawn; null skips the check)")
             res["menu_trace"] = trace; res["menu_s"] = round(time.time() - t0, 1)
             return actor
         if LOADING in scr:
@@ -342,8 +422,15 @@ def navigate_menus(rd, res, save_index, spawn, limit_s=150):
 
 def one_run(spec, out, attempt="1/1"):
     """One run; with "cold_metal_cache": true, from an empty Metal shader cache (the real one held aside under the
-    emulator lock and put back afterwards, also on errors). Waits first for this project's builds to finish."""
-    w = wait_for_builds(spec["label"])
+    emulator lock and put back afterwards, also on errors). Waits first for this project's builds to finish, unless
+    the spec says "build_wait": false (for runs judged by picture or log, not by frame times)."""
+    if spec.get("build_wait", True):
+        w = wait_for_builds(spec["label"])
+    else:
+        w = 0
+        if my_builds():
+            print(f"{spec['label']}: builds {my_builds()} are running; not waiting (build_wait false), "
+                  "frame times will be skewed", flush=True)
     if w > 0:
         print(f"{spec['label']}: waited {w} s for builds", flush=True)
     if not spec.get("cold_metal_cache"):
@@ -385,8 +472,10 @@ def _one_run(spec, out, attempt="1/1"):
     if not server:
         raise SystemExit("server-off runs are not supported: without the debug server the menus can only be driven "
                          "blind, which is not reliable (2026-11-17)")
+    h = run_home(spec); use_home(h); h.check()
     set_cfg(spec.get("cfg", {}))
     env = dict(os.environ)
+    env.update(h.env())                               # a private data root, when the run has one
     env.update({"MVK_P60_NO_APPNAP": "1", "VERIFY_DIR": str(rd), "VERIFY_PORT": str(HOOK_PORT),
                 "DYLD_INSERT_LIBRARIES": str(HOOK)})
     if server:
@@ -394,8 +483,10 @@ def _one_run(spec, out, attempt="1/1"):
     env.update({k: str(v).replace("{rd}", str(rd)) for k, v in spec.get("env", {}).items()})
     if spec.get("variants"):
         env["EDEN_NX2_HVF_CTL"] = str(rd / "hvf_ctl.txt")
-    app = Path(spec.get("app", "/Applications/lichii.app"))
+    app = Path(spec.get("app", DEFAULT_APP))
     res = {"label": spec["label"], "spec": spec, "loadavg_before": os.getloadavg(), "marks": {}}
+    if h.root:
+        res["home"] = str(h.root)
     old_log_ino = LOG.stat().st_ino if LOG.exists() else None
     with open(rd / "stderr.log", "wb") as err:
         proc = subprocess.Popen([str(app / "Contents/MacOS/lichii"), *spec.get("args", []), str(GAME)], env=env, stdout=err,
@@ -410,7 +501,7 @@ def _one_run(spec, out, attempt="1/1"):
                     "suspending guest process until a debugger" in LOG.read_text(errors="replace"):
                 break
             time.sleep(0.2)
-        # Lichii with use_gdbstub waits at boot for a debugger: attach emulator/debug/jsdbg.py (lldb), which then
+        # Lichii with use_gdbstub waits at boot for a debugger: attach JSDBG/jsdbg.py (lldb), which then
         # continues it. "arm" also sets its per-frame breakpoints once the game has settled.
         dbgdir = JSDBG
         lldb_py = subprocess.run(["lldb", "-P"], capture_output=True, text=True).stdout.strip()
@@ -488,13 +579,31 @@ def _one_run(spec, out, attempt="1/1"):
             actor = navigate_menus(rd, res, idx, spawn)
             call("speed_limit", on=True)
             res["spawn_pos"] = pos(actor)
-        else:
-            pad("reset")
-            for b in ("a", "a", "b"):
-                pad_tap(b); time.sleep(3)
-            for b in ("down", "down", "a"):
-                pad_tap(b); time.sleep(0.6)
-            time.sleep(2); pad_tap("a"); time.sleep(45)
+            if spec.get("resave"):
+                # Save again at once, with Link still at the spawn point: the Load list is newest first, so this
+                # puts the save back on top. Plus opens the pause menu (Items tab), R moves to System where Save
+                # is the first entry, A opens the Save dialog with Cancel selected, Up selects Save, A confirms
+                # (it overwrites the slot that was loaded), B closes the menu. Checked through the slot's file.
+                cap = HOME.save_dir() / res["save"].get("slot", "") / "caption.sav"
+                before = cap.stat().st_mtime if cap.is_file() else None
+                step = lambda b, wait: call("input_sequence", steps=[{"buttons": [b], "frames": 4}, {"frames": wait}])
+                title("saving again")
+                for b, wait in (("Plus", 60), ("R", 40), ("A", 60), ("Up", 30), ("A", 150), ("B", 60)):
+                    step(b, wait)
+                res["resave"] = {"slot": res["save"].get("slot"), "file_changed": bool(cap.is_file() and cap.stat().st_mtime != before),
+                                 "pos_after": pos(actor)}
+                if not res["resave"]["file_changed"]:
+                    raise RuntimeError(f"resave: {cap} did not change")
+            if spec.get("hold_file"):
+                # Right after the load, before Link moves: keep the game running for manual debug-server calls while
+                # this file exists (at most hold_max_s
+                # seconds): prints main's address and Link's object, which dbg.py needs.
+                hf = Path(spec["hold_file"]); hf.write_text(json.dumps({"main": hex(dbg.MAIN), "actor": hex(actor),
+                                                                        "run": str(rd)}))
+                title("held for manual calls"); print(f"{spec['label']}: held, main {dbg.MAIN:#x}, rm {hf} to go on", flush=True)
+                t_hold = time.time()
+                while hf.exists() and alive() and time.time() - t_hold < float(spec.get("hold_max_s", 900)):
+                    time.sleep(1)
         res["load_s"] = round(time.time() - t0, 1); tmark(res, "load_done")
         cur = None
         if server:
@@ -561,15 +670,37 @@ def _one_run(spec, out, attempt="1/1"):
                 quarter = [{"left_stick": [1, 0], "frames": tf},
                            {"left_stick": [1, 0], "buttons": ["StickR"], "frames": 4}, {"frames": 6}]
                 turn = quarter + quarter
-                path = [[round(v, 2) for v in start]]; turns = []
+                path = [[round(v, 2) for v in start]]; turns = []; leash_turns = []; leash_last = 0.0
                 while done_f < P:
                     n = min(chunk, P - done_f)
                     call("input_sequence", steps=[{"left_stick": [0, 1], "frames": n}], timeout_s=120)
                     done_f += n; here = pos(actor); path.append([round(v, 2) for v in here])
+                    if spec.get("walk_shots"):      # one screenshot per chunk: the walk as a film strip
+                        wd = rd / f"{prefix.strip('/') or 'run'}-walk"; wd.mkdir(exist_ok=True)
+                        hook(f"shot {wd}/f{len(path) - 2:03d}.png")     # from the window: what is on screen
                     step = sum((x - y) ** 2 for x, y in zip(here, last)) ** 0.5; last = here
-                    if step < float(spec.get("bounce_min_m", 0.3)) and done_f < P:
+                    # "leash_m": also turn round when Link is that far from where the walk began and still moving
+                    # away, so a long walk stays in the area instead of leaving the map (which loads another one
+                    # and autosaves).
+                    away = sum((x - y) ** 2 for x, y in zip(here, start)) ** 0.5
+                    leashed = bool(spec.get("leash_m")) and away > float(spec["leash_m"]) and away > leash_last
+                    leash_last = away
+                    if (step < float(spec.get("bounce_min_m", 0.3)) or leashed) and done_f < P:
                         call("input_sequence", steps=turn, timeout_s=60); turns.append(done_f)
-                res[ph("walk_call")] = {"mode": "bounce", "chunk": chunk, "turns_at_frame": turns, "path": path}
+                        if leashed:
+                            leash_turns.append(done_f); leash_last = float("inf")   # no second turn until he is nearer
+                    if away < float(spec.get("leash_m") or 0) * 0.8:
+                        leash_last = 0.0
+                res[ph("walk_call")] = {"mode": "bounce", "chunk": chunk, "turns_at_frame": turns, "path": path,
+                                        "leash_turns_at_frame": leash_turns,
+                                        "max_from_start_m": round(max(sum((x - y) ** 2 for x, y in zip(pt, path[0])) ** 0.5
+                                                                      for pt in path), 1)}
+                if spec.get("walk_shots"):
+                    import speckhunt, whitecount
+                    wd = rd / f"{prefix.strip('/') or 'run'}-walk"; time.sleep(0.5); shots = sorted(wd.glob("f*.png"))
+                    if shots:
+                        speckhunt.record(wd, shots)             # sheet.png and burst.gif of the walk
+                        res[ph("walk_white_pct")] = [round(float(whitecount.share(f)) * 100, 3) for f in shots]
             else:
                 res[ph("walk_call")] = call("input_sequence", steps=route, timeout_s=600)
             mark(ph("stand2")); res["builds"][ph("walk")] = cur.builds()
@@ -588,7 +719,7 @@ def _one_run(spec, out, attempt="1/1"):
                     polls.append(time.time()); pos(actor); time.sleep(max(0, 1 / hz - 0.0003))
                 res[ph("poll_rate")] = round(len(polls) / (polls[-1] - polls[0]), 1)
             else:
-                wait_frames(P, alive)
+                wait_frames(int(spec.get("stand_frames", P)), alive)    # a long walk needs no stand as long
             mark(ph("end")); res["builds"][ph("stand2")] = cur.builds()
             try:                                      # resident memory and its footprint (what Activity Monitor shows)
                 rss = subprocess.run(["ps", "-o", "rss=", "-p", str(proc.pid)], capture_output=True, text=True).stdout.strip()
@@ -630,8 +761,29 @@ def _one_run(spec, out, attempt="1/1"):
                         raise RuntimeError(f"position reset failed before {spec_label}: {off:.1f} m from the start")
                 wait_frames(60, alive)          # the watcher re-reads the file every 100 ms
                 measure(prefix=f"{spec_label}/")
-        title("done")
-        res["outcome"] = "completed"
+        if spec.get("at_end"):
+            # steps run once Link has stopped where the walk ended (speckhunt.py): window bursts with the
+            # white-pixel share, a sheet and a GIF; debug-server calls; shader-reject groups. "flicker" and
+            # "capture" run at the spawn instead.
+            import speckhunt
+            speckhunt.at_end(spec["at_end"], rd, res, call, lambda n: wait_frames(n, alive), title,
+                             pos=lambda: pos(actor))
+        # Every run: score its end picture for corruption (persist.picture_metrics). "on_corrupt": steps (the same
+        # kinds as at_end) run only when it is corrupted, while the game is still up: a GPU trace, a frame capture,
+        # whatever can be studied offline afterwards. A fault that shows in one boot in ten is caught this way.
+        try:
+            import persist
+            shot = rd / "run-stand2.png"
+            if shot.is_file():
+                res["picture"] = persist.picture_metrics(shot)
+                if res["picture"]["corrupt"]:
+                    print(f"{spec['label']}: CORRUPT PICTURE {res['picture']}", flush=True)
+                    if spec.get("on_corrupt"):
+                        import speckhunt
+                        speckhunt.at_end(spec["on_corrupt"], rd, res, call, lambda n: wait_frames(n, alive), title)
+        except Exception as e:  # scoring must never fail a run
+            res["picture_error"] = str(e)
+        title("done"); res["outcome"] = "completed"
     except Exception as e:
         res["outcome"] = "killed externally" if not alive() and not killed_by_us else f"error: {e}"
         if server and alive():
@@ -662,16 +814,165 @@ def _one_run(spec, out, attempt="1/1"):
     return res
 
 
+def lichii_running():
+    return subprocess.run(["pgrep", "-f", "[l]ichii.app/Contents/MacOS"], capture_output=True, text=True).stdout.split()
+
+
+def make_master(h, force=False):
+    """The harness's master config: a copy of h's qt-config.ini, once it matches config/settings.txt."""
+    if lichii_running():
+        raise SystemExit("Lichii is running: it rewrites qt-config.ini when it quits; close it first")
+    if not h.cfg.exists():
+        raise SystemExit(f"no {h.cfg}: start Lichii once (and close it) so it writes its config")
+    if h.master.exists() and not force:
+        raise SystemExit(f"{h.master} exists; add --force to replace it")
+    chk = subprocess.run([sys.executable, str(REPO / "config/apply-settings.py"), "--check", str(h.cfg)],
+                         capture_output=True, text=True)
+    print(chk.stdout.strip())
+    if chk.returncode != 0:
+        raise SystemExit(f"{h.cfg} differs from config/settings.txt (above). With Lichii closed, apply them with "
+                         f"python3 {REPO / 'config/apply-settings.py'} {h.cfg}, or set them in Lichii, then try again")
+    text = h.cfg.read_text()
+    if not re.search(r"^player_0_connected=true$", text, re.M):
+        print("WARNING: player 1 is not connected (player_0_connected): the debug server's input goes to player 1 or "
+              "the handheld controller and fails when neither is connected", flush=True)
+    if h.root and h.real_paths_in(h.cfg):
+        raise SystemExit(f"{h.cfg} names the real Lichii folders: {h.real_paths_in(h.cfg)[:4]}")
+    shutil.copy2(h.cfg, h.master)
+    print(f"wrote {h.master}")
+
+
+def rewrite_real_paths(h, f):
+    """Point every setting in f whose value lies under a real Lichii folder at the same place in h's root."""
+    lines = f.read_text(errors="surrogateescape").splitlines(keepends=True); done = []
+    for i, l in enumerate(lines):
+        if "=" not in l:
+            continue
+        new = l
+        for k, real in Home.REAL.items():
+            new = re.sub(re.escape(str(real)) + r"(?=/|\"|,|\s|$)", lambda m, k=k: str(h.dirs[k]), new)
+        if new != l:
+            lines[i] = new; done.append((l.rstrip("\n"), new.rstrip("\n")))
+    f.write_text("".join(lines), errors="surrogateescape")
+    return done
+
+
+def make_home(root, with_shader_cache=False):
+    """A private Lichii data root at root, from the real folders: the config (qt-config.ini, custom/), the saves and
+    the system files (nand/), the practice tool and its data (load/0400486024DEC000/, sdmc/), keys/ if present, and
+    the harness master. The shader caches stay empty unless with_shader_cache (APFS clones of the game's folder).
+    The real folders are only read."""
+    h = Home(root)
+    if h.root == Path.home() or any(h.root == r or r in h.root.parents or h.root in r.parents for r in Home.REAL.values()):
+        raise SystemExit(f"{h.root} overlaps the real Lichii folders")
+    for d in h.dirs.values():
+        if d.exists() and any(d.iterdir()):
+            raise SystemExit(f"{d} is not empty: make-home only fills a new root")
+    if lichii_running():
+        raise SystemExit("Lichii is running: close it first (it rewrites its config and caches while it runs)")
+    R = Home.REAL
+    if not (R["config"] / "qt-config.ini").exists():
+        raise SystemExit(f"no {R['config'] / 'qt-config.ini'} to copy")
+    for d in h.dirs.values():
+        d.mkdir(parents=True, exist_ok=True)
+    copied = []
+
+    def copy(src, dst, clone=False):
+        if not src.exists():
+            return
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if clone:                                     # APFS clones: no extra space until one side changes
+            subprocess.run(["cp", "-Rc", str(src), str(dst)], check=True)
+        elif src.is_dir():
+            shutil.copytree(src, dst, symlinks=True)
+        else:
+            shutil.copy2(src, dst)
+        copied.append(dst)
+
+    copy(R["config"] / "qt-config.ini", h.dirs["config"] / "qt-config.ini")
+    copy(R["config"] / "custom", h.dirs["config"] / "custom")
+    for name in ("nand", "sdmc", "keys", "load/0400486024DEC000"):
+        copy(R["data"] / name, h.dirs["data"] / name)
+    if with_shader_cache:
+        copy(R["cache"] / "shader/0400486024dec000", h.dirs["cache"] / "shader/0400486024dec000", clone=True)
+    # The master: the real harness master when there is one (what every real run starts from), else the config
+    real_master = R["config"] / MASTER_NAME
+    if real_master.exists():
+        shutil.copy2(real_master, h.master); copied.append(h.master)
+    ini = [h.dirs["config"] / "qt-config.ini", *sorted((h.dirs["config"] / "custom").glob("*.ini"))]
+    for f in ini + ([h.master] if h.master.exists() else []):
+        for old, new in rewrite_real_paths(h, f):
+            print(f"rewrote in {f.name}: {old}\n                    -> {new}")
+    if not h.master.exists():
+        make_master(h)
+    else:
+        chk = subprocess.run([sys.executable, str(REPO / "config/apply-settings.py"), "--check", str(h.master)],
+                             capture_output=True, text=True)
+        print(chk.stdout.strip())
+        if chk.returncode != 0:
+            raise SystemExit(f"{h.master} differs from config/settings.txt (above)")
+    for f in ini + [h.master]:
+        bad = h.real_paths_in(f)
+        if bad:
+            raise SystemExit(f"{f} still names the real folders: {bad[:4]}")
+    for c in copied:
+        du = subprocess.run(["du", "-sh", str(c)], capture_output=True, text=True).stdout.split("\t")[0]
+        print(f"  {du:>6}  {c}")
+    print(f"private Lichii data root ready: {h.root} (cache: {'the game' + chr(39) + 's shader folder, cloned' if with_shader_cache else 'empty'})")
+    print(f"use it with \"home\": \"{h.root}\" in a spec, or OOT26_LICHII_HOME={h.root}")
+
+
+def print_paths(h, spec=None):
+    """What a run with data root h would read and write; launches nothing."""
+    out = {"home": str(h.root) if h.root else None, "env": h.env(), "config": str(h.cfg), "master": str(h.master),
+           "master_exists": h.master.exists(), "log": str(h.log), "save_dir": str(h.save_dir()),
+           "metal_cache (macOS's, shared by every root)": str(METAL_CACHE), "hook": str(HOOK), "game": str(GAME),
+           "app_default": str(DEFAULT_APP)}
+    if h.root:
+        inside = [str(v) for k, v in out.items() if k in ("config", "master", "log", "save_dir")] + list(h.env().values())
+        out["all_inside_root"] = all(Path(x) == h.root or h.root in Path(x).parents for x in inside)
+        out["real_paths_in_config"] = h.real_paths_in(h.cfg) + h.real_paths_in(h.master)
+    if spec:
+        out["runs"] = {s["label"]: {"home": str(run_home(s).root) if run_home(s).root else None,
+                                    "app": str(s.get("app", DEFAULT_APP))} for s in spec}
+    print(json.dumps(out, indent=1))
+
+
+def preflight(spec):
+    """Everything a batch needs, checked before the first boot."""
+    if GAME is None:
+        raise SystemExit("no dump of the game: set OOT26_DUMP to your .nup file, or put *0400486024DEC000*.nup in "
+                         "dump/ in this repository or beside it")
+    if not HOOK.exists() or HOOK.stat().st_mtime < (REPO / "tools/verify/hook.m").stat().st_mtime:
+        subprocess.run([sys.executable, str(REPO / "tools/verify/verify.py"), "build-hook"], check=True)
+    for s in spec:
+        app = Path(s.get("app", DEFAULT_APP))
+        if not (app / "Contents/MacOS/lichii").exists():
+            raise SystemExit(f"{s['label']}: no app at {app}" + (" (build it with ./build.sh)" if app == DEFAULT_APP else ""))
+        run_home(s).check(launching=False)
+        if s.get("jsdbg") and not (JSDBG / "jsdbg.py").exists():
+            raise SystemExit(f"{s['label']}: \"jsdbg\" needs the lldb logger jsdbg.py, which is in the glitch-research "
+                             f"repository, not here; set OOT26_JSDBG_DIR to its folder (looked in {JSDBG}). "
+                             "Measurement runs do not need it")
+
+
 def main():
+    argv = sys.argv[1:]
+    opt = lambda name: argv[argv.index(name) + 1] if name in argv else None
+    if "--make-master" in argv:
+        return make_master(Home(opt("--home") or os.environ.get("OOT26_LICHII_HOME")), force="--force" in argv)
+    if "--make-home" in argv:
+        return make_home(opt("--make-home"), with_shader_cache="--with-shader-cache" in argv)
     # "${REPO}" in a spec stands for the repository folder, so specs carry no machine-specific paths
-    spec = json.loads(Path(sys.argv[1]).read_text().replace("${REPO}", str(REPO)))
+    load = lambda f: json.loads(Path(f).read_text().replace("${REPO}", str(REPO)))
+    if "--print-paths" in argv:
+        files = [a for a in argv if a.endswith(".json")]
+        return print_paths(Home(opt("--home") or os.environ.get("OOT26_LICHII_HOME")), load(files[0]) if files else None)
+    spec = load(argv[0])
     only = sys.argv[sys.argv.index("--only") + 1:] if "--only" in sys.argv else None
+    preflight([s for s in spec if not only or s["label"] in only])
     out = HERE / "runs" / time.strftime("ab-%Y%m%d-%H%M%S"); out.mkdir(parents=True)
     print("out", out, flush=True)
-    if GAME is None:
-        raise SystemExit("no dump of the game: set OOT26_DUMP or put *0400486024DEC000*.nup in dump/")
-    if not MASTER.exists():
-        raise SystemExit("master config backup missing")
     # The window title counts the batch's runs: "3/9" is the third of nine (repeats included), "3/9 retry" its retry.
     total = sum(s.get("repeat", 1) for s in spec if not only or s["label"] in only)
     number = 0

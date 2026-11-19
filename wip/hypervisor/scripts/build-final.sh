@@ -1,19 +1,23 @@
 #!/bin/bash
-# build-final.sh BUILD NAME: an app with the finished Hypervisor change (make-final.py) linked from an existing
-# Lichii build tree, without touching the shared source or that tree.
-#   ./build-final.sh build/release      hvf-final       -> path-60/app-hvf-final
-#   ./build-final.sh build/release-lto  hvf-final-lto   -> path-60/app-hvf-final-lto (ThinLTO, -mcpu=apple-m4)
+# build-final.sh [BUILD [NAME]]: a test app with the finished Hypervisor change (make-final.py, the same change as
+# ../patches/03-hvf-final.patch) linked from an existing Lichii build tree, without touching the source or that tree.
+#   ./build-final.sh                                  build/release, hvf-final -> build/hvf/app-hvf-final/lichii.app
+#   ./build-final.sh build/release-lto hvf-final-lto  a ThinLTO tree (-mcpu=apple-m4), if one has been configured
+# BUILD is relative to the pinned Lichii source, build/src/lichii (made by ./build.sh; $LICHII_SRC for another).
 # The two patched .cpp files are compiled with that tree's own flags (patched memory.h first on the include path),
-# put into a copy of its libcore.a, and the emulator is linked again. MVK_FROM picks whose libMoltenVK the app
-# carries (default app-mvkp2901, see build-apps.sh).
+# put into a copy of its libcore.a, and the emulator is linked again. The app is a copy of the pinned app
+# build/app/lichii.app with this binary: the same libMoltenVK.dylib (so the shader caches stay valid), the same
+# nx2_switches.txt and Info.plist. Work files go to build/hvf/work/.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-P60=${P60:-OLD_REPO/emulator/mvk-mesh/path-60}
-REL=$1; NAME=$2
-SRC=$P60/lichii; BLD=$SRC/$REL
-FIN=${FIN:-$P60/hvfrace-final}; WORK=$FIN/build-$NAME
-MVK_FROM=${MVK_FROM:-app-mvkp2901}
+REPO=$(git -C "$HERE" rev-parse --show-toplevel)
+REL=${1:-build/release}; NAME=${2:-hvf-final}
+SRC=${LICHII_SRC:-$REPO/build/src/lichii}; BLD=$SRC/$REL
+PINNED=$REPO/build/app/lichii.app
+FIN=${FIN:-$REPO/build/hvf/work/final}; WORK=$REPO/build/hvf/work/build-$NAME
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+[ -f "$BLD/compile_commands.json" ] || { log "no $BLD/compile_commands.json: build Lichii first (./build.sh)"; exit 1; }
+[ -x "$PINNED/Contents/MacOS/lichii" ] || { log "no pinned app $PINNED: run ./build.sh"; exit 1; }
 [ -f "$FIN/b/src/core/memory.cpp" ] || python3 "$HERE/make-final.py" "$FIN"
 rm -rf "$WORK"; mkdir -p "$WORK"
 for rel in src/core/arm/hvf/arm_hvf.cpp src/core/memory.cpp; do
@@ -44,13 +48,12 @@ PY
 (cd "$BLD" && nice -n 19 sh "$WORK/link.sh" 2>&1 | grep -v 'ld: warning' || true)
 [ -s "$WORK/lichii" ] || { log "link failed"; exit 1; }
 log "linked ($(stat -f %z "$WORK/lichii") bytes)"
-app=$P60/app-$NAME/lichii.app
-mkdir -p "$P60/app-$NAME"; rm -rf "$app"
-ditto "$BLD/bin/lichii.app" "$app"
+app=$REPO/build/hvf/app-$NAME/lichii.app
+mkdir -p "$REPO/build/hvf/app-$NAME"; rm -rf "$app"
+ditto "$PINNED" "$app"
+# Signed outside the bundle and copied in: the bundle holds an unsigned text file (nx2_switches.txt), which makes
+# signing in place fail.
 cp "$WORK/lichii" "$WORK/signed"
 codesign --force --sign - --entitlements "$SRC/dist/eglantine.entitlements" "$WORK/signed" 2> /dev/null
 cp "$WORK/signed" "$app/Contents/MacOS/lichii"
-mkdir -p "$app/Contents/Frameworks"
-cp -p "$P60/$MVK_FROM/lichii.app/Contents/Frameworks/libMoltenVK.dylib" "$app/Contents/Frameworks/libMoltenVK.dylib"
-cp "$P60/app-practice/lichii.app/Contents/MacOS/nx2_switches.txt" "$app/Contents/MacOS/"
-log "assembled $app (hypervisor entitlement: $(codesign -d --entitlements - "$app/Contents/MacOS/lichii" 2>&1 | grep -c hypervisor), carries the new log text: $(strings -a "$app/Contents/MacOS/lichii" | grep -c 'became GPU-cached while its protection was being lifted'))"
+log "assembled $app (hypervisor entitlement: $(codesign -d --entitlements - "$app/Contents/MacOS/lichii" 2>&1 | grep -c hypervisor), carries the new log text: $(strings -a "$app/Contents/MacOS/lichii" | grep -c 'became GPU-cached while its protection was being lifted'), MoltenVK same as the pinned app: $(cmp -s "$app/Contents/Frameworks/libMoltenVK.dylib" "$PINNED/Contents/Frameworks/libMoltenVK.dylib" && echo yes || echo NO))"

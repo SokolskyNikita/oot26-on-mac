@@ -2,10 +2,10 @@
  {
   "label": "resave-forest",
   "desc": "Load the Kokiri Forest save and save it again (kept open for the save menu)",
-  "app": "OLD_REPO/emulator/mvk-mesh/path-60/app-mvkp2901/lichii.app",
+  "app": "${REPO}/build/app/lichii.app",
   "phase_frames": 30,
   "stand_frames": 30,
-  "hold_file": "OLD_WORKTREE/emulator/hvf-race/HOLD",
+  "hold_file": "${REPO}/wip/hypervisor/local/HOLD",
   "hold_max_s": 1200,
   "build_wait": false
  }

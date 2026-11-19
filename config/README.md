@@ -45,6 +45,11 @@ with the game closed. No keys or firmware are installed in this setup.
 | Built-in "Max Resolution", "FPS Unlock", "Dynamic FPS" patches | off | Lichii applies them silently. FPS Unlock rewrites 35 places in the game's code and changes how time steps. |
 | `use_gdbstub` | `true` only for debugging | with it on, Lichii waits for a debugger at boot |
 
+The harness (`tools/harness/ab.py`) runs every boot from a master copy of this config,
+`~/.config/lichii/qt-config.ini.harness-master`, and puts it back afterwards. Make it once these settings are in,
+with Lichii closed: `python3 tools/harness/ab.py --make-master` (it runs `apply-settings.py --check` first and
+refuses if anything differs; `--force` replaces an existing master after a settings change).
+
 About 60 settings and switches were measured one by one; the defaults win almost everywhere. The table is in
 [../research/emulator-options/README.md](../research/emulator-options/README.md).
 
