@@ -19,7 +19,8 @@ with the verify harness ([`tools/verify`](../../tools/verify/README.md)). "All-i
 (Lichii patches 0001–0005, MoltenVK patches 0001–0005 under [`patches/`](../../patches/)). Run labels such as
 `p60-a1` or `f-bil-0` name local run folders, which are not tracked. Each number is marked **measured** (with its
 run label) or **inferred**. The code is `patches/lichii/0005-…` and `patches/moltenvk/0007-…` (see "The patches");
-the scripts are in [`tools/perf`](../../tools/perf/README.md). `P60_*` and `MVK_P60_*` are the environment switches
+the scripts are in [`tools/perf`](../../tools/perf/README.md), and the readers of the frame profiler and the sync
+trace in [`tools/diag`](../../tools/diag/README.md) (`gpu.py`). `P60_*` and `MVK_P60_*` are the environment switches
 these patches add.
 
 ## Waterfall
@@ -95,8 +96,8 @@ frame-breakdown scripts), and the before/after of each removed item in the water
 13 ms, fits in 16.7 ms. The 2.6 ms still to remove must come out of the 6.0 ms of emulation overhead, and 3.9 ms of
 that is idle time.
 
-**The idle time** (run `r7-nbil-tr`, `gapsplit.py` and `gaptrace.py` from `tools/perf` on the MoltenVK profile and
-Lichii's sync trace):
+**The idle time** (run `r7-nbil-tr`, `tools/diag/gpu.py gaps` and `gapwaits` on the MoltenVK profile and Lichii's sync
+trace):
 
 - 2.8 gaps per frame where the GPU has run dry and the next command buffer has not been started, 3.1 ms per frame.
 - One of them, 0.8 times per frame and about 2.1 ms long, follows the end-of-frame flush

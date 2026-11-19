@@ -1,0 +1,29 @@
+[
+ {
+  "label": "diag-backidle",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_BACK_IDLE_TRACE": 1,
+   "EDEN_NX2_ACQUIRE_STATS": 1,
+   "EDEN_NX2_PRESENT_FENCE_TRACE": 1
+  },
+  "desc": "What the GPU front does while the back is idle, and present fence waits, on a 1,800-frame walk within 9 m of the Kokiri spawn"
+ },
+ {
+  "label": "diag-timing",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_HOSTTIMING_STATS": 1,
+   "EDEN_NX2_IDLE_STATS": 1
+  },
+  "desc": "Timer lateness and guest core wake-up latency on a 1,800-frame walk within 9 m of the Kokiri spawn"
+ }
+]

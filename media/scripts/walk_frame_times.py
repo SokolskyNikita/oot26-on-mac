@@ -5,7 +5,7 @@ usage: uv run --with matplotlib --with numpy --with pillow python walk_frame_tim
        RUN_* are harness run folders (tools/harness/runs/ab-<date>-<time>/<label>/) holding frames.bin and result.json.
 
 frames.bin is one little-endian uint64 timestamp (ns) per presented frame; result.json's "marks" give the frame index
-where each phase starts. The walk is frames marks["walk"] .. marks["stand2"] (as in tools/harness/p95.py).
+where each phase starts. The walk is frames marks["walk"] .. marks["stand2"] (as in tools/diag/frames.py).
 """
 import json
 import sys

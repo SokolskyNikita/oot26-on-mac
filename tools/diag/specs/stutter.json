@@ -1,0 +1,24 @@
+[
+ {
+  "label": "diag-warmup",
+  "phase_frames": 120,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Diagnostic capture: warm-up boot of the pinned build, discarded"
+ },
+ {
+  "label": "diag-allframes",
+  "repeat": 2,
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1
+  },
+  "desc": "Stutter trace line for every frame (JIT run, compile, lock, fault, GPU thread time) on a 1,800-frame walk within 9 m of the Kokiri spawn"
+ }
+]

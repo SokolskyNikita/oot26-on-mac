@@ -285,7 +285,8 @@ Tools (local, not in this repository, except the profiler itself):
   30.7 vs 30.6 ms. Apple's On-GPU time 26.79 vs 26.86 ms. The profiler's own GPU-busy union, 26.77 ms, matches
   Apple's figure for the same run within 0.1 ms. No correction was needed.
 - `prof_report.py PROF RUN`: frame time, per-frame GPU busy and idle, command buffer and encoder counts, signatures
-  ranked by GPU time. `categorize.py` groups them into the per-pass table. `gaps.py` classifies GPU idle gaps.
+  ranked by GPU time. `tools/diag/gpu.py` reads the same profile from a harness run folder (`frames`, `perframe`,
+  `sigdiff`, `gapctx`). `categorize.py` groups them into the per-pass table. `gaps.py` classifies GPU idle gaps.
 - `mpt_report.py`: per-phase numbers from Apple's always-on Metal trace (`metalperftrace collect`, then
   `overview --json --json-include-timeline`). It is passive: nothing is attached to Lichii. The window is behind
   other windows during a verify run, so the trace counts all frames as "skipped" (never on glass). Their On-GPU and

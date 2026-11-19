@@ -222,7 +222,7 @@ with 600-frame phases hitched. Whether the cache fills during the walk depends o
 So walk p99 / max / mean in single runs are a coin flip; compare walk medians, or count hitches over several runs.
 
 Over 5 runs of the default build on the Kokiri walk with turns (run ab-20261117-224835), each slow frame's cause
-from the stutter trace (`tools/harness/stuttercause.py`):
+from the stutter trace (`tools/diag/stutter.py RUN…`):
 
 | Run | Worst walk frame | Slow frames | JIT time in them | Pipeline builds | JIT full flushes |
 | --- | --- | --- | --- | --- | --- |
@@ -300,7 +300,7 @@ the debug server gains `jit_clear`.
 **Not adopted**, with the other small JIT tweaks: the per-compile log below shows the bigger lever is sharing
 compiled code between cores. The switch is in the pinned build (Lichii patch 0007), off unless set.
 
-A/B runs with the stutter trace, on an older MoltenVK and on the current one (`tools/harness/stutterjit.py` reads
+A/B runs with the stutter trace, on an older MoltenVK and on the current one (`tools/diag/stutter.py` reads
 the stutter trace per phase; walk max frame and frames over 50 ms):
 
 | Run | Old MoltenVK (run ab-20261117-183738) | Current MoltenVK (run ab-20261117-190501) |
@@ -320,7 +320,7 @@ the stutter trace per phase; walk max frame and frames over 50 ms):
 
 A test build with `patches/experiments/dynarmic-jit-log-2026-11-17.patch` (switch `EDEN_NX2_JIT_LOG=<file>`) logs
 every block dynarmic compiles: core, guest address, time in each phase. One boot from the title through the load and
-the stand/walk/stand phases (run ab-20261117-190501, summary made by `tools/harness/jitlog.py`):
+the stand/walk/stand phases (run ab-20261117-190501, summary made by `tools/diag/jit.py log`):
 
 - **2.63 million blocks in 71 s, 32.3 s of compile time** summed over the 6 cores (4.5–7.8 s per core; core 0 most).
 - **78% of it is repeats.** Only 642,000 distinct blocks: 252,500 of them were compiled on all six cores, and each core
@@ -464,7 +464,7 @@ that booted warm before can come back partly cold (30–65 s). Boot two runs of 
 Ported to dynarmic's arm64 backend and validated against the build without it: walk hitches 3/3 → 0/3, walk p95
 46–51 → 28–30 ms, map load ~3 s faster, memory ~3–4 GB lower, standing frames unchanged. On through
 `EDEN_NX2_SHARED_JIT_CACHE=512` in the app's `nx2_switches.txt`. Full write-up:
-[shared-jit-cache](../shared-jit-cache/README.md); tools in [`tools/jit-cache`](../../tools/jit-cache/README.md).
+[shared-jit-cache](../shared-jit-cache/README.md); tools in [`tools/jit-cache`](../../tools/jit-cache/README.md) and [`tools/diag`](../../tools/diag/README.md).
 
 ## Open
 

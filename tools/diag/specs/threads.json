@@ -1,0 +1,27 @@
+[
+ {
+  "label": "diag-threads",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_GUEST_THREAD_STATS": 1,
+   "EDEN_DKB_FRAME_TRACE": 1
+  },
+  "desc": "Guest thread statistics and Lichii's frame trace on a 1,800-frame walk within 9 m of the Kokiri spawn"
+ },
+ {
+  "label": "diag-gpuprofile",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_GPU_PROFILE": 1
+  },
+  "desc": "GPU front, back and worker time by zone on a 1,800-frame walk within 9 m of the Kokiri spawn (costs about 3 ms a frame)"
+ }
+]

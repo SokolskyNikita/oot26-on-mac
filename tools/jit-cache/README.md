@@ -8,14 +8,17 @@ The cache is in the pinned build, switched on by `EDEN_NX2_SHARED_JIT_CACHE=512`
 | --- | --- |
 | `patches/lichii/0007-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
 | `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same port in the PR-2101 tree (`zortos293/Lichii` `72ff982a3`), with all tests (`jit_shared_cache_tests`, the dynarmic block-table and replay tests) |
-| `jit_totals.py RUN_DIR…` | Whole-load JIT counters from a run's log: blocks, compile time, lock waits by kind, faults, discarded translations, lookup hits |
-| `frame_split.py RUN_DIR` | Per-frame core-time split (JIT run, compiling, lock wait, faults, guest code) from an every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`) |
-| `profile_loads.sh OUTDIR N` | Samples the next N launches' loads with `sample` |
 | `specs/shared-cache-128.json` | The pinned build at 512 MiB against 128 MiB, where the cache fills and is cleared during a load: the test for the full-clear path (run with `tools/harness/queue.sh`). The specs of the development rounds are not kept; their runs' `result.json` files hold them |
 
 Switches (in the emulator): `EDEN_NX2_SHARED_JIT_CACHE=<MiB>` (multiples of 128, 128–2048; unset = private caches),
-`DYNARMIC_JIT_TRACE=<file>` (record JIT operations for offline replay). Test settings: `DYNARMIC_ARM64_REGION_SIZE=<bytes>`
-(smaller regions, so veneers happen in a small cache), `DYNARMIC_JIT_REPLAY=<trace>` with `dynarmic_tests "[jit_replay]"`.
+`DYNARMIC_JIT_TRACE=<file>` (record JIT operations for offline replay). Test settings:
+`DYNARMIC_ARM64_REGION_SIZE=<bytes>` (smaller regions, so veneers happen in a small cache), `DYNARMIC_JIT_REPLAY=<trace>` with `dynarmic_tests "[jit_replay]"`.
+
+The cache's diagnostics are read with [`tools/diag`](../diag/README.md): `stutter.py totals RUN…` gives the
+whole-load JIT counters from a run's log (blocks, compile time, lock waits by kind, faults, discarded translations,
+lookup hits), `stutter.py split RUN…` the per-frame core-time split (JIT run, compiling, lock wait, faults, guest
+code) from an every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`), and `jit.py trace RUN` a
+`DYNARMIC_JIT_TRACE` recording. macOS's `sample` on a load is in its catalogue, level 6.
 
 ## Building and running the tests
 

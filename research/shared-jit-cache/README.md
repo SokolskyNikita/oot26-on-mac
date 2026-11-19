@@ -14,7 +14,7 @@ Forest, 1x, handheld. Run folders named `ab-<date>-<time>` are local run data an
 | `patches/lichii/0007-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
 | `patches/lichii/0006-core-JIT-invalidation-entry-points-for-the-debug-too.patch` | The System-level JIT invalidation calls the port needs, and the debug server's `jit_clear` |
 | `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same work against the PR #2101 tree (`72ff982a3`), with the tests and the JIT replay test |
-| [`tools/jit-cache/`](../../tools/jit-cache/README.md) | Tools and run specs |
+| [`tools/jit-cache/`](../../tools/jit-cache/README.md) | Test build steps and run specs; the readers of the cache's diagnostics are in [`tools/diag/`](../../tools/diag/README.md) |
 
 ## Why the Mac needs more than the PR
 
@@ -55,8 +55,8 @@ The arm64 backend needs that and three more things:
   `EDEN_NX2_SHARED_JIT_CACHE=<MiB>` is set (128–2048), not with Paranoid accuracy or a debugger attached. Without the
   variable, each core gets a private cache through the same code path.
 - **Diagnostics.** Whole-load counters (lock waits by kind, discarded translations, concurrent compiles, lookup hits,
-  fault-handler time; `tools/jit-cache/jit_totals.py`), every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`,
-  `frame_split.py`), and an operation recorder (`DYNARMIC_JIT_TRACE=<file>`) whose traces replay offline
+  fault-handler time; `tools/diag/stutter.py totals`), every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`,
+  `tools/diag/stutter.py split`), and an operation recorder (`DYNARMIC_JIT_TRACE=<file>`, `tools/diag/jit.py trace`) whose traces replay offline
   (`DYNARMIC_JIT_REPLAY=<trace> ./dynarmic_tests "[jit_replay]"`, test source `tests/A64/jit_cache_replay.cpp` in the
   PR #2101 tree).
 

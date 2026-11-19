@@ -1,0 +1,14 @@
+[
+ {
+  "label": "diag-jittrace",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "DYNARMIC_JIT_TRACE": "{rd}/jit-trace.bin"
+  },
+  "desc": "Recording of every JIT code cache operation through boot, load and a 1,800-frame walk within 9 m of the Kokiri spawn"
+ }
+]
