@@ -1,0 +1,30 @@
+# What the pinned build is made of. Sourced by build.sh (plain KEY=VALUE lines).
+
+# Lichii: upstream base, then the series in patches/lichii/ on top of it
+LICHII_URL=https://github.com/zortos293/Lichii.git
+LICHII_BASE=8c0558a3d30a101ce2de3488a09839cc76dc5f2c
+LICHII_TREE=b862da66f1db4752f6b6c2c26597a8ff114c7ae3
+LICHII_COMMIT=0c5fc7d22a912fdeaadce725aac4de9ecdee2ac1
+
+# MoltenVK: upstream base, then the series in patches/moltenvk/
+MOLTENVK_URL=https://github.com/KhronosGroup/MoltenVK.git
+MOLTENVK_BASE=5189f8de86ec365860f63bf1da736815cfaea5cd
+MOLTENVK_TREE=47505de53bdaea5bd4ee7758df0cceef6baa12a9
+MOLTENVK_COMMIT=04ac9befce7e0e5f403b1a2efce45f8053612d8f
+MOLTENVK_DYLIB=libMoltenVK.1.4.3.dylib
+
+# Pinned inside the MoltenVK series (ExternalRevisions/SPIRV-Cross_repo_revision)
+SPIRV_CROSS=98cbb7c02be35364ecacc23dc0c038d2360b0ed0
+
+# Tools the pinned build was made and measured with (2026-11-18, Apple M4 Pro, Mac16,8). `build.sh versions`
+# compares them with this machine. Other versions should work but give a different binary.
+TOOL_MACOS="27.0.1 (26A434), Command Line Tools 27.0, SDK MacOSX 27.0, deployment target 15.0"
+TOOL_CLANG="21.0.0 (clang-2100.3.34.2)"
+TOOL_CMAKE=4.5.0
+TOOL_NINJA=1.13.2
+TOOL_CCACHE=4.14.3
+TOOL_BREW="qt=6.12.0 ffmpeg=9.0.2_1 boost=1.92.0_1 openssl@3=3.5.9 fmt=12.2.1 lz4=1.11.1 sdl3=3.4.20 zlib=1.4 libusb=1.0.30 brotli=1.2.1 zstd=1.5.7_1 opus=1.6.1 nlohmann-json=3.12.0"
+
+# The installed build these pins were taken from (sha1). A rebuild gives the same source, not the same bytes.
+GOLD_LICHII_SHA1=59bfe412d2f80940182ba95d7c79656d3ea05b8a
+GOLD_MOLTENVK_SHA1=17f76f69f2999cde1dccb9836920f72270a01554

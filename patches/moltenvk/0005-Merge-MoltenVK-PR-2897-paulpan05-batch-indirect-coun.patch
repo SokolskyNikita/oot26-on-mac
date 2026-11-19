@@ -1,0 +1,372 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:58 -0800
+Subject: [PATCH] Merge MoltenVK PR #2897 (paulpan05): batch indirect-count
+ draw conversions; SPIRV-Cross 98cbb7c0; mesh position fixup
+
+Squash of f2594b14 with the merge conflicts resolved, SPIRV-Cross pinned at
+98cbb7c02be35364ecacc23dc0c038d2360b0ed0 (drops optnone on the float helpers, SPIRV-Cross #2721), and the mesh
+position fixup (Y flip and depth) always on.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ ExternalRevisions/SPIRV-Cross_repo_revision   |  2 +-
+ MoltenVK/MoltenVK/Commands/MVKCmdDraw.h       | 39 +++++++++++++
+ MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm      | 58 ++++++++++++++++++-
+ MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h   |  8 +++
+ MoltenVK/MoltenVK/Commands/MVKCmdRendering.h  | 10 ++++
+ MoltenVK/MoltenVK/Commands/MVKCommand.h       | 14 +++++
+ MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h | 12 ++++
+ .../MoltenVK/Commands/MVKCommandBuffer.mm     |  1 +
+ .../MoltenVK/GPUObjects/MVKShaderModule.mm    |  2 +-
+ 9 files changed, 143 insertions(+), 3 deletions(-)
+
+diff --git a/ExternalRevisions/SPIRV-Cross_repo_revision b/ExternalRevisions/SPIRV-Cross_repo_revision
+index d9e784bf..ed758c41 100644
+--- a/ExternalRevisions/SPIRV-Cross_repo_revision
++++ b/ExternalRevisions/SPIRV-Cross_repo_revision
+@@ -1 +1 @@
+-e99dc7a38daa790eff5425cee18129d9d5b26176
++98cbb7c02be35364ecacc23dc0c038d2360b0ed0
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.h b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.h
+index 826b7b8c..d47de717 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.h
+@@ -141,6 +141,21 @@ protected:
+ };
+ 
+ 
++#pragma mark -
++#pragma mark MVKIndirectCountParams
++
++/** The parameters of an indirect-count draw, needed to convert its indirect buffer ahead of time. */
++struct MVKIndirectCountParams {
++	id<MTLBuffer> indirectBuffer = nil;
++	VkDeviceSize indirectOffset = 0;
++	uint32_t indirectStride = 0;
++	id<MTLBuffer> countBuffer = nil;
++	VkDeviceSize countOffset = 0;
++	uint32_t drawCount = 0;
++	bool indexed = false;
++};
++
++
+ #pragma mark -
+ #pragma mark MVKCmdDrawIndirect
+ 
+@@ -163,6 +178,18 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool getIndirectCountParams(MVKIndirectCountParams& params) const override {
++		if ( !_mtlCountBuffer || _drawCount == 0 ) { return false; }
++		params.indirectBuffer = _mtlIndirectBuffer;
++		params.indirectOffset = _mtlIndirectBufferOffset;
++		params.indirectStride = _mtlIndirectBufferStride;
++		params.countBuffer = _mtlCountBuffer;
++		params.countOffset = _mtlCountBufferOffset;
++		params.drawCount = _drawCount;
++		params.indexed = false;
++		return true;
++	}
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 	void encodeIndexedIndirect(MVKCommandEncoder* cmdEncoder,
+@@ -206,6 +233,18 @@ public:
+ 						uint32_t stride);
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
++
++	bool getIndirectCountParams(MVKIndirectCountParams& params) const override {
++		if ( !_mtlCountBuffer || _drawCount == 0 ) { return false; }
++		params.indirectBuffer = _mtlIndirectBuffer;
++		params.indirectOffset = _mtlIndirectBufferOffset;
++		params.indirectStride = _mtlIndirectBufferStride;
++		params.countBuffer = _mtlCountBuffer;
++		params.countOffset = _mtlCountBufferOffset;
++		params.drawCount = _drawCount;
++		params.indexed = true;
++		return true;
++	}
+ 	void encode(MVKCommandEncoder* cmdEncoder, const MVKIndexMTLBufferBinding& ibbOrig);
+ 
+ protected:
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
+index 889506b7..5078e511 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
+@@ -648,8 +648,56 @@
+ // require yet more munging of the indirect buffers...
+ static const uint32_t kMVKMaxDrawIndirectVertexCount = 1024 * KIBI;
+ 
++// Converts the indirect buffers of the indirect-count draws that follow 'first' in the command list, up to the
++// next command that could change buffer contents or leave the render pass, in a single compute encoder.
++// Without this, each indirect-count draw ends the Metal render encoder, runs one conversion kernel, and starts a
++// new render encoder, which on a tile-based GPU stores and reloads every attachment each time.
++static const uint32_t kMVKMaxBatchedCountConversions = 8192;
++static void encodeBatchedIndirectCountConversions(MVKCommandEncoder* cmdEncoder, MVKCommand* first) {
++	struct Entry { MVKCommand* cmd; MVKIndirectCountParams params; };
++	MVKSmallVector<Entry, 256> batch;
++	for (MVKCommand* cmd = first; cmd; cmd = cmd->_next) {
++		if (cmd != first && cmd->endsIndirectCountBatch()) { break; }
++		MVKIndirectCountParams params;
++		if ( !cmd->getIndirectCountParams(params) ) { continue; }
++		if (cmdEncoder->getBatchedCountConversion(cmd)) { continue; }	// already converted, such as when a multiview pass is encoded again
++		batch.push_back({cmd, params});
++		if (batch.size() >= kMVKMaxBatchedCountConversions) { break; }
++	}
++	if (batch.empty()) { return; }
++
++	cmdEncoder->encodeStoreActions(true);
++	auto* computeEncoder = cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDrawIndirectConvertBuffers);
++	MVKMetalComputeCommandEncoderState& state = cmdEncoder->getMtlCompute();
++	for (auto& entry : batch) {
++		const MVKIndirectCountParams& p = entry.params;
++		VkDeviceSize commandSize = p.indexed ? sizeof(MTLDrawIndexedPrimitivesIndirectArguments) : sizeof(MTLDrawPrimitivesIndirectArguments);
++		auto* convertedBuffer = cmdEncoder->getTempMTLBuffer(commandSize * p.drawCount, true);
++		id<MTLComputePipelineState> pipeline = cmdEncoder->getCommandEncodingPool()->getCmdDrawIndirectCountConvertBuffersMTLComputePipelineState(p.indexed);
++		uint32_t indirectStride = p.indirectStride;
++		uint32_t drawCount = p.drawCount;
++		state.bindPipeline(computeEncoder, pipeline);
++		state.bindBuffer(computeEncoder, p.indirectBuffer, p.indirectOffset, 0);
++		state.bindBuffer(computeEncoder, convertedBuffer->_mtlBuffer, convertedBuffer->_offset, 1);
++		state.bindStructBytes(computeEncoder, &indirectStride, 2);
++		state.bindStructBytes(computeEncoder, &drawCount, 3);
++		state.bindBuffer(computeEncoder, p.countBuffer, p.countOffset, 4);
++		NSUInteger threadWidth = pipeline.threadExecutionWidth;
++		if (cmdEncoder->getMetalFeatures().nonUniformThreadgroups) {
++			[computeEncoder dispatchThreads: MTLSizeMake(drawCount, 1, 1)
++					  threadsPerThreadgroup: MTLSizeMake(threadWidth, 1, 1)];
++		} else {
++			[computeEncoder dispatchThreadgroups: MTLSizeMake(mvkCeilingDivide<NSUInteger>(drawCount, threadWidth), 1, 1)
++						   threadsPerThreadgroup: MTLSizeMake(threadWidth, 1, 1)];
++		}
++		cmdEncoder->setBatchedCountConversion(entry.cmd, convertedBuffer);
++	}
++	cmdEncoder->beginMetalRenderPass(kMVKCommandUseRestartSubpass);
++}
++
+ static const MVKMTLBufferAllocation* encodeIndirectCountConversion(
+ 		MVKCommandEncoder* cmdEncoder,
++		MVKCommand* cmd,
+ 		id<MTLBuffer> indirectBuffer,
+ 		VkDeviceSize indirectBufferOffset,
+ 		uint32_t indirectBufferStride,
+@@ -658,6 +706,12 @@
+ 		uint32_t drawCount,
+ 		bool indexed,
+ 		bool mesh = false) {
++	if ( !mesh ) {
++		if (auto* batched = cmdEncoder->getBatchedCountConversion(cmd)) { return batched; }
++		encodeBatchedIndirectCountConversions(cmdEncoder, cmd);
++		if (auto* batched = cmdEncoder->getBatchedCountConversion(cmd)) { return batched; }
++	}
++
+ 	VkDeviceSize commandSize = mesh ? sizeof(MTLDispatchThreadgroupsIndirectArguments) : indexed ? sizeof(MTLDrawIndexedPrimitivesIndirectArguments) : sizeof(MTLDrawPrimitivesIndirectArguments);
+ 	auto* convertedBuffer = cmdEncoder->getTempMTLBuffer(commandSize * drawCount, true);
+ 
+@@ -876,6 +930,7 @@ static void bindIndirectZeroDivisorVertexBuffers(MVKCommandEncoder* cmdEncoder,
+ 
+ 	if (_mtlCountBuffer && _drawCount > 0) {
+ 		auto* convertedBuffer = encodeIndirectCountConversion(cmdEncoder,
++				this,
+ 				indirectBuffer,
+ 				indirectBufferOffset,
+ 				indirectBufferStride,
+@@ -1228,6 +1283,7 @@ static void bindIndirectZeroDivisorVertexBuffers(MVKCommandEncoder* cmdEncoder,
+ 	uint32_t indirectBufferStride = _mtlIndirectBufferStride;
+ 	if (_mtlCountBuffer && _drawCount > 0) {
+ 		auto* convertedBuffer = encodeIndirectCountConversion(cmdEncoder,
++				this,
+ 				indirectBuffer,
+ 				indirectBufferOffset,
+ 				indirectBufferStride,
+@@ -1626,7 +1682,7 @@ static void setMeshDrawIndex(MVKCommandEncoder* cmdEncoder, MVKGraphicsPipeline*
+ 	VkDeviceSize indirectBufferOffset = _mtlIndirectBufferOffset;
+ 	uint32_t indirectBufferStride = _mtlIndirectBufferStride;
+ 	if (_mtlCountBuffer) {
+-		auto* convertedBuffer = encodeIndirectCountConversion(cmdEncoder, indirectBuffer, indirectBufferOffset, indirectBufferStride,
++		auto* convertedBuffer = encodeIndirectCountConversion(cmdEncoder, this, indirectBuffer, indirectBufferOffset, indirectBufferStride,
+ 															  _mtlCountBuffer, _mtlCountBufferOffset, _drawCount, false, true);
+ 		indirectBuffer = convertedBuffer->_mtlBuffer;
+ 		indirectBufferOffset = convertedBuffer->_offset;
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h
+index 5119f856..a56bea96 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.h
+@@ -47,6 +47,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+@@ -85,6 +87,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 	bool coversTextures();
+@@ -322,6 +326,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+@@ -379,6 +385,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdRendering.h b/MoltenVK/MoltenVK/Commands/MVKCmdRendering.h
+index 142499dd..f6d06053 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdRendering.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdRendering.h
+@@ -72,6 +72,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+@@ -111,6 +113,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+@@ -130,6 +134,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+@@ -152,6 +158,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ 
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+@@ -219,6 +227,8 @@ public:
+ 
+ 	void encode(MVKCommandEncoder* cmdEncoder) override;
+ 
++	bool endsIndirectCountBatch() const override { return true; }
++
+ protected:
+ 	MVKCommandTypePool<MVKCommand>* getTypePool(MVKCommandPool* cmdPool) override;
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommand.h b/MoltenVK/MoltenVK/Commands/MVKCommand.h
+index ca029013..a2d957a3 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommand.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommand.h
+@@ -57,6 +57,8 @@ protected:
+  *
+  *     VkResult setContent(MVKCommandBuffer* cmdBuff, ...);
+  */
++struct MVKIndirectCountParams;
++
+ class MVKCommand : public MVKBaseObject, public MVKLinkableMixin<MVKCommand> {
+ 
+ public:
+@@ -67,6 +69,18 @@ public:
+ 	/** Encodes this command on the specified command encoder. */
+ 	virtual void encode(MVKCommandEncoder* cmdEncoder) = 0;
+ 
++	/**
++	 * If this command is an indirect-count draw, fills in its parameters and returns true.
++	 * Used to convert the indirect buffers of several such draws in one compute pass.
++	 */
++	virtual bool getIndirectCountParams(MVKIndirectCountParams& params) const { return false; }
++
++	/**
++	 * Returns true if converting indirect buffers ahead of this command could be wrong,
++	 * because this command may change buffer contents or end the render pass.
++	 */
++	virtual bool endsIndirectCountBatch() const { return false; }
++
+ protected:
+ 	friend MVKCommandBuffer;
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+index 66ff845e..6d88bd01 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+@@ -369,6 +369,17 @@ public:
+ 	 */
+ 	id<MTLComputeCommandEncoder> getMTLComputeEncoder(MVKCommandUse cmdUse);
+ 
++	/** Returns the converted indirect buffer prepared ahead of time for an indirect-count draw command, or null. */
++	const MVKMTLBufferAllocation* getBatchedCountConversion(const MVKCommand* cmd) {
++		auto it = _batchedCountConversions.find(cmd);
++		return it == _batchedCountConversions.end() ? nullptr : it->second;
++	}
++
++	/** Records the converted indirect buffer prepared ahead of time for an indirect-count draw command. */
++	void setBatchedCountConversion(const MVKCommand* cmd, const MVKMTLBufferAllocation* alloc) {
++		_batchedCountConversions[cmd] = alloc;
++	}
++
+ 	/**
+ 	 * Returns the current Metal BLIT encoder for the specified use,
+      * which determines the label assigned to the returned encoder.
+@@ -546,6 +557,7 @@ protected:
+ 	MVKSmallVector<VkClearValue, kMVKDefaultAttachmentCount> _clearValues;
+ 	MVKSmallVector<MVKImageView*, kMVKDefaultAttachmentCount> _attachments;
+ 	id<MTLComputeCommandEncoder> _mtlComputeEncoder;
++	std::unordered_map<const MVKCommand*, const MVKMTLBufferAllocation*> _batchedCountConversions;
+ 	id<MTLBlitCommandEncoder> _mtlBlitEncoder;
+ 	id<MTLFence> _stageCountersMTLFence;
+ 	MVKPrefillMetalCommandBuffersStyle _prefillStyle;
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+index 5bec4934..dd297a4f 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -433,6 +433,7 @@
+     _canUseLayeredRendering = false;
+ 
+     _mtlCmdBuffer = mtlCmdBuff;        // not retained
++	_batchedCountConversions.clear();
+ 
+ 	_cmdBuffer->setMetalObjectLabel(_mtlCmdBuffer, _cmdBuffer->_debugName);
+ }
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 34a8cb66..c13acc4a 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -293,7 +293,7 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ 		diagSrc = &diagInv;
+ 	}
+ 	string diagFlip;
+-	if (getenv("MVK_DIAG_MESH_FLIP") && diagSrc->find("[[mesh]]") != string::npos) {
++	if ( !getenv("MVK_ALLINONE_NO_MESH_FLIP") && diagSrc->find("[[mesh]]") != string::npos && diagSrc->find("spvV.gl_Position.y = -(spvV.gl_Position.y)") == string::npos) {
+ 		static std::atomic<int> diagFlipCount{0};
+ 		diagFlip = *diagSrc;
+ 		const string from = "spvV.gl_Position = gl_Position[spvVI];";
+-- 
+2.54.0 (Apple Git-157)
+

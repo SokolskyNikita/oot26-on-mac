@@ -1,0 +1,215 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:58 -0800
+Subject: [PATCH] mesh: subgroup stages for mesh and task shaders, diagnostics
+ hooks
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm      | 14 ++++
+ MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm     |  5 +-
+ MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h    |  3 +
+ MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm   |  3 +
+ .../MoltenVK/GPUObjects/MVKShaderModule.mm    | 78 ++++++++++++++++++-
+ 5 files changed, 101 insertions(+), 2 deletions(-)
+
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
+index 95af7c27..889506b7 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDraw.mm
+@@ -1,3 +1,4 @@
++#include <atomic>
+ /*
+  * MVKCmdDraw.mm
+  *
+@@ -1568,6 +1569,19 @@ static void setMeshDrawIndex(MVKCommandEncoder* cmdEncoder, MVKGraphicsPipeline*
+ 	cmdEncoder->restartMetalRenderPassIfNeeded();
+ 	cmdEncoder->finalizeMeshDrawState();
+ 	auto* pipeline = cmdEncoder->getGraphicsPipeline();
++	if (pipeline->_diagMarked) {
++		static std::atomic<uint64_t> diagDraws{0}, diagGroups{0}, diagInvalid{0};
++		uint64_t n = ++diagDraws; diagGroups += _groupCount.width; bool valid = pipeline->hasValidMTLPipelineStates(); if ( !valid ) { ++diagInvalid; }
++		if (n <= 12 || (n % 2000) == 0) {
++			auto& vg = cmdEncoder->getVkGraphics(); VkExtent2D fb = cmdEncoder->getFramebufferExtent();
++			fprintf(stderr, "[mvk-diag]   state: framebuffer %ux%u viewport %.0f,%.0f %.0fx%.0f depth %.3f..%.3f scissor %d,%d %ux%u rasterization disabled %d\n", fb.width, fb.height, vg._viewports[0].x, vg._viewports[0].y, vg._viewports[0].width, vg._viewports[0].height, vg._viewports[0].minDepth, vg._viewports[0].maxDepth, vg._scissors[0].offset.x, vg._scissors[0].offset.y, vg._scissors[0].extent.width, vg._scissors[0].extent.height, (int)pipeline->isRasterizationDisabled());
++		}
++		if (n <= 12 || (n % 2000) == 0) {
++			auto& mg = cmdEncoder->getMtlGraphics(); auto& vg2 = cmdEncoder->getVkGraphics();
++			fprintf(stderr, "[mvk-diag]   depth: metal compare %d write %d cull %d | vulkan-side compare %d write %d cull %d cullBoth %d  (MTLCompareFunction: 0 never 1 less 2 equal 3 lessEqual 4 greater 5 notEqual 6 greaterEqual 7 always)\n", (int)mg._depthStencil.depthCompareFunction, (int)mg._depthStencil.depthWriteEnabled, (int)mg._cullMode, (int)vg2._renderState.depthStencil.depthCompareFunction, (int)vg2._renderState.depthStencil.depthWriteEnabled, (int)vg2._renderState.cullMode, (int)vg2._renderState.enable.has(MVKRenderStateEnableFlag::CullBothFaces));
++		}
++		if (n <= 12 || (n % 2000) == 0) { fprintf(stderr, "[mvk-diag] marked mesh draw #%llu pipeline %p groups %lux%lux%lu valid %d | totals: groups %llu invalid %llu\n", (unsigned long long)n, (void*)pipeline, (unsigned long)_groupCount.width, (unsigned long)_groupCount.height, (unsigned long)_groupCount.depth, (int)valid, (unsigned long long)diagGroups.load(), (unsigned long long)diagInvalid.load()); }
++	}
+ 	if ( !pipeline->hasValidMTLPipelineStates() ) { return; }
+ 
+ 	setMeshDrawIndex(cmdEncoder, pipeline, 0);
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+index a6542c51..a4f807be 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+@@ -1534,6 +1534,9 @@
+ 	if (_features.tessellationShader) {
+ 		pVk11Props->subgroupSupportedStages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+ 	}
++	// Metal mesh and object functions have SIMD-groups, and SPIRV-Cross emits simd_* for them as for kernels.
++	if (_gpuCapabilities.supportsApple7) { pVk11Props->subgroupSupportedStages |= VK_SHADER_STAGE_MESH_BIT_EXT; }
++	if (_gpuCapabilities.supportsApple9) { pVk11Props->subgroupSupportedStages |= VK_SHADER_STAGE_TASK_BIT_EXT; }
+ 	pVk11Props->subgroupSupportedOperations = VK_SUBGROUP_FEATURE_BASIC_BIT;
+ 	if (_metalFeatures.simdPermute || _metalFeatures.quadPermute) {
+ 		pVk11Props->subgroupSupportedOperations |= (VK_SUBGROUP_FEATURE_VOTE_BIT |
+@@ -5060,7 +5063,7 @@ static uint32_t mvkGetEntryProperty(io_registry_entry_t entry, CFStringRef prope
+ 		mtlCompOpt.optimizationLevel = MTLLibraryOptimizationLevelDefault;
+ 	}
+ 
+-	mtlCompOpt.preserveInvariance = preserveInvariance;
++	mtlCompOpt.preserveInvariance = preserveInvariance || (getenv("MVK_DIAG_INVARIANT") != nullptr);
+ 	return [mtlCompOpt autorelease];
+ }
+ 
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+index 1f40faee..fc30b2db 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+@@ -423,6 +423,9 @@ protected:
+ 	bool _isTessellationPipeline = false;
+ 	bool _isMeshPipeline = false;
+ 	bool _hasMeshGridObject = false;
++public:
++	bool _diagMarked = false;
++protected:
+ 	bool _inputAttachmentIsDSAttachment = false;
+ 	bool _hasRemappedAttachmentLocations = false;
+ };
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index 04210fa8..b64293a1 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -1569,6 +1569,8 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+ 	if (meshDesc) {
+ 		meshDesc.meshFunction = mtlFunc;
+ 		_meshThreadgroupSize = func.threadGroupSize;
++		{ extern thread_local bool mvkDiagLastLibOverridden;
++		  if (mvkDiagLastLibOverridden) { _diagMarked = true; fprintf(stderr, "[mvk-diag] pipeline %p uses the overridden mesh shader; mesh threads %lu, task stage %s\n", (void*)this, (unsigned long)_meshThreadgroupSize.width, meshDesc.objectFunction ? "yes" : "no"); } }
+ 	} else {
+ 		plDesc.vertexFunction = mtlFunc;
+ 	}
+@@ -1581,6 +1583,7 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+ 	_stageResources[kMVKShaderStageVertex].implicitBuffers.needed.set(MVKImplicitBuffer::EmulatedReversedDepthViewport, shaderConfig.options.mslOptions.emulate_reversed_depth_viewport);
+ 	_layout->populateBindOperations(_stageResources[kMVKShaderStageVertex].bindScript, shaderConfig, model);
+ 
++	if (_diagMarked) { fprintf(stderr, "[mvk-diag] pipeline %p: _isRasterizing %d, converter says rasterization disabled %d, isRasterizing %d, fragment stage %s\n", (void*)this, (int)_isRasterizing, (int)funcRslts.isRasterizationDisabled, (int)isRasterizing, pFragmentSS ? "present" : "absent"); }
+ 	if ( !isRasterizing ) {
+ 		pFragmentSS = nullptr;
+ 	}
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index c64cf9ae..34a8cb66 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -24,6 +24,41 @@
+ using namespace std;
+ using namespace mvk;
+ 
++// ---- grass-diag: swap in a replacement MSL source when the generated source matches a file exactly ----
++#include <dirent.h>
++#include <atomic>
++#include <fstream>
++#include <sstream>
++#include <mutex>
++#include <set>
++thread_local bool mvkDiagLastLibOverridden = false;
++static std::mutex mvkDiagLock;
++static std::set<void*> mvkDiagLibs;
++static std::vector<std::pair<std::string, std::string>>& mvkDiagOverrides() {
++	static std::vector<std::pair<std::string, std::string>> ov;
++	static std::once_flag once;
++	std::call_once(once, [] {
++		const char* dir = getenv("MVK_DIAG_OVERRIDE_DIR");
++		if ( !dir || !*dir ) { return; }
++		DIR* d = opendir(dir);
++		if ( !d ) { fprintf(stderr, "[mvk-diag] cannot open %s\n", dir); return; }
++		while (dirent* e = readdir(d)) {
++			std::string n = e->d_name;
++			const std::string suf = ".orig.metal";
++			if (n.size() <= suf.size() || n.compare(n.size() - suf.size(), suf.size(), suf) != 0) { continue; }
++			std::string base = std::string(dir) + "/" + n.substr(0, n.size() - suf.size());
++			std::ifstream a(base + ".orig.metal", std::ios::binary), b(base + ".repl.metal", std::ios::binary);
++			if ( !a || !b ) { continue; }
++			std::stringstream sa, sb; sa << a.rdbuf(); sb << b.rdbuf();
++			ov.emplace_back(sa.str(), sb.str());
++			fprintf(stderr, "[mvk-diag] loaded override %s (%zu -> %zu bytes)\n", n.c_str(), sa.str().size(), sb.str().size());
++		}
++		closedir(d);
++	});
++	return ov;
++}
++// ---- end grass-diag ----
++
+ MVKMTLFunction::MVKMTLFunction(id<MTLFunction> mtlFunc, const SPIRVToMSLConversionResultInfo scRslts, MTLSize tgSize) {
+ 	_mtlFunction = [mtlFunc retain];		// retained
+ 	shaderConversionResults = scRslts;
+@@ -87,6 +122,7 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ 												MVKShaderModule* shaderModule) {
+ 
+ 	if ( !_mtlLibrary ) { return MVKMTLFunctionNull; }
++	{ std::lock_guard<std::mutex> lk(mvkDiagLock); mvkDiagLastLibOverridden = mvkDiagLibs.count((void*)_mtlLibrary) != 0; }
+ 
+ 	id<MTLLibrary> lib = _mtlLibrary;
+ 
+@@ -241,7 +277,42 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ void MVKShaderLibrary::compileLibrary(const string& msl,
+ 									  const vector<pair<uint32_t, MVKShaderMacroValue> >* specializationMacroDef) {
+ 	MVKShaderLibraryCompiler* slc = new MVKShaderLibraryCompiler(_owner);
+-	NSString* nsSrc = [[NSString alloc] initWithUTF8String: msl.c_str()];	// temp retained
++	const string* diagSrc = &msl;
++	bool diagHit = false;
++	for (auto& o : mvkDiagOverrides()) {
++		if (msl == o.first) { diagSrc = &o.second; diagHit = true; fprintf(stderr, "[mvk-diag] override APPLIED (%zu bytes source)\n", msl.size()); break; }
++	}
++	string diagInv;
++	if (getenv("MVK_DIAG_INVARIANT")) {
++		static std::atomic<int> diagInvCount{0};
++		diagInv = *diagSrc;
++		const string from = "float4 gl_Position [[position]];", to = "float4 gl_Position [[position, invariant]];";
++		size_t pos = 0; bool any = false;
++		while ((pos = diagInv.find(from, pos)) != string::npos) { diagInv.replace(pos, from.size(), to); pos += to.size(); any = true; }
++		if (any) { int c = ++diagInvCount; if (c <= 3 || (c % 500) == 0) { fprintf(stderr, "[mvk-diag] position marked invariant in %d shaders so far\n", c); } }
++		diagSrc = &diagInv;
++	}
++	string diagFlip;
++	if (getenv("MVK_DIAG_MESH_FLIP") && diagSrc->find("[[mesh]]") != string::npos) {
++		static std::atomic<int> diagFlipCount{0};
++		diagFlip = *diagSrc;
++		const string from = "spvV.gl_Position = gl_Position[spvVI];";
++		const string to = "spvV.gl_Position = gl_Position[spvVI];\n        spvV.gl_Position.z = (spvV.gl_Position.z + spvV.gl_Position.w) * 0.5;       // Adjust clip-space for Metal (grass-diag)\n        spvV.gl_Position.y = -(spvV.gl_Position.y);    // Invert Y-axis for Metal (grass-diag)";
++		size_t pos = diagFlip.find(from);
++		if (pos != string::npos) { diagFlip.replace(pos, from.size(), to); int c = ++diagFlipCount; fprintf(stderr, "[mvk-diag] mesh position fixup added (%d mesh shaders so far)\n", c); diagSrc = &diagFlip; }
++		else { fprintf(stderr, "[mvk-diag] mesh shader WITHOUT the expected flush line\n"); }
++	}
++	string diagNoOpt;
++	if (getenv("MVK_DIAG_NO_OPTNONE") && diagSrc->find("[[clang::optnone]] ") != string::npos) {
++		static std::atomic<int> diagNoOptCount{0};
++		diagNoOpt = *diagSrc;
++		const string from = "[[clang::optnone]] ";
++		size_t pos = 0;
++		while ((pos = diagNoOpt.find(from, pos)) != string::npos) { diagNoOpt.erase(pos, from.size()); }
++		int c = ++diagNoOptCount; if (c <= 2 || (c % 250) == 0) { fprintf(stderr, "[mvk-diag] optnone tag removed from %d shaders so far\n", c); }
++		diagSrc = &diagNoOpt;
++	}
++	NSString* nsSrc = [[NSString alloc] initWithUTF8String: diagSrc->c_str()];	// temp retained
+ 
+ 	// If specialization macro is used, translate the id to macro information and pass it to compiler
+ 	vector<pair<MSLSpecializationMacroInfo, MVKShaderMacroValue>> macro_def;
+@@ -255,6 +326,11 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ 	}
+ 
+ 	_mtlLibrary = slc->newMTLLibrary(nsSrc, _shaderConversionResultInfo, macro_def);	// retained
++	if (diagHit) {
++		std::lock_guard<std::mutex> lk(mvkDiagLock);
++		mvkDiagLibs.insert((void*)_mtlLibrary);
++		fprintf(stderr, "[mvk-diag] override library %p %s\n", (void*)_mtlLibrary, _mtlLibrary ? "compiled" : "FAILED TO COMPILE");
++	}
+ 	[nsSrc release];														// release temp string
+ 	slc->destroy();
+ }
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,501 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:58 -0800
+Subject: [PATCH] Frame profiler (MVKFrameProf): per-pass GPU time, encoder and
+ command buffer counts
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h |   1 +
+ .../MoltenVK/Commands/MVKCommandBuffer.mm     |  12 +-
+ MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm      |   2 +
+ MoltenVK/MoltenVK/Utility/MVKFrameProf.h      |  36 ++
+ MoltenVK/MoltenVK/Utility/MVKFrameProf.mm     | 336 ++++++++++++++++++
+ 5 files changed, 385 insertions(+), 2 deletions(-)
+ create mode 100644 MoltenVK/MoltenVK/Utility/MVKFrameProf.h
+ create mode 100644 MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
+
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+index 6d88bd01..05ef8f4c 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+@@ -568,6 +568,7 @@ protected:
+ 	MVKCommandUse _mtlComputeEncoderUse;
+ 	uint32_t _mtlComputeEncoderStages;
+ 	MVKCommandUse _mtlBlitEncoderUse;
++	uint32_t* _fpWork = nullptr;          // frame-profile: draw/dispatch counter of the current encoder
+ 	bool _isRenderingEntireAttachment;
+ 	bool _hasMTLRenderEncoderVisibilityResultBuffer;
+ };
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+index dd297a4f..5761e992 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "MVKCommandBuffer.h"
++#include "MVKFrameProf.h"
+ #include "MVKFramebuffer.h"
+ #include "MVKCommandPool.h"
+ #include "MVKQueue.h"
+@@ -840,6 +841,7 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ 		[mtlRPDesc setSamplePositions: sampPosns.data() count: sampPosns.size()];
+ 	}
+ 
++    _fpWork = mvkfp::attachRender(_mtlCmdBuffer, mtlRPDesc, cmdUse, isRestart);
+     _mtlRenderEncoder = [_mtlCmdBuffer renderCommandEncoderWithDescriptor: mtlRPDesc];
+ 	retainIfImmediatelyEncoding(_mtlRenderEncoder);
+ 	_cmdBuffer->setMetalObjectLabel(_mtlRenderEncoder, getMTLRenderCommandEncoderName(cmdUse));
+@@ -969,6 +971,7 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+         encodeStoreActions(true);
+     }
+ 	if (stage == kMVKGraphicsStageRasterization) {
++		if (_fpWork) { (*_fpWork)++; }
+ 		prepareDraw();
+ 		_occlusionQueryState.encode(_mtlRenderEncoder, this);
+ 	} else {
+@@ -1030,6 +1033,7 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ 
+ void MVKCommandEncoder::finalizeDispatchState() {
+ 	getMTLComputeEncoder(kMVKCommandUseDispatch);
++	if (_fpWork) { (*_fpWork)++; }
+ 	prepareComputeDispatch();
+ }
+ 
+@@ -1069,6 +1073,7 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ 
+ void MVKCommandEncoder::endCurrentMetalEncoding() {
+ 	endMetalRenderEncoding();
++	_fpWork = nullptr;
+ 	encodeBarrierUpdates();
+ 
+ 	if (_mtlComputeEncoder && _cmdBuffer->_hasStageCounterTimestampCommand) { [_mtlComputeEncoder updateFence: getStageCountersMTLFence()]; }
+@@ -1114,7 +1119,9 @@ static bool shouldStartNewEncoder(MVKCommandUse prev, MVKCommandUse next) {
+ 	if (!_mtlComputeEncoder || shouldStartNewEncoder(_mtlComputeEncoderUse, cmdUse)) {
+ 		needWaits = true;
+ 		endCurrentMetalEncoding();
+-		_mtlComputeEncoder = [_mtlCmdBuffer computeCommandEncoderWithDispatchType:getDispatchType(cmdUse)];
++		MTLComputePassDescriptor* fpDesc = mvkfp::computeDesc(_mtlCmdBuffer, getDispatchType(cmdUse), cmdUse, &_fpWork);
++		_mtlComputeEncoder = fpDesc ? [_mtlCmdBuffer computeCommandEncoderWithDescriptor: fpDesc]
++		                            : [_mtlCmdBuffer computeCommandEncoderWithDispatchType:getDispatchType(cmdUse)];
+ 		retainIfImmediatelyEncoding(_mtlComputeEncoder);
+ 		beginMetalComputeEncoding(cmdUse);
+ 	}
+@@ -1138,7 +1145,8 @@ static bool shouldStartNewEncoder(MVKCommandUse prev, MVKCommandUse next) {
+ 	if ( !_mtlBlitEncoder ) {
+ 		needWaits = true;
+ 		endCurrentMetalEncoding();
+-		_mtlBlitEncoder = [_mtlCmdBuffer blitCommandEncoder];
++		MTLBlitPassDescriptor* fpDesc = mvkfp::blitDesc(_mtlCmdBuffer, cmdUse, &_fpWork);
++		_mtlBlitEncoder = fpDesc ? [_mtlCmdBuffer blitCommandEncoderWithDescriptor: fpDesc] : [_mtlCmdBuffer blitCommandEncoder];
+ 		retainIfImmediatelyEncoding(_mtlBlitEncoder);
+ 	}
+     if (_mtlBlitEncoderUse != cmdUse) {
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm b/MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm
+index dec4b452..3ecdfc7d 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKQueue.mm
+@@ -18,6 +18,7 @@
+ 
+ #include "MVKInstance.h"
+ #include "MVKQueue.h"
++#include "MVKFrameProf.h"
+ #include "MVKSurface.h"
+ #include "MVKSwapchain.h"
+ #include "MVKSync.h"
+@@ -729,6 +730,7 @@
+ 	for (int i = 0; i < _presentInfo.size(); i++ ) {
+ 		setConfigurationResult(_presentInfo[i].presentableImage->presentCAMetalDrawable(mtlCmdBuff, _presentInfo[i]));
+ 	}
++	mvkfp::onPresent();
+ 
+ 	if (_queue->_queueFamily->getIndex() == getMVKConfig().defaultGPUCaptureScopeQueueFamilyIndex &&
+ 		_queue->_index == getMVKConfig().defaultGPUCaptureScopeQueueIndex) {
+diff --git a/MoltenVK/MoltenVK/Utility/MVKFrameProf.h b/MoltenVK/MoltenVK/Utility/MVKFrameProf.h
+new file mode 100644
+index 00000000..dbce351f
+--- /dev/null
++++ b/MoltenVK/MoltenVK/Utility/MVKFrameProf.h
+@@ -0,0 +1,36 @@
++/*
++ * MVKFrameProf.h: per-pass GPU timing for the frame-profile investigation (not upstream).
++ *
++ * Off unless MVK_FRAMEPROF=<output file> is set. When on, every Metal render, compute and blit encoder that
++ * MVKCommandEncoder creates gets stage-boundary timestamps from an MTLCounterSampleBuffer (render: vertex start/end,
++ * fragment start/end; compute and blit: start/end). When a MTLCommandBuffer completes, its encoders are summed by
++ * signature (kind, command use, restart, target size, formats, load action) and one block per command buffer is
++ * written to the file. Presents are counted to tag each command buffer with a frame number.
++ */
++#pragma once
++
++#import <Metal/Metal.h>
++#include <cstdint>
++#include <cstddef>
++
++namespace mvkfp {
++
++bool enabled();
++
++/** Call once per vkQueuePresentKHR (frame boundary). */
++void onPresent();
++
++/** Adds sample attachments to the render pass descriptor. Returns a counter to bump once per draw, or null. */
++uint32_t* attachRender(id<MTLCommandBuffer> cb, MTLRenderPassDescriptor* rpd, uint32_t cmdUse, bool isRestart);
++
++/** Returns a compute pass descriptor with sample attachments (or nil when off or out of samples). */
++MTLComputePassDescriptor* computeDesc(id<MTLCommandBuffer> cb, MTLDispatchType type, uint32_t cmdUse, uint32_t** work);
++
++/** Tags the current compute encoder (its work counter) with the dispatch's shader hash and threadgroup count
++ *  (0 = indirect). The first dispatch's shader names the encoder. */
++void noteDispatch(uint32_t* work, size_t hash, uint64_t groups, uint64_t tgThreads);
++
++/** Returns a blit pass descriptor with sample attachments (or nil). */
++MTLBlitPassDescriptor* blitDesc(id<MTLCommandBuffer> cb, uint32_t cmdUse, uint32_t** work);
++
++}
+diff --git a/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm b/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
+new file mode 100644
+index 00000000..bc172484
+--- /dev/null
++++ b/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
+@@ -0,0 +1,336 @@
++/*
++ * MVKFrameProf.mm: see MVKFrameProf.h. Manual retain/release (MoltenVK is not built with ARC).
++ *
++ * Output (text, one record per line):
++ *   T <cpu_ns> <gpu_ticks>                      calibration pairs from -[MTLDevice sampleTimestamps:gpuTimestamp:]
++ *   P <frame> <host_us>                         a present (frame = presents before it)
++ *   C <frame> <gpu_start_us> <gpu_end_us> <encoders> <unsampled> <kernel_start_us> <kernel_end_us> <first_encoder_host_us>
++ *   S <sig> <count> <span> <vertex> <fragment> <work> <groups> <indirect>  its encoders summed by signature, GPU ticks
++ *   E <i> <sig> <t0> <t1> <vertex> <fragment> <work>               every encoder, only for frames % 150 == 0;
++ *                                                                  t0/t1 in GPU ticks from the buffer's first sample
++ * Signatures: R|C|B : use : r(estart)0/1 : WxH : colour attachment count : colour 0 format : depth format :
++ * colour 0 load action. Times of a render encoder: span = last end - first start; vertex = vertex end - start;
++ * fragment = fragment end - start. A sample Metal could not take reads as 0 and is left out.
++ */
++
++#include "MVKFrameProf.h"
++#include <mach/mach_time.h>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <map>
++#include <mutex>
++#include <string>
++#include <vector>
++
++namespace mvkfp {
++
++static constexpr uint32_t kMaxEnc = 2048;
++
++struct Enc {
++	char kind;
++	bool restart;
++	uint16_t use;
++	uint16_t ncolor, fmt0, dfmt, load0;
++	uint32_t w, h;
++	uint32_t base, nsamp;
++	uint32_t work;
++	uint64_t hash;
++	uint64_t groups;
++	uint32_t tgThreads;
++	uint32_t indirect;
++};
++
++struct Rec {
++	uint64_t frame;
++	double created;
++	id<MTLCounterSampleBuffer> sb;
++	uint32_t used;
++	uint32_t nenc;
++	uint32_t unsampled;
++	Enc enc[kMaxEnc];
++};
++
++static std::once_flag s_once;
++static bool s_on = false;
++static FILE* s_out = nullptr;
++static std::mutex s_lock;                       // s_map, s_pool, s_out
++static std::map<void*, Rec*> s_map;              // MTLCommandBuffer -> its record, until it completes
++static std::vector<Rec*> s_pool;
++static id<MTLCounterSet> s_tsSet = nil;
++static uint32_t s_samples = 0;                   // per sample buffer
++static std::atomic<uint64_t> s_frame{0};
++static uint64_t s_lastFlush = 0;
++static mach_timebase_info_data_t s_tb;
++
++static double hostUs(uint64_t abs) { return (double)abs * s_tb.numer / s_tb.denom / 1000.0; }
++
++static void init() {
++	const char* path = getenv("MVK_FRAMEPROF");
++	if (!path || !*path) { return; }
++	s_out = fopen(path, "w");
++	if (!s_out) { return; }
++	setvbuf(s_out, nullptr, _IOFBF, 1 << 20);
++	mach_timebase_info(&s_tb);
++	s_on = true;
++}
++
++bool enabled() {
++	std::call_once(s_once, init);
++	return s_on;
++}
++
++void onPresent() {
++	if (!enabled()) { return; }
++	uint64_t f = s_frame.fetch_add(1);
++	std::lock_guard<std::mutex> g(s_lock);
++	fprintf(s_out, "P %llu %.1f\n", (unsigned long long)f, hostUs(mach_absolute_time()));
++}
++
++static void calibrate(id<MTLDevice> dev) {
++	MTLTimestamp c = 0, gt = 0;
++	[dev sampleTimestamps: &c gpuTimestamp: &gt];
++	fprintf(s_out, "T %llu %llu\n", (unsigned long long)c, (unsigned long long)gt);
++}
++
++// Caller holds s_lock.
++static bool setupDevice(id<MTLDevice> dev) {
++	if (s_samples) { return true; }
++	if (!s_tsSet) {
++		for (id<MTLCounterSet> cs in dev.counterSets) {
++			if ([cs.name caseInsensitiveCompare: MTLCommonCounterSetTimestamp] == NSOrderedSame) { s_tsSet = [cs retain]; }
++		}
++		if (!s_tsSet) { fprintf(s_out, "# no timestamp counter set\n"); s_on = false; return false; }
++		fprintf(s_out, "# stage boundary sampling: %d\n",
++				(int)[dev supportsCounterSampling: MTLCounterSamplingPointAtStageBoundary]);
++	}
++	for (uint32_t n = 16384; n >= 256; n /= 2) {
++		MTLCounterSampleBufferDescriptor* d = [[MTLCounterSampleBufferDescriptor alloc] init];
++		d.counterSet = s_tsSet;
++		d.storageMode = MTLStorageModeShared;
++		d.sampleCount = n;
++		NSError* err = nil;
++		id<MTLCounterSampleBuffer> sb = [dev newCounterSampleBufferWithDescriptor: d error: &err];
++		[d release];
++		if (sb) {
++			[sb release];
++			s_samples = n;
++			fprintf(s_out, "# sample buffer size %u\n", n);
++			calibrate(dev);
++			return true;
++		}
++	}
++	fprintf(s_out, "# could not make a counter sample buffer\n");
++	s_on = false;
++	return false;
++}
++
++static void finish(Rec* r, id<MTLCommandBuffer> mcb);
++
++// Caller holds s_lock.
++static Rec* recFor(id<MTLCommandBuffer> cb) {
++	auto it = s_map.find((void*)cb);
++	if (it != s_map.end()) { return it->second; }
++	if (!setupDevice(cb.device)) { return nullptr; }
++	Rec* r;
++	if (!s_pool.empty()) {
++		r = s_pool.back();
++		s_pool.pop_back();
++	} else {
++		r = new Rec();
++		MTLCounterSampleBufferDescriptor* d = [[MTLCounterSampleBufferDescriptor alloc] init];
++		d.counterSet = s_tsSet;
++		d.storageMode = MTLStorageModeShared;
++		d.sampleCount = s_samples;
++		NSError* err = nil;
++		r->sb = [cb.device newCounterSampleBufferWithDescriptor: d error: &err];
++		[d release];
++		if (!r->sb) { delete r; return nullptr; }
++	}
++	r->frame = s_frame.load();
++	r->created = hostUs(mach_absolute_time());
++	r->used = 0;
++	r->nenc = 0;
++	r->unsampled = 0;
++	s_map[(void*)cb] = r;
++	[cb addCompletedHandler: ^(id<MTLCommandBuffer> mcb) {
++		{
++			std::lock_guard<std::mutex> g(s_lock);
++			s_map.erase((void*)mcb);
++		}
++		finish(r, mcb);
++	}];
++	return r;
++}
++
++// Caller holds s_lock.
++static Enc* newEnc(id<MTLCommandBuffer> cb, char kind, uint32_t nsamp, uint32_t cmdUse) {
++	Rec* r = recFor(cb);
++	if (!r) { return nullptr; }
++	if (r->nenc >= kMaxEnc || r->used + nsamp > s_samples) { r->unsampled++; return nullptr; }
++	Enc& e = r->enc[r->nenc++];
++	memset(&e, 0, sizeof(e));
++	e.kind = kind;
++	e.use = (uint16_t)cmdUse;
++	e.base = r->used;
++	e.nsamp = nsamp;
++	r->used += nsamp;
++	return &e;
++}
++
++uint32_t* attachRender(id<MTLCommandBuffer> cb, MTLRenderPassDescriptor* rpd, uint32_t cmdUse, bool isRestart) {
++	if (!enabled() || !cb) { return nullptr; }
++	std::lock_guard<std::mutex> g(s_lock);
++	if (!s_on) { return nullptr; }
++	Rec* r = recFor(cb);
++	Enc* e = newEnc(cb, 'R', 4, cmdUse);
++	if (!e) { return nullptr; }
++	e->restart = isRestart;
++	e->w = (uint32_t)rpd.renderTargetWidth;
++	e->h = (uint32_t)rpd.renderTargetHeight;
++	for (uint32_t i = 0; i < 8; i++) {
++		id<MTLTexture> t = rpd.colorAttachments[i].texture;
++		if (!t) { continue; }
++		if (e->ncolor == 0) {
++			e->fmt0 = (uint16_t)t.pixelFormat;
++			e->load0 = (uint16_t)rpd.colorAttachments[i].loadAction;
++			if (!e->w) { e->w = (uint32_t)t.width; e->h = (uint32_t)t.height; }
++		}
++		e->ncolor++;
++	}
++	id<MTLTexture> dt = rpd.depthAttachment.texture;
++	if (!dt) { dt = rpd.stencilAttachment.texture; }
++	if (dt) {
++		e->dfmt = (uint16_t)dt.pixelFormat;
++		if (e->ncolor == 0) { e->load0 = (uint16_t)rpd.depthAttachment.loadAction; }
++		if (!e->w) { e->w = (uint32_t)dt.width; e->h = (uint32_t)dt.height; }
++	}
++	MTLRenderPassSampleBufferAttachmentDescriptor* a = rpd.sampleBufferAttachments[0];
++	a.sampleBuffer = r->sb;
++	a.startOfVertexSampleIndex = e->base;
++	a.endOfVertexSampleIndex = e->base + 1;
++	a.startOfFragmentSampleIndex = e->base + 2;
++	a.endOfFragmentSampleIndex = e->base + 3;
++	return &e->work;
++}
++
++MTLComputePassDescriptor* computeDesc(id<MTLCommandBuffer> cb, MTLDispatchType type, uint32_t cmdUse, uint32_t** work) {
++	*work = nullptr;
++	if (!enabled() || !cb) { return nil; }
++	std::lock_guard<std::mutex> g(s_lock);
++	if (!s_on) { return nil; }
++	Rec* r = recFor(cb);
++	Enc* e = newEnc(cb, 'C', 2, cmdUse);
++	if (!e) { return nil; }
++	MTLComputePassDescriptor* d = [MTLComputePassDescriptor computePassDescriptor];
++	d.dispatchType = type;
++	d.sampleBufferAttachments[0].sampleBuffer = r->sb;
++	d.sampleBufferAttachments[0].startOfEncoderSampleIndex = e->base;
++	d.sampleBufferAttachments[0].endOfEncoderSampleIndex = e->base + 1;
++	*work = &e->work;
++	return d;
++}
++
++MTLBlitPassDescriptor* blitDesc(id<MTLCommandBuffer> cb, uint32_t cmdUse, uint32_t** work) {
++	*work = nullptr;
++	if (!enabled() || !cb) { return nil; }
++	std::lock_guard<std::mutex> g(s_lock);
++	if (!s_on) { return nil; }
++	Rec* r = recFor(cb);
++	Enc* e = newEnc(cb, 'B', 2, cmdUse);
++	if (!e) { return nil; }
++	MTLBlitPassDescriptor* d = [MTLBlitPassDescriptor blitPassDescriptor];
++	d.sampleBufferAttachments[0].sampleBuffer = r->sb;
++	d.sampleBufferAttachments[0].startOfEncoderSampleIndex = e->base;
++	d.sampleBufferAttachments[0].endOfEncoderSampleIndex = e->base + 1;
++	*work = &e->work;
++	return d;
++}
++
++void noteDispatch(uint32_t* work, size_t hash, uint64_t groups, uint64_t tgThreads) {
++	if (!work) { return; }
++	Enc* e = (Enc*)((char*)work - offsetof(Enc, work));
++	if (!e->hash) { e->hash = hash; e->tgThreads = (uint32_t)tgThreads; }
++	if (groups) { e->groups += groups; } else { e->indirect++; }
++}
++
++static void sigOf(const Enc& e, char* buf, size_t n) {
++	if (e.kind == 'R') {
++		snprintf(buf, n, "R:%u:%d:%ux%u:%u:%u:%u:%u", e.use, (int)e.restart, e.w, e.h, e.ncolor, e.fmt0, e.dfmt, e.load0);
++	} else if (e.kind == 'C') {
++		snprintf(buf, n, "C:%u:%016zx:%u", e.use, (size_t)e.hash, e.tgThreads);
++	} else {
++		snprintf(buf, n, "%c:%u", e.kind, e.use);
++	}
++}
++
++static inline bool ok(uint64_t v) { return v != 0 && v != MTLCounterErrorValue; }
++
++static void finish(Rec* r, id<MTLCommandBuffer> mcb) {
++	double gpuStart = mcb.GPUStartTime, gpuEnd = mcb.GPUEndTime;
++	double kStart = mcb.kernelStartTime, kEnd = mcb.kernelEndTime;
++	const uint64_t* ts = nullptr;
++	NSData* data = nil;
++	if (r->used) {
++		data = [r->sb resolveCounterRange: NSMakeRange(0, r->used)];
++		if (data) { ts = (const uint64_t*)data.bytes; }
++	}
++	struct Agg { uint32_t count = 0; uint64_t span = 0, vtx = 0, frag = 0, work = 0, groups = 0, indirect = 0; };
++	std::map<std::string, Agg> agg;
++	uint64_t first = UINT64_MAX;
++	if (ts) {
++		for (uint32_t i = 0; i < r->used; i++) { if (ok(ts[i]) && ts[i] < first) { first = ts[i]; } }
++	}
++	std::string detail;
++	bool dump = (r->frame % 150) == 0;
++	char sig[96], line[256];
++	for (uint32_t i = 0; i < r->nenc; i++) {
++		const Enc& e = r->enc[i];
++		sigOf(e, sig, sizeof(sig));
++		Agg& a = agg[sig];
++		a.count++;
++		a.work += e.work;
++		a.groups += e.groups;
++		a.indirect += e.indirect;
++		uint64_t lo = UINT64_MAX, hi = 0, v = 0, f = 0;
++		if (ts) {
++			for (uint32_t k = 0; k < e.nsamp; k++) {
++				uint64_t t = ts[e.base + k];
++				if (!ok(t)) { continue; }
++				if (t < lo) { lo = t; }
++				if (t > hi) { hi = t; }
++			}
++			if (e.kind == 'R') {
++				const uint64_t* s = ts + e.base;
++				if (ok(s[0]) && ok(s[1]) && s[1] >= s[0]) { v = s[1] - s[0]; }
++				if (ok(s[2]) && ok(s[3]) && s[3] >= s[2]) { f = s[3] - s[2]; }
++			}
++		}
++		uint64_t span = (hi >= lo && lo != UINT64_MAX) ? hi - lo : 0;
++		a.span += span; a.vtx += v; a.frag += f;
++		if (dump) {
++			snprintf(line, sizeof(line), "E %u %s %llu %llu %llu %llu %u\n", i, sig,
++					 (unsigned long long)(lo != UINT64_MAX && first != UINT64_MAX ? lo - first : 0),
++					 (unsigned long long)(hi && first != UINT64_MAX ? hi - first : 0),
++					 (unsigned long long)v, (unsigned long long)f, e.work);
++			detail += line;
++		}
++	}
++	std::lock_guard<std::mutex> g(s_lock);
++	fprintf(s_out, "C %llu %.1f %.1f %u %u %.1f %.1f %.1f\n", (unsigned long long)r->frame, gpuStart * 1e6, gpuEnd * 1e6,
++			r->nenc, r->unsampled, kStart * 1e6, kEnd * 1e6, r->created);
++	for (auto& kv : agg) {
++		fprintf(s_out, "S %s %u %llu %llu %llu %llu %llu %llu\n", kv.first.c_str(), kv.second.count,
++				(unsigned long long)kv.second.span, (unsigned long long)kv.second.vtx,
++				(unsigned long long)kv.second.frag, (unsigned long long)kv.second.work,
++				(unsigned long long)kv.second.groups, (unsigned long long)kv.second.indirect);
++	}
++	if (dump) { fputs(detail.c_str(), s_out); }
++	if (r->frame == 600 || r->frame == 3000) { calibrate(r->sb.device); }
++	uint64_t now = mach_absolute_time();
++	if (hostUs(now - s_lastFlush) > 1e6) { fflush(s_out); s_lastFlush = now; }
++	s_pool.push_back(r);
++}
++
++}
+-- 
+2.54.0 (Apple Git-157)
+

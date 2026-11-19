@@ -1,0 +1,5 @@
+# --- Shared JIT code cache (2026-11-18) ---
+# One dynarmic code cache for all six guest cores instead of six private 128 MiB caches (multiples of 128 MiB,
+# 128-2048). Removes the walk hitch (the full flush of a private cache), lowers memory by ~3-4 GB and the map load by
+# ~1-4 s. Delete this line to go back to private caches; no rebuild needed.
+EDEN_NX2_SHARED_JIT_CACHE=512

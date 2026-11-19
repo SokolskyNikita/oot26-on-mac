@@ -1,0 +1,12 @@
+# Source clones, build output, assembled apps
+build/
+# Harness and tool run data
+runs/
+tools/*/runs/
+# Tooling
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+# Large local data of unfinished threads (build trees, run data)
+wip/*/local/

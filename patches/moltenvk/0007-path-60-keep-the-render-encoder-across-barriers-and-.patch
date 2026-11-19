@@ -1,0 +1,205 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:58 -0800
+Subject: [PATCH] path-60: keep the render encoder across barriers, and the
+ other MVK_P60_* switches
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm  |  4 ++
+ MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm  | 10 ++++-
+ MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h | 10 +++++
+ .../MoltenVK/Commands/MVKCommandBuffer.mm     | 39 +++++++++++++++++++
+ MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm   | 11 ++++++
+ MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h    |  2 +
+ MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm   |  1 +
+ 7 files changed, 75 insertions(+), 2 deletions(-)
+
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm b/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm
+index 2a7eff45..d8c78be5 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdDispatch.mm
+@@ -17,6 +17,7 @@
+  */
+ 
+ #include "MVKCmdDispatch.h"
++#include "MVKFrameProf.h"
+ #include "MVKCommandBuffer.h"
+ #include "MVKCommandPool.h"
+ #include "MVKBuffer.h"
+@@ -54,6 +55,8 @@
+ 	}
+ 	[mtlEncoder dispatchThreadgroups: mtlThreadgroupCount.size
+ 			   threadsPerThreadgroup: pipeline->getThreadgroupSize()];
++	mvkfp::noteDispatch(cmdEncoder->fpWork(), pipeline->_fpHash, (uint64_t)_groupCountX * _groupCountY * _groupCountZ,
++	                    pipeline->getThreadgroupSize().width * pipeline->getThreadgroupSize().height * pipeline->getThreadgroupSize().depth);
+ }
+ 
+ 
+@@ -73,5 +76,6 @@
+     [cmdEncoder->getMTLComputeEncoder(kMVKCommandUseDispatch) dispatchThreadgroupsWithIndirectBuffer: _mtlIndirectBuffer
+ 																				indirectBufferOffset: _mtlIndirectBufferOffset
+ 																			   threadsPerThreadgroup: cmdEncoder->getComputePipeline()->getThreadgroupSize()];
++	mvkfp::noteDispatch(cmdEncoder->fpWork(), cmdEncoder->getComputePipeline()->_fpHash, 0, 0);
+ }
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+index 3b5eef1e..8411fec7 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+@@ -163,11 +163,17 @@
+ #endif
+ 
+ 	if (!cmdEncoder->_mtlRenderEncoder && cmdEncoder->isUsingMetalArgumentBuffers() && cmdEncoder->getDevice()->hasResidencySet()) {
+-		cmdEncoder->endCurrentMetalEncoding();
++		// path-60: a barrier need not end a blit or compute encoder: its commands run in order.
++		bool keep = cmdEncoder->canKeepEncoderAcrossBarrier();
++		if ( !keep ) { cmdEncoder->endCurrentMetalEncoding(); }
+ 
+ 		for (auto& b : _barriers) {
+ 			uint64_t sourceStageMask = mvkBarrierStagesFromPipelineStageFlags(b.srcStageMask), destStageMask = mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask);
+-			cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			if (keep) {
++				cmdEncoder->setBarrierKeepingEncoder(sourceStageMask, destStageMask);
++			} else {
++				cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			}
+ 		}
+ 	}
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+index 05ef8f4c..61b32c98 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+@@ -424,6 +424,7 @@ public:
+ 
+ 	/** Returns the compute pipeline. */
+ 	MVKComputePipeline* getComputePipeline() { return getVkCompute()._pipeline; }
++	uint32_t* fpWork() { return _fpWork; }
+ 
+     /**
+ 	 * Copy bytes into the Metal encoder at a Metal vertex buffer index, and optionally indicate
+@@ -463,6 +464,15 @@ public:
+ 	/** Encode waits in the current command encoder for the stage that corresponds to given use. */
+ 	void encodeBarrierWaits(MVKCommandUse use);
+ 
++	/** path-60 (MVK_P60_KEEP_ENCODER=1): whether the open blit or plain compute encoder may stay open across a pipeline barrier. */
++	bool canKeepEncoderAcrossBarrier();
++
++	/** path-60: setBarrier() for an encoder that stays open: it waits for the other source stages now, and its own stage's barrier is set when it ends. */
++	void setBarrierKeepingEncoder(uint64_t sourceStageMask, uint64_t destStageMask);
++
++	int _p60OwnStage = -1;
++	uint64_t _p60PendingOwnDest = 0;
++
+ 	/** Update fences for the currently executing pipeline stage. */
+ 	void encodeBarrierUpdates();
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+index 5761e992..252bb29a 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -726,6 +726,41 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ }
+ 
+ 
++static bool p60KeepEncoder() {
++	static const bool on = getenv("MVK_P60_KEEP_ENCODER") != nullptr;
++	return on;
++}
++
++bool MVKCommandEncoder::canKeepEncoderAcrossBarrier() {
++	if ( !p60KeepEncoder() || _mtlRenderEncoder ) { return false; }
++	MVKBarrierStage own = kMVKBarrierStageNone;
++	if (_mtlBlitEncoder) {
++		own = commandUseToBarrierStage(_mtlBlitEncoderUse);
++	} else if (_mtlComputeEncoder && _mtlComputeEncoderUse == kMVKCommandUseDispatch &&
++			   _mtlComputeEncoderStages == (1u << kMVKBarrierStageCompute)) {
++		own = kMVKBarrierStageCompute;
++	}
++	if (own == kMVKBarrierStageNone) { return false; }
++	_p60OwnStage = own;
++	return true;
++}
++
++void MVKCommandEncoder::setBarrierKeepingEncoder(uint64_t sourceStageMask, uint64_t destStageMask) {
++	auto &fenceSlots = _pEncodingContext->fenceSlots;
++	for (int i = 0; i < kMVKBarrierStageCount; ++i) {
++		if (i == _p60OwnStage || !mvkIsAnyFlagEnabled(sourceStageMask, 1ull << i)) continue;
++		// Later commands of the open encoder must see stage i's work so far: the whole encoder waits for it.
++		if (mvkIsAnyFlagEnabled(destStageMask, 1ull << _p60OwnStage)) {
++			id<MTLFence> fence = _device->getFence((MVKBarrierStage)i, fenceSlots.update[i]);
++			if (_mtlBlitEncoder) { [_mtlBlitEncoder waitForFence: fence]; }
++			else if (_mtlComputeEncoder) { [_mtlComputeEncoder waitForFence: fence]; }
++		}
++		setBarrier(1ull << i, destStageMask);
++	}
++	// The encoder's own stage: its fence is updated when it ends; later encoders must wait for that update.
++	if (mvkIsAnyFlagEnabled(sourceStageMask, 1ull << _p60OwnStage)) { _p60PendingOwnDest |= destStageMask; }
++}
++
+ void MVKCommandEncoder::encodeBarrierWaits(MVKCommandUse use) {
+ 	if (_mtlRenderEncoder) {
+ 		[_mtlRenderEncoder insertDebugSignpost:@"Encoding waits"];
+@@ -1075,6 +1110,10 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ 	endMetalRenderEncoding();
+ 	_fpWork = nullptr;
+ 	encodeBarrierUpdates();
++	if (_p60PendingOwnDest) {
++		setBarrier(1ull << _p60OwnStage, _p60PendingOwnDest);
++		_p60PendingOwnDest = 0;
++	}
+ 
+ 	if (_mtlComputeEncoder && _cmdBuffer->_hasStageCounterTimestampCommand) { [_mtlComputeEncoder updateFence: getStageCountersMTLFence()]; }
+ 	endMetalEncoding(_mtlComputeEncoder);
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm b/MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm
+index 556850d5..88db2934 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm
+@@ -277,7 +277,18 @@
+ 
+ #pragma mark Object Creation
+ 
++// path-60 (MVK_P60_NO_APPNAP=1): keep macOS from napping the process while its window is hidden, which moves
++// its threads to the efficiency cores and makes frame times of occluded measurement runs bimodal.
++static void p60NoAppNap() {
++	static id<NSObject> activity = nil;
++	if (activity || !getenv("MVK_P60_NO_APPNAP")) { return; }
++	activity = [[[NSProcessInfo processInfo] beginActivityWithOptions: (NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical)
++															   reason: @"path-60 measurement"] retain];
++	fprintf(stderr, "[mvk-p60] App Nap opt-out active\n");
++}
++
+ MVKInstance::MVKInstance(const VkInstanceCreateInfo* pCreateInfo) : _enabledExtensions(this) {
++	p60NoAppNap();
+ 	mvkValidateCeralArchiveDefinitions();
+ 
+ 	initDebugCallbacks(pCreateInfo);	// Do before any creation activities
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+index fc30b2db..fddcc514 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h
+@@ -476,6 +476,8 @@ protected:
+ 
+ 	MVKShaderModule* _module = nullptr;
+ 	bool _ownsModule = false;
++public:
++	size_t _fpHash = 0;                 // frame-profile: SPIR-V hash of the compute shader
+ };
+ 
+ 
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index b64293a1..5d761cb4 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -2523,6 +2523,7 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+     if ( !mvkAreAllFlagsEnabled(pSS->stage, VK_SHADER_STAGE_COMPUTE_BIT) ) { return MVKMTLFunctionNull; }
+ 
+ 	_module = getOrCreateShaderModule(_device, pSS, _ownsModule);
++	if (_module) { _fpHash = _module->getKey().codeHash; }
+ 
+ 	warnIfUnsupportedRobustnessEnabled(this, pSS);
+ 
+-- 
+2.54.0 (Apple Git-157)
+

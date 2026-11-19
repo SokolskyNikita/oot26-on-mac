@@ -1,0 +1,92 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:05 -0800
+Subject: [PATCH] Merge Lichii PR #2022 (RomainROCH): vulkan: skip failed mesh
+ pipelines when seeding vertex-input lenders
+
+Squash of f1f0dcc13a. Merged upstream on 2026-11-17.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ src/tests/video_core/mesh_vertex_input.cpp    | 34 +++++++++++++++++++
+ .../renderer_vulkan/mesh_vertex_input.h       |  7 ++++
+ .../renderer_vulkan/vk_pipeline_cache.cpp     |  2 +-
+ 3 files changed, 42 insertions(+), 1 deletion(-)
+
+diff --git a/src/tests/video_core/mesh_vertex_input.cpp b/src/tests/video_core/mesh_vertex_input.cpp
+index 75061b19313..c8dea7e1f24 100644
+--- a/src/tests/video_core/mesh_vertex_input.cpp
++++ b/src/tests/video_core/mesh_vertex_input.cpp
+@@ -86,3 +86,37 @@ TEST_CASE("Alternating leftover vertex input always lends the first key",
+         REQUIRE(drawn == first);
+     }
+ }
++
++TEST_CASE("Failed mesh pipelines never seed a vertex-input lender",
++          "[video_core][mesh_vertex_input]") {
++    struct PipelineProbe {
++        bool mesh;
++        bool failed;
++        bool IsMeshPipeline() const { return mesh; }
++        bool Failed() const { return failed; }
++    };
++    using Vulkan::CanSeedMeshVertexInput;
++    const PipelineProbe failed_mesh{true, true};
++    const PipelineProbe working_mesh{true, false};
++    const PipelineProbe working_vertex{false, false};
++    REQUIRE_FALSE(CanSeedMeshVertexInput(static_cast<const PipelineProbe*>(nullptr)));
++    REQUIRE_FALSE(CanSeedMeshVertexInput(&failed_mesh));
++    REQUIRE(CanSeedMeshVertexInput(&working_mesh));
++    REQUIRE_FALSE(CanSeedMeshVertexInput(&working_vertex));
++
++    GraphicsPipelineCacheKey failed_key = MeshKey(true);
++    failed_key.state.attribute_types = 0x5;
++    GraphicsPipelineCacheKey working_key = MeshKey(true);
++    working_key.state.attribute_types = 0xa0;
++    MeshVertexInputs<GraphicsPipelineCacheKey> inputs;
++    if (CanSeedMeshVertexInput(&failed_mesh)) {
++        inputs.Add(failed_key);
++    }
++    if (CanSeedMeshVertexInput(&working_mesh)) {
++        inputs.Add(working_key);
++    }
++    GraphicsPipelineCacheKey draw = MeshKey(true);
++    draw.state.attribute_types = 0x3;
++    REQUIRE(inputs.Lend(draw));
++    REQUIRE(draw == working_key);
++}
+\ No newline at end of file
+diff --git a/src/video_core/renderer_vulkan/mesh_vertex_input.h b/src/video_core/renderer_vulkan/mesh_vertex_input.h
+index 7ee47ec04f1..b202dd7c668 100644
+--- a/src/video_core/renderer_vulkan/mesh_vertex_input.h
++++ b/src/video_core/renderer_vulkan/mesh_vertex_input.h
+@@ -11,6 +11,13 @@
+ 
+ namespace Vulkan {
+ 
++/// Only successful native mesh pipelines can lend vertex input to equivalent draws.
++/// A failed boot pipeline may otherwise hide an equivalent working cache entry.
++template <typename Pipeline>
++[[nodiscard]] constexpr bool CanSeedMeshVertexInput(const Pipeline* pipeline) {
++    return pipeline && pipeline->IsMeshPipeline() && !pipeline->Failed();
++}
++
+ /// A native mesh draw's pipeline key holds the vertex input state the last vertex draw left in the
+ /// registers, which a mesh pipeline has no use for (it has no vertex input state). That split one
+ /// mesh pipeline into several, each a driver compile the draw waits for (#1986: 99 mesh pipelines
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index 662bc8400cb..19dcd9b9603 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -1046,7 +1046,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
+         if (!mesh_vertex_inputs_seeded) {
+             mesh_vertex_inputs_seeded = true;
+             for (const auto& [key, pipeline] : graphics_cache) {
+-                if (pipeline && pipeline->IsMeshPipeline()) {
++                if (CanSeedMeshVertexInput(pipeline.get())) {
+                     mesh_vertex_inputs.Add(key);
+                 }
+             }
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:58 -0800
+Subject: [PATCH] path-60: keep-encoder on by default
+ (MVK_P60_NO_KEEP_ENCODER=1 turns it off)
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+index 252bb29a..971f6bbc 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -727,7 +727,9 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ 
+ 
+ static bool p60KeepEncoder() {
+-	static const bool on = getenv("MVK_P60_KEEP_ENCODER") != nullptr;
++	// On by default since 2026-11-17 (~2-2.5 ms a frame at the Kokiri Forest spawn; picture checked by eye):
++	// MVK_P60_NO_KEEP_ENCODER=1 turns it off.
++	static const bool on = getenv("MVK_P60_NO_KEEP_ENCODER") == nullptr;
+ 	return on;
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

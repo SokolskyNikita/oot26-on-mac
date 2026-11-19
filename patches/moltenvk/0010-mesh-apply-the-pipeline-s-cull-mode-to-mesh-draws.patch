@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 03:45:59 -0800
+Subject: [PATCH] mesh: apply the pipeline's cull mode to mesh draws
+
+A mesh pipeline was treated as a point list, so its cull mode was never set on the encoder and mesh draws ran with
+whatever the previous draw had left (white specks at the Kokiri Forest cave wall: 27 of 30 frames, 0 of 30 with
+this).
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm | 49 +++++++++++++++++++++
+ 1 file changed, 49 insertions(+)
+
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index 1eb6c035..1f1e82e9 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -702,6 +702,45 @@ static bool usesConstantColor(MVKRenderStateFlags dynamic, const VkPipelineColor
+ 	return false;
+ }
+ 
++// Returns the topology a mesh pipeline rasterizes: the output primitive its mesh shader declares
++// (OpExecutionMode OutputPoints / OutputLinesEXT / OutputTrianglesEXT). Triangles if the SPIR-V is not at hand.
++static VkPrimitiveTopology mvkMeshOutputTopology(const VkGraphicsPipelineCreateInfo* pCreateInfo) {
++	for (uint32_t i = 0; i < pCreateInfo->stageCount; i++) {
++		const VkPipelineShaderStageCreateInfo& ss = pCreateInfo->pStages[i];
++		if (ss.stage != VK_SHADER_STAGE_MESH_BIT_EXT) { continue; }
++		const uint32_t* code = nullptr;
++		size_t wordCount = 0;
++		if (ss.module) {
++			const std::vector<uint32_t>& spv = ((MVKShaderModule*)ss.module)->getSPIRV();
++			code = spv.data();
++			wordCount = spv.size();
++		} else {
++			for (const auto* next = (const VkBaseInStructure*)ss.pNext; next; next = next->pNext) {
++				if (next->sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO) {
++					const auto* smci = (const VkShaderModuleCreateInfo*)next;
++					code = smci->pCode;
++					wordCount = smci->codeSize / sizeof(uint32_t);
++				}
++			}
++		}
++		for (size_t w = 5; code && w < wordCount; ) {
++			uint32_t op = code[w] & 0xffff;
++			uint32_t len = code[w] >> 16;
++			if (len == 0 || op == 54 /* OpFunction */) { break; }
++			if (op == 16 /* OpExecutionMode */ && len >= 3 && w + 2 < wordCount) {
++				switch (code[w + 2]) {
++					case 27:   return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;     // OutputPoints
++					case 5269: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;      // OutputLinesEXT
++					case 5298: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;  // OutputTrianglesEXT
++					default: break;
++				}
++			}
++			w += len;
++		}
++	}
++	return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++}
++
+ MVKGraphicsPipeline::MVKGraphicsPipeline(MVKDevice* device,
+ 										 MVKPipelineCache* pipelineCache,
+ 										 MVKPipeline* parent,
+@@ -722,6 +761,10 @@ static bool usesConstantColor(MVKRenderStateFlags dynamic, const VkPipelineColor
+ 
+ 	// Extract dynamic state first, as it can affect many configurations.
+ 	initDynamicState(pCreateInfo);
++	if (_isMeshPipeline) {
++		// The input assembly state does not exist for a mesh pipeline, so its dynamic forms have nothing to change.
++		_dynamicStateFlags.removeAll({ MVKRenderStateFlag::PrimitiveTopology, MVKRenderStateFlag::PrimitiveRestartEnable });
++	}
+ 
+ 	_primitiveTopologyClass = MTLPrimitiveTopologyClassUnspecified;
+ 	if (pCreateInfo->pInputAssemblyState)
+@@ -892,6 +935,12 @@ static bool usesConstantColor(MVKRenderStateFlags dynamic, const VkPipelineColor
+ 		_vkPrimitiveTopology = pCreateInfo->pInputAssemblyState->topology;
+ 		primitiveRestart = pCreateInfo->pInputAssemblyState->primitiveRestartEnable;
+ 	}
++	if (_isMeshPipeline) {
++		// A mesh pipeline rasterizes what its mesh shader emits. Leaving the topology at the point-list default made
++		// the encoder state treat every mesh draw as "not triangles" and skip its cull mode and fill mode, so a mesh
++		// draw ran with whatever the previous draw had left on the Metal encoder.
++		_vkPrimitiveTopology = mvkMeshOutputTopology(pCreateInfo);
++	}
+ 
+ 	_staticStateData.primitiveType = mvkMTLPrimitiveTypeFromVkPrimitiveTopology(_vkPrimitiveTopology);
+ 	_staticStateData.enable.set(MVKRenderStateEnableFlag::PrimitiveRestart, primitiveRestart);
+-- 
+2.54.0 (Apple Git-157)
+
