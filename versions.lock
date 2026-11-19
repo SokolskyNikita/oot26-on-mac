@@ -5,6 +5,9 @@ LICHII_URL=https://github.com/zortos293/Lichii.git
 LICHII_BASE=8c0558a3d30a101ce2de3488a09839cc76dc5f2c
 LICHII_TREE=b862da66f1db4752f6b6c2c26597a8ff114c7ae3
 LICHII_COMMIT=0c5fc7d22a912fdeaadce725aac4de9ecdee2ac1
+# Informational: the series as commits on a public fork branch (pushed 2026-11-19); build.sh still builds from patches/
+LICHII_FORK=https://github.com/SokolskyNikita/Lichii.git
+LICHII_FORK_BRANCH=oot26-on-mac
 
 # MoltenVK: upstream base, then the series in patches/moltenvk/
 MOLTENVK_URL=https://github.com/KhronosGroup/MoltenVK.git
@@ -12,6 +15,9 @@ MOLTENVK_BASE=5189f8de86ec365860f63bf1da736815cfaea5cd
 MOLTENVK_TREE=6a305b718c149230f02c281b72a876ef3bb0685d
 MOLTENVK_COMMIT=dc964d4011302f189e91b52d3b759cdf2a0878eb
 MOLTENVK_DYLIB=libMoltenVK.1.4.3.dylib
+# Informational: the series as commits on a public fork branch (pushed 2026-11-19); build.sh still builds from patches/
+MOLTENVK_FORK=https://github.com/SokolskyNikita/MoltenVK.git
+MOLTENVK_FORK_BRANCH=oot26-on-mac
 
 # MoltenVK's pipeline cache identity (MVK_PIPELINE_CACHE_REV, 8 hex digits). Lichii discards its stored pipeline file
 # and translates every shader again when this changes, so it changes only when shader translation does.
