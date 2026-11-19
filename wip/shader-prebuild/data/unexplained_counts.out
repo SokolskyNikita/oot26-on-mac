@@ -1,0 +1,276 @@
+== 1. not-ok programs 941
+  mesh-hash-only   Mesh       814
+  capture          Mesh        40
+  capture          Compute     28
+  capture          Fragment    28
+  mesh-hash-only   Task        25
+  capture          VertexB      5
+  capture          Task         1
+  -- capture failures by reason (offset stripped) and stage
+    27  Mesh      lowering failed: native register shadowing mode
+    19  Fragment  lowering failed: unsupported native opcode
+    14  Compute   lowering failed: native per-tap gather control-flow proof
+     6  Compute   lowering failed: unsupported native opcode
+     5  VertexB   lowering failed: native register shadowing mode
+     5  Mesh      lowering failed: unsupported native opcode
+     4  Fragment  lowering failed: native per-tap gather operands
+     4  Mesh      lowering failed: native call linkage mode
+     3  Compute   lowering failed: native per-tap gather offset proof
+     3  Fragment  lowering failed: native texel fetch mode or descriptor binding
+     2  Fragment  lowering failed: native uniform shift mode
+     2  Compute   lowering failed: native global load uniform addressing mode
+     2  Mesh      lowering failed: native uniform register shift mode
+     2  Mesh      lowering failed: native uniform arithmetic predication
+     1  Compute   lowering failed: native register shadowing mode
+     1  Compute   branch outside capture bounds
+     1  Compute   capture incomplete inside the code area
+     1  Task      lowering failed: native stage buffer access mode
+  -- capture failures by shader file (left_out = in a version the game does not load)
+    20  /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb
+    15  /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs  [left out]
+    14  /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_ndsr_vr.pck
+    10  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha
+    10  /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs
+     6  /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb
+     6  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/FoliageShader.sharcb
+     6  /Shader/TerrainGround.Product.100.product.Nin_Ounce_NVN2.bfsha.zs  [left out]
+     3  /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs  [left out]
+     2  /Lib/Terrain/tera_resource.Nin_Ounce_NVN2.release.sarc.zs/tera_develop.sharcb
+     2  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha
+     2  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/AglShader.sharcb
+     2  /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs
+     2  /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs
+     1  /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_ndsr_vr_light.pck
+     1  /Movie/Ndve/Ndve-Nvn2-vid_seq5.dat.zs
+  -- mesh-hash-only by file
+   300  /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs  [left out]
+   284  /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs
+    98  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha
+    55  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha
+    48  /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs
+    43  /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs  [left out]
+    11  /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/AglShader.sharcb
+  (7 files in all)
+  mesh-hash-only programs the caches drew: 87 Counter({'Mesh': 82, 'Task': 5})
+  drawn programs whose hash no scanned program has (would be the capture failures): 0 {}
+  drawn non-mesh programs without an ok scan row: 0
+
+== 2. pairs without an oracle environment (nx_pairs.json; recorded pairs come from caches)
+  pair 1
+    vertex hash 0 = a program that failed lowering (no hash)  <- no oracle
+    pixel  c4f6df310fa7801c Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/AglShader.sharcb#BAHS@0x186eb8
+      failed member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/AglShader.sharcb#BAHS@0x186ce8: lowering failed at 0x1570: native register shadowing mode
+  pair 2
+    vertex 16aff33d999f993f VertexB ok /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0xab08 (drawn)
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13238: lowering failed at 0x100: native texel fetch mode or descriptor binding
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13370: lowering failed at 0x120: native texel fetch mode or descriptor binding
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13588: lowering failed at 0x160: native texel fetch mode or descriptor binding
+  pair 3
+    vertex 88b5e6e5fd4f01a8 VertexB ok /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9: lowering failed at 0x6800: unsupported native opcode
+  pair 4
+    vertex 920dfed248740e38 VertexB ok /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var11
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9: lowering failed at 0x6800: unsupported native opcode
+  pair 5
+    vertex a70007816a68dbc3 VertexB ok /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189478
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189518: lowering failed at 0xa0: native per-tap gather operands
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189658: lowering failed at 0xa0: native per-tap gather operands
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189878: lowering failed at 0xa0: native per-tap gather operands
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189a98: lowering failed at 0xa0: native per-tap gather operands
+  pair 6
+    vertex af71d1487c405ff8 VertexB ok /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0xa810
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0xa978: lowering failed at 0xa50: unsupported native opcode
+  pair 7
+    vertex b97f2415c0767381 VertexB ok /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x1e090 (drawn)
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x1e6f8: lowering failed at 0x320: native uniform shift mode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x1e928: lowering failed at 0x320: native uniform shift mode
+  pair 8
+    vertex da8f4664b4f42327 VertexB ok /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_shdw.sharcb#BAHS@0xcfb18 (drawn)
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x3ff38: lowering failed at 0x130: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x400d0: lowering failed at 0x140: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40268: lowering failed at 0xb0: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x404f0: lowering failed at 0x1c0: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40698: lowering failed at 0x130: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40830: lowering failed at 0x140: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40aa8: lowering failed at 0xb0: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40c50: lowering failed at 0x1c0: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40df8: lowering failed at 0x130: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40f90: lowering failed at 0x140: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x41208: lowering failed at 0xb0: unsupported native opcode
+      failed member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x413b0: lowering failed at 0x1c0: unsupported native opcode
+  pair 9
+    vertex db075c440f4c1406 VertexB ok /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var10
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9: lowering failed at 0x6800: unsupported native opcode
+  pair 10
+    vertex fea88e824922c1e1 VertexB ok /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x145000#var3
+    pixel  hash 0 = a program that failed lowering (no hash)  <- no oracle
+      failed member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x145000#var3: lowering failed at 0x7b70: unsupported native opcode
+  total 10
+
+== 3. mesh draws without environments (mesh_combos.json)
+  draw 1 pixel has no oracle, (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel hash 0 = a program that failed lowering (no hash)
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x153000#var2: lowering failed at 0x260: native call linkage mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x153000#var3: lowering failed at 0x260: native call linkage mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var0: lowering failed at 0x27da0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var2: lowering failed at 0x16ce0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var3: lowering failed at 0x18610: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var5: lowering failed at 0x6520: native uniform register shift mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var27: lowering failed at 0x3e10: native uniform arithmetic predication
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var0: lowering failed at 0x27dc0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var2: lowering failed at 0x16ca0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var3: lowering failed at 0x18630: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var5: lowering failed at 0x6540: native uniform register shift mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var27: lowering failed at 0x3e30: native uniform arithmetic predication
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0xf9000#var3: lowering failed at 0x6550: native call linkage mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x12c000#var3: lowering failed at 0x8e00: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x159000#var3: lowering failed at 0x9140: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x186000#var3: lowering failed at 0xca60: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1b2000#var3: lowering failed at 0x5810: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1eb000#var3: lowering failed at 0x4d50: unsupported native opcode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x219000#var3: lowering failed at 0x5210: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x23c000#var3: lowering failed at 0x46b0: unsupported native opcode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x25f000#var3: lowering failed at 0x4a00: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x286000#var0: lowering failed at 0x310: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x286000#var3: lowering failed at 0x6d0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x2d2000#var3: lowering failed at 0xe50: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x2f7000#var3: lowering failed at 0x6550: native call linkage mode
+      failed Mesh member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x32b000#var3: lowering failed at 0x49d0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x12c000#var3: lowering failed at 0x8bb0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x159000#var3: lowering failed at 0x8ef0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x185000#var3: lowering failed at 0x4210: unsupported native opcode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1b1000#var3: lowering failed at 0x57e0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1e9000#var3: lowering failed at 0x4ba0: unsupported native opcode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x216000#var3: lowering failed at 0x51c0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x238000#var3: lowering failed at 0x4670: unsupported native opcode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x281000#var3: lowering failed at 0x5200: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x2cd000#var3: lowering failed at 0xe30: native register shadowing mode
+      failed Mesh member: /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var297: lowering failed at 0x4e60: native register shadowing mode
+      failed Mesh member: /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var301: lowering failed at 0x4e60: native register shadowing mode
+      failed Mesh member: /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var859: lowering failed at 0x3f30: native register shadowing mode
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var297: lowering failed at 0x4e30: native register shadowing mode
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var301: lowering failed at 0x4e30: native register shadowing mode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189518: lowering failed at 0xa0: native per-tap gather operands
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189658: lowering failed at 0xa0: native per-tap gather operands
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189878: lowering failed at 0xa0: native per-tap gather operands
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_technique_pfx.sharcb#BAHS@0x189a98: lowering failed at 0xa0: native per-tap gather operands
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0xa978: lowering failed at 0xa50: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13238: lowering failed at 0x100: native texel fetch mode or descriptor binding
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13370: lowering failed at 0x120: native texel fetch mode or descriptor binding
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x13588: lowering failed at 0x160: native texel fetch mode or descriptor binding
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x1e6f8: lowering failed at 0x320: native uniform shift mode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x1e928: lowering failed at 0x320: native uniform shift mode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x3ff38: lowering failed at 0x130: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x400d0: lowering failed at 0x140: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40268: lowering failed at 0xb0: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x404f0: lowering failed at 0x1c0: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40698: lowering failed at 0x130: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40830: lowering failed at 0x140: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40aa8: lowering failed at 0xb0: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40c50: lowering failed at 0x1c0: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40df8: lowering failed at 0x130: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x40f90: lowering failed at 0x140: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x41208: lowering failed at 0xb0: unsupported native opcode
+      failed Fragment member: /Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_common.sharcb#BAHS@0x413b0: lowering failed at 0x1c0: unsupported native opcode
+      failed Fragment member: /Shader/Foliage.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x186000#var3: lowering failed at 0x6b50: unsupported native opcode
+      failed Fragment member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x185000#var3: lowering failed at 0x6ba0: unsupported native opcode
+      failed Fragment member: /Shader/TerrainGround.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9: lowering failed at 0x6750: unsupported native opcode
+      failed Fragment member: /Shader/TerrainGround.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x146000#var3: lowering failed at 0x7af0: unsupported native opcode
+      failed Fragment member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x35000#var9: lowering failed at 0x6800: unsupported native opcode
+      failed Fragment member: /Shader/TerrainGround.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x145000#var3: lowering failed at 0x7b70: unsupported native opcode
+  draw 2 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 13b0e6e477672336 Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x12c000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x12c000#var3: lowering failed at 0x8bb0: native register shadowing mode
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x159000#var3: lowering failed at 0x8ef0: native register shadowing mode
+  draw 3 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 210eb75943e15a50 Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x238000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x238000#var3: lowering failed at 0x4670: unsupported native opcode
+  draw 4 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 39a5fc5619c53135 Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x2cd000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x2cd000#var3: lowering failed at 0xe30: native register shadowing mode
+  draw 5 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 4e8ff4b9bf66a117 Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x216000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x216000#var3: lowering failed at 0x51c0: native register shadowing mode
+  draw 6 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 54f16995713d7525 Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x115000#var3
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x153000#var3: lowering failed at 0x260: native call linkage mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var5: lowering failed at 0x6520: native uniform register shift mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var27: lowering failed at 0x3e10: native uniform arithmetic predication
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var5: lowering failed at 0x6540: native uniform register shift mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var27: lowering failed at 0x3e30: native uniform arithmetic predication
+  draw 7 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 8b1f58e3f73fc105 Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1b1000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1b1000#var3: lowering failed at 0x57e0: native register shadowing mode
+  draw 8 (task, mesh) not in mesh.mesh
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 8dfdc4b9d04c677e Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x115000#var0
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x153000#var2: lowering failed at 0x260: native call linkage mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var0: lowering failed at 0x27da0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var2: lowering failed at 0x16ce0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x15a000#var3: lowering failed at 0x18610: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var0: lowering failed at 0x27dc0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var2: lowering failed at 0x16ca0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var3: lowering failed at 0x18630: native register shadowing mode
+  draw 9 (task, mesh) not in mesh.mesh
+    task  0e8b4b43275b4e5e Task mesh-hash-only /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var0 (drawn)
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 03384ea4fb3c760d Fragment ok /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0xf7d000#var3686
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var301: lowering failed at 0x4e30: native register shadowing mode
+  draw 10 (task, mesh) not in mesh.mesh
+    task  0e8b4b43275b4e5e Task mesh-hash-only /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var0 (drawn)
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 60fb374ed9cf3441 Fragment ok /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0xf7d000#var3685
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var301: lowering failed at 0x4e30: native register shadowing mode
+  draw 11 (task, mesh) not in mesh.mesh
+    task  0e8b4b43275b4e5e Task mesh-hash-only /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var0 (drawn)
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel aae90618bc7ca89e Fragment ok /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0xf7d000#var3688
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var301: lowering failed at 0x4e30: native register shadowing mode
+  draw 12 (task, mesh) not in mesh.mesh
+    task  0e8b4b43275b4e5e Task mesh-hash-only /Shader/Model.Product.100.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11491000#var0 (drawn)
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel b7fcd3dac20e345f Fragment ok /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0xf7d000#var3681
+      failed Mesh member: /Shader/Model.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x11543000#var297: lowering failed at 0x4e30: native register shadowing mode
+  draw 13 (task, mesh) not in mesh.mesh
+    task  40e95974017608dd Task mesh-hash-only /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var0
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 8dfdc4b9d04c677e Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x115000#var0
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var0: lowering failed at 0x27dc0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var2: lowering failed at 0x16ca0: native register shadowing mode
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var3: lowering failed at 0x18630: native register shadowing mode
+  draw 14 (task, mesh) not in mesh.mesh
+    task  5c888352504ee6c9 Task mesh-hash-only /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x18f000#var0
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 2f648225f29e2e0f Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x281000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x281000#var3: lowering failed at 0x5200: native register shadowing mode
+  draw 15 (task, mesh) not in mesh.mesh
+    task  84996b6b9695d20f Task mesh-hash-only /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var27
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 54f16995713d7525 Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x115000#var3
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var27: lowering failed at 0x3e30: native uniform arithmetic predication
+  draw 16 (task, mesh) not in mesh.mesh
+    task  a531b8a62ae4fc61 Task mesh-hash-only /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var5
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel 54f16995713d7525 Fragment ok /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x115000#var3
+      failed Mesh member: /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Model.Nin_Ounce_NVN2.bfsha#BNSH@0x470000#var5: lowering failed at 0x6540: native uniform register shift mode
+  draw 17 (task, mesh) not in mesh.mesh
+    task  b2e0880122d82724 Task mesh-hash-only /Shader/ApplicationPackage.Nin_Ounce_NVN2.release.sarc.zs/Foliage.Nin_Ounce_NVN2.bfsha#BNSH@0x160000#var0 (drawn)
+    mesh  hash 0 = a program that failed lowering (no hash)
+    pixel e3d6d73d71adc04a Fragment ok /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1e9000#var3
+      failed Mesh member: /Shader/Foliage.Product.110.product.Nin_Ounce_NVN2.bfsha.zs#BNSH@0x1e9000#var3: lowering failed at 0x4ba0: unsupported native opcode
+  total 17 {('pixel has no oracle', '(task, mesh) not in mesh.mesh'): 1, ('(task, mesh) not in mesh.mesh',): 16}

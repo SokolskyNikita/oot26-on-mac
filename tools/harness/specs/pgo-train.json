@@ -1,0 +1,11 @@
+[
+ {
+  "label": "pgo-train",
+  "app": "${REPO}/build/old-trees/path-60/app-pgogen/lichii.app",
+  "phase_frames": 1800,
+  "env": {
+   "LLVM_PROFILE_FILE": "${REPO}/build/old-trees/path-60/pgo-profiles/%m-%p-%c.profraw"
+  },
+  "desc": "Train PGO: instrumented build, boot, menus, load, stand, long walk (profiles in continuous mode)"
+ }
+]

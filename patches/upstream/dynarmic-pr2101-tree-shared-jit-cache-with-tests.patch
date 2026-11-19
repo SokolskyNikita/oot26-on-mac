@@ -1,0 +1,3419 @@
+# Shared JIT code cache (dynarmic arm64) in the PR-2101 tree (zortos293/Lichii, head 72ff982a3), with the tests:
+# dynarmic_tests additions (block_table, jit_cache_replay) and jit_shared_cache_tests, including the review-fix tests.
+diff --git a/src/core/arm/dynarmic/arm_dynarmic_64.cpp b/src/core/arm/dynarmic/arm_dynarmic_64.cpp
+index 9c543acf0..6738e6b4e 100644
+--- a/src/core/arm/dynarmic/arm_dynarmic_64.cpp
++++ b/src/core/arm/dynarmic/arm_dynarmic_64.cpp
+@@ -554,6 +554,21 @@ void ArmDynarmic64::MakeJit(Common::PageTable* page_table, std::size_t address_s
+             config.code_cache_size = std::uint32_t(1_GiB);
+         }
+     }
++#elif defined(ARCHITECTURE_arm64)
++    // One code cache for all cores of the process, as on x86-64. Off unless
++    // EDEN_NX2_SHARED_JIT_CACHE=<MiB> is set (128 to 2048) until it is measured in a game.
++    if (m_shared_code_cache && page_table && !config.check_halt_on_memory_access &&
++        Settings::values.cpu_accuracy.GetValue() != Settings::CpuAccuracy::Paranoid) {
++        static const u32 shared_mib = [] {
++            const char* const value = std::getenv("EDEN_NX2_SHARED_JIT_CACHE");
++            const long mib = value ? std::strtol(value, nullptr, 10) : 0;
++            return mib >= 128 && mib <= 2048 ? u32(mib) : 0;
++        }();
++        if (shared_mib != 0) {
++            config.shared_code_cache = m_shared_code_cache;
++            config.code_cache_size = shared_mib * std::uint32_t(1_MiB);
++        }
++    }
+ #endif
+     m_jit.emplace(config);
+ }
+diff --git a/src/core/hle/kernel/k_process.cpp b/src/core/hle/kernel/k_process.cpp
+index f6afff781..34e4f1876 100644
+--- a/src/core/hle/kernel/k_process.cpp
++++ b/src/core/hle/kernel/k_process.cpp
+@@ -1322,7 +1322,7 @@ void KProcess::InitializeInterfaces(KernelCore& kernel) {
+         if (this->Is64Bit()) {
+         // One JIT code cache for all cores; MakeJit falls back to a cache per core where it can't.
+         std::shared_ptr<Dynarmic::A64::SharedCodeCache> code_cache;
+-#ifdef ARCHITECTURE_x86_64
++#if defined(ARCHITECTURE_x86_64) || defined(ARCHITECTURE_arm64)
+         if (kernel.IsMulticore()) {
+             code_cache = Dynarmic::A64::MakeSharedCodeCache();
+         }
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a32_address_space.cpp b/src/dynarmic/src/dynarmic/backend/arm64/a32_address_space.cpp
+index ae3e69239..2a0e094fc 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a32_address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a32_address_space.cpp
+@@ -406,8 +406,6 @@ EmitConfig A32AddressSpace::GetEmitConfig() {
+         .cntfreq_el0{},
+         .ctr_el0{},
+         .dczid_el0{},
+-        .tpidrro_el0{},
+-        .tpidr_el0{},
+ 
+         .check_halt_on_memory_access = conf.check_halt_on_memory_access,
+ 
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
+index c05f688d1..77d198601 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
+@@ -30,17 +30,15 @@ template<auto mfp, typename T>
+ static void* EmitCallReadTrampoline(oaknut::CodeGenerator& code, T* this_, size_t bitsize) {
+     using namespace oaknut::util;
+     const auto info = Devirtualize<mfp>(this_);
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+     void* target = code.xptr<void*>();
+     // params = { this, vaddr, bitsize }
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     // X1 = vaddr
+     code.MOV(X2, bitsize);
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+     return target;
+@@ -50,18 +48,16 @@ template<auto mfp, typename T>
+ static void* EmitCallWriteTrampoline(oaknut::CodeGenerator& code, T* this_, size_t bitsize) {
+     using namespace oaknut::util;
+     const auto info = Devirtualize<mfp>(this_);
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+     void* target = code.xptr<void*>();
+     // params = { this, vaddr, value, bitsize }
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     // X1 = vaddr
+     // X2 = value
+     code.MOV(X3, bitsize);
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+     return target;
+@@ -71,14 +67,12 @@ template<auto mfp, typename T>
+ static void* EmitCallTrampoline(oaknut::CodeGenerator& code, T* this_) {
+     using namespace oaknut::util;
+     const auto info = Devirtualize<mfp>(this_);
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+     void* target = code.xptr<void*>();
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+     return target;
+@@ -90,13 +84,13 @@ static void* EmitWrappedReadCallTrampoline(oaknut::CodeGenerator& code, T* this_
+ 
+     const auto info = Devirtualize<mfp>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     constexpr u64 save_regs = ABI_CALLER_SAVE & ~ToRegList(Xscratch0);
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, save_regs, 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.MOV(X1, Xscratch0);
+     code.MOV(X2, bitsize);
+     code.LDR(Xscratch0, l_addr);
+@@ -106,8 +100,6 @@ static void* EmitWrappedReadCallTrampoline(oaknut::CodeGenerator& code, T* this_
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+@@ -115,10 +107,10 @@ static void* EmitWrappedReadCallTrampoline(oaknut::CodeGenerator& code, T* this_
+ }
+ 
+ template<auto callback, typename T>
+-static void* EmitExclusiveReadCallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig& conf) {
++static void* EmitExclusiveReadCallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig&) {
+     using namespace oaknut::util;
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     auto fn = [](const A64::UserConfig& conf, A64::VAddr vaddr) -> T {
+         return conf.global_monitor->ReadAndMark<T>(conf.processor_id, vaddr, [&]() -> T {
+@@ -127,13 +119,11 @@ static void* EmitExclusiveReadCallTrampoline(oaknut::CodeGenerator& code, const
+     };
+ 
+     void* target = code.xptr<void*>();
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, user_config));
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(std::bit_cast<u64>(&conf));
+     code.l(l_addr);
+     code.dx(std::bit_cast<u64>(Common::FptrCast(fn)));
+ 
+@@ -146,13 +136,13 @@ static void* EmitWrappedWriteCallTrampoline(oaknut::CodeGenerator& code, T* this
+ 
+     const auto info = Devirtualize<mfp>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     constexpr u64 save_regs = ABI_CALLER_SAVE;
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, save_regs, 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.MOV(X1, Xscratch0);
+     code.MOV(X2, Xscratch1);
+     code.MOV(X3, bitsize);
+@@ -162,8 +152,6 @@ static void* EmitWrappedWriteCallTrampoline(oaknut::CodeGenerator& code, T* this
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+@@ -171,10 +159,10 @@ static void* EmitWrappedWriteCallTrampoline(oaknut::CodeGenerator& code, T* this
+ }
+ 
+ template<auto callback, typename T>
+-static void* EmitExclusiveWriteCallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig& conf) {
++static void* EmitExclusiveWriteCallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig&) {
+     using namespace oaknut::util;
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+     auto fn = [](const A64::UserConfig& conf, A64::VAddr vaddr, T value) -> u32 {
+         return conf.global_monitor->DoExclusiveOperation<T>(conf.processor_id, vaddr, [&](T expected) -> bool {
+             return (conf.callbacks->*callback)(vaddr, value, expected);
+@@ -182,13 +170,11 @@ static void* EmitExclusiveWriteCallTrampoline(oaknut::CodeGenerator& code, const
+     };
+ 
+     void* target = code.xptr<void*>();
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, user_config));
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(std::bit_cast<u64>(&conf));
+     code.l(l_addr);
+     code.dx(std::bit_cast<u64>(Common::FptrCast(fn)));
+ 
+@@ -200,11 +186,11 @@ static void* EmitRead128CallTrampoline(oaknut::CodeGenerator& code, A64::UserCal
+ 
+     const auto info = Devirtualize<&A64::UserCallbacks::MemoryRead128>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, (1ull << 29) | (1ull << 30), 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.LDR(Xscratch0, l_addr);
+     code.BLR(Xscratch0);
+     code.FMOV(D0, X0);
+@@ -213,8 +199,6 @@ static void* EmitRead128CallTrampoline(oaknut::CodeGenerator& code, A64::UserCal
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+@@ -226,13 +210,13 @@ static void* EmitWrappedRead128CallTrampoline(oaknut::CodeGenerator& code, A64::
+ 
+     const auto info = Devirtualize<&A64::UserCallbacks::MemoryRead128>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     constexpr u64 save_regs = ABI_CALLER_SAVE & ~ToRegList(Q0);
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, save_regs, 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.MOV(X1, Xscratch0);
+     code.LDR(Xscratch0, l_addr);
+     code.BLR(Xscratch0);
+@@ -242,18 +226,16 @@ static void* EmitWrappedRead128CallTrampoline(oaknut::CodeGenerator& code, A64::
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+     return target;
+ }
+ 
+-static void* EmitExclusiveRead128CallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig& conf) {
++static void* EmitExclusiveRead128CallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig&) {
+     using namespace oaknut::util;
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     auto fn = [](const A64::UserConfig& conf, A64::VAddr vaddr) -> Vector {
+         return conf.global_monitor->ReadAndMark<Vector>(conf.processor_id, vaddr, [&]() -> Vector {
+@@ -263,7 +245,7 @@ static void* EmitExclusiveRead128CallTrampoline(oaknut::CodeGenerator& code, con
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, (1ull << 29) | (1ull << 30), 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, user_config));
+     code.LDR(Xscratch0, l_addr);
+     code.BLR(Xscratch0);
+     code.FMOV(D0, X0);
+@@ -272,8 +254,6 @@ static void* EmitExclusiveRead128CallTrampoline(oaknut::CodeGenerator& code, con
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(std::bit_cast<u64>(&conf));
+     code.l(l_addr);
+     code.dx(std::bit_cast<u64>(Common::FptrCast(fn)));
+ 
+@@ -285,18 +265,16 @@ static void* EmitWrite128CallTrampoline(oaknut::CodeGenerator& code, A64::UserCa
+ 
+     const auto info = Devirtualize<&A64::UserCallbacks::MemoryWrite128>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     void* target = code.xptr<void*>();
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.FMOV(X2, D0);
+     code.FMOV(X3, V0.D()[1]);
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+@@ -308,13 +286,13 @@ static void* EmitWrappedWrite128CallTrampoline(oaknut::CodeGenerator& code, A64:
+ 
+     const auto info = Devirtualize<&A64::UserCallbacks::MemoryWrite128>(this_);
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     constexpr u64 save_regs = ABI_CALLER_SAVE;
+ 
+     void* target = code.xptr<void*>();
+     ABI_PushRegisters(code, save_regs, 0);
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, callbacks));
+     code.MOV(X1, Xscratch0);
+     code.FMOV(X2, D0);
+     code.FMOV(X3, V0.D()[1]);
+@@ -324,18 +302,16 @@ static void* EmitWrappedWrite128CallTrampoline(oaknut::CodeGenerator& code, A64:
+     code.RET();
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(info.this_ptr);
+     code.l(l_addr);
+     code.dx(info.fn_ptr);
+ 
+     return target;
+ }
+ 
+-static void* EmitExclusiveWrite128CallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig& conf) {
++static void* EmitExclusiveWrite128CallTrampoline(oaknut::CodeGenerator& code, const A64::UserConfig&) {
+     using namespace oaknut::util;
+ 
+-    oaknut::Label l_addr, l_this;
++    oaknut::Label l_addr;
+ 
+     auto fn = [](const A64::UserConfig& conf, A64::VAddr vaddr, Vector value) -> u32 {
+         return conf.global_monitor->DoExclusiveOperation<Vector>(conf.processor_id, vaddr,
+@@ -347,25 +323,24 @@ static void* EmitExclusiveWrite128CallTrampoline(oaknut::CodeGenerator& code, co
+     };
+ 
+     void* target = code.xptr<void*>();
+-    code.LDR(X0, l_this);
++    code.LDR(X0, Xstate, offsetof(A64JitState, user_config));
+     code.FMOV(X2, D0);
+     code.FMOV(X3, V0.D()[1]);
+     code.LDR(Xscratch0, l_addr);
+     code.BR(Xscratch0);
+ 
+     code.align(8);
+-    code.l(l_this);
+-    code.dx(std::bit_cast<u64>(&conf));
+     code.l(l_addr);
+     code.dx(std::bit_cast<u64>(Common::FptrCast(fn)));
+ 
+     return target;
+ }
+ 
+-A64AddressSpace::A64AddressSpace(const A64::UserConfig& conf)
+-        : AddressSpace(conf.code_cache_size, conf.fastmem_pointer)
+-        , conf(conf) {
+-    EmitPrelude();
++A64AddressSpace::A64AddressSpace(const A64::UserConfig& conf, LookupBlock lookup_block)
++        : AddressSpace(conf.code_cache_size, conf.fastmem_pointer, true)
++        , conf(conf)
++        , lookup_block(lookup_block) {
++    EmitPrelude(prelude_info);
+ }
+ 
+ void A64AddressSpace::GenerateIR(IR::Block& ir_block, IR::LocationDescriptor descriptor) const {
+@@ -375,57 +350,65 @@ void A64AddressSpace::GenerateIR(IR::Block& ir_block, IR::LocationDescriptor des
+     Optimization::Optimize(ir_block, conf, {});
+ }
+ 
+-void A64AddressSpace::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
+-    InvalidateBasicBlocks(block_ranges.InvalidateRanges(ranges));
++bool A64AddressSpace::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
++    const auto descriptors = block_ranges.InvalidateRanges(ranges);
++    InvalidateBasicBlocks(descriptors);
++    return !descriptors.empty();
+ }
+ 
+-void A64AddressSpace::EmitPrelude() {
++void A64AddressSpace::ClearCache() {
++    AddressSpace::ClearCache();
++    block_ranges.ClearCache();
++}
++
++void A64AddressSpace::EmitPrelude(PreludeInfo& info) {
+     using namespace oaknut::util;
+ 
++    const auto prelude_begin = code.offset();
+     UnprotectCodeMemory();
+ 
+-    prelude_info.read_memory_8 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u8));
+-    prelude_info.read_memory_16 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u16));
+-    prelude_info.read_memory_32 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u32));
+-    prelude_info.read_memory_64 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u64));
+-    prelude_info.read_memory_128 = EmitRead128CallTrampoline(code, conf.callbacks);
+-    prelude_info.wrapped_read_memory_8 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u8));
+-    prelude_info.wrapped_read_memory_16 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u16));
+-    prelude_info.wrapped_read_memory_32 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u32));
+-    prelude_info.wrapped_read_memory_64 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u64));
+-    prelude_info.wrapped_read_memory_128 = EmitWrappedRead128CallTrampoline(code, conf.callbacks);
+-    prelude_info.exclusive_read_memory_8 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u8>(code, conf);
+-    prelude_info.exclusive_read_memory_16 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u16>(code, conf);
+-    prelude_info.exclusive_read_memory_32 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u32>(code, conf);
+-    prelude_info.exclusive_read_memory_64 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u64>(code, conf);
+-    prelude_info.exclusive_read_memory_128 = EmitExclusiveRead128CallTrampoline(code, conf);
+-    prelude_info.write_memory_8 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u8));
+-    prelude_info.write_memory_16 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u16));
+-    prelude_info.write_memory_32 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u32));
+-    prelude_info.write_memory_64 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u64));
+-    prelude_info.write_memory_128 = EmitWrite128CallTrampoline(code, conf.callbacks);
+-    prelude_info.wrapped_write_memory_8 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u8));
+-    prelude_info.wrapped_write_memory_16 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u16));
+-    prelude_info.wrapped_write_memory_32 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u32));
+-    prelude_info.wrapped_write_memory_64 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u64));
+-    prelude_info.wrapped_write_memory_128 = EmitWrappedWrite128CallTrampoline(code, conf.callbacks);
+-    prelude_info.exclusive_write_memory_8 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive8, u8>(code, conf);
+-    prelude_info.exclusive_write_memory_16 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive16, u16>(code, conf);
+-    prelude_info.exclusive_write_memory_32 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive32, u32>(code, conf);
+-    prelude_info.exclusive_write_memory_64 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive64, u64>(code, conf);
+-    prelude_info.exclusive_write_memory_128 = EmitExclusiveWrite128CallTrampoline(code, conf);
+-    prelude_info.call_svc = EmitCallTrampoline<&A64::UserCallbacks::CallSVC>(code, conf.callbacks);
+-    prelude_info.exception_raised = EmitCallTrampoline<&A64::UserCallbacks::ExceptionRaised>(code, conf.callbacks);
+-    prelude_info.isb_raised = EmitCallTrampoline<&A64::UserCallbacks::InstructionSynchronizationBarrierRaised>(code, conf.callbacks);
+-    prelude_info.ic_raised = EmitCallTrampoline<&A64::UserCallbacks::InstructionCacheOperationRaised>(code, conf.callbacks);
+-    prelude_info.dc_raised = EmitCallTrampoline<&A64::UserCallbacks::DataCacheOperationRaised>(code, conf.callbacks);
+-    prelude_info.get_cntpct = EmitCallTrampoline<&A64::UserCallbacks::GetCNTPCT>(code, conf.callbacks);
+-    prelude_info.add_ticks = EmitCallTrampoline<&A64::UserCallbacks::AddTicks>(code, conf.callbacks);
+-    prelude_info.get_ticks_remaining = EmitCallTrampoline<&A64::UserCallbacks::GetTicksRemaining>(code, conf.callbacks);
++    info.read_memory_8 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u8));
++    info.read_memory_16 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u16));
++    info.read_memory_32 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u32));
++    info.read_memory_64 = EmitCallReadTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u64));
++    info.read_memory_128 = EmitRead128CallTrampoline(code, conf.callbacks);
++    info.wrapped_read_memory_8 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u8));
++    info.wrapped_read_memory_16 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u16));
++    info.wrapped_read_memory_32 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u32));
++    info.wrapped_read_memory_64 = EmitWrappedReadCallTrampoline<&A64::UserCallbacks::MemoryRead>(code, conf.callbacks, sizeof(u64));
++    info.wrapped_read_memory_128 = EmitWrappedRead128CallTrampoline(code, conf.callbacks);
++    info.exclusive_read_memory_8 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u8>(code, conf);
++    info.exclusive_read_memory_16 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u16>(code, conf);
++    info.exclusive_read_memory_32 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u32>(code, conf);
++    info.exclusive_read_memory_64 = EmitExclusiveReadCallTrampoline<&A64::UserCallbacks::MemoryRead, u64>(code, conf);
++    info.exclusive_read_memory_128 = EmitExclusiveRead128CallTrampoline(code, conf);
++    info.write_memory_8 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u8));
++    info.write_memory_16 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u16));
++    info.write_memory_32 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u32));
++    info.write_memory_64 = EmitCallWriteTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u64));
++    info.write_memory_128 = EmitWrite128CallTrampoline(code, conf.callbacks);
++    info.wrapped_write_memory_8 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u8));
++    info.wrapped_write_memory_16 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u16));
++    info.wrapped_write_memory_32 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u32));
++    info.wrapped_write_memory_64 = EmitWrappedWriteCallTrampoline<&A64::UserCallbacks::MemoryWrite>(code, conf.callbacks, sizeof(u64));
++    info.wrapped_write_memory_128 = EmitWrappedWrite128CallTrampoline(code, conf.callbacks);
++    info.exclusive_write_memory_8 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive8, u8>(code, conf);
++    info.exclusive_write_memory_16 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive16, u16>(code, conf);
++    info.exclusive_write_memory_32 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive32, u32>(code, conf);
++    info.exclusive_write_memory_64 = EmitExclusiveWriteCallTrampoline<&A64::UserCallbacks::MemoryWriteExclusive64, u64>(code, conf);
++    info.exclusive_write_memory_128 = EmitExclusiveWrite128CallTrampoline(code, conf);
++    info.call_svc = EmitCallTrampoline<&A64::UserCallbacks::CallSVC>(code, conf.callbacks);
++    info.exception_raised = EmitCallTrampoline<&A64::UserCallbacks::ExceptionRaised>(code, conf.callbacks);
++    info.isb_raised = EmitCallTrampoline<&A64::UserCallbacks::InstructionSynchronizationBarrierRaised>(code, conf.callbacks);
++    info.ic_raised = EmitCallTrampoline<&A64::UserCallbacks::InstructionCacheOperationRaised>(code, conf.callbacks);
++    info.dc_raised = EmitCallTrampoline<&A64::UserCallbacks::DataCacheOperationRaised>(code, conf.callbacks);
++    info.get_cntpct = EmitCallTrampoline<&A64::UserCallbacks::GetCNTPCT>(code, conf.callbacks);
++    info.add_ticks = EmitCallTrampoline<&A64::UserCallbacks::AddTicks>(code, conf.callbacks);
++    info.get_ticks_remaining = EmitCallTrampoline<&A64::UserCallbacks::GetTicksRemaining>(code, conf.callbacks);
+ 
+     oaknut::Label return_from_run_code, l_return_to_dispatcher;
+ 
+-    prelude_info.run_code = code.xptr<PreludeInfo::RunCodeFuncType>();
++    info.run_code = code.xptr<PreludeInfo::RunCodeFuncType>();
+     {
+         ABI_PushRegisters(code, ABI_CALLEE_SAVE | (1 << 30), sizeof(StackLayout));
+ 
+@@ -450,7 +433,7 @@ void A64AddressSpace::EmitPrelude() {
+         }
+ 
+         if (conf.enable_cycle_counting) {
+-            code.BL(prelude_info.get_ticks_remaining);
++            code.BL(info.get_ticks_remaining);
+             code.MOV(Xticks, X0);
+             code.STR(Xticks, SP, offsetof(StackLayout, cycles_to_run));
+         }
+@@ -466,7 +449,7 @@ void A64AddressSpace::EmitPrelude() {
+         code.BR(X19);
+     }
+ 
+-    prelude_info.step_code = code.xptr<PreludeInfo::RunCodeFuncType>();
++    info.step_code = code.xptr<PreludeInfo::RunCodeFuncType>();
+     {
+         ABI_PushRegisters(code, ABI_CALLEE_SAVE | (1 << 30), sizeof(StackLayout));
+ 
+@@ -511,9 +494,9 @@ void A64AddressSpace::EmitPrelude() {
+         code.BR(X19);
+     }
+ 
+-    prelude_info.return_to_dispatcher = code.xptr<void*>();
++    info.return_to_dispatcher = code.xptr<void*>();
+     {
+-        oaknut::Label l_this, l_addr;
++        oaknut::Label l_addr;
+ 
+         code.LDAR(Wscratch0, Xhalt);
+         code.CBNZ(Wscratch0, return_from_run_code);
+@@ -523,31 +506,25 @@ void A64AddressSpace::EmitPrelude() {
+             code.B(LE, return_from_run_code);
+         }
+ 
+-        code.LDR(X0, l_this);
++        code.LDR(X0, Xstate, offsetof(A64JitState, jit_impl));
+         code.MOV(X1, Xstate);
+         code.LDR(Xscratch0, l_addr);
+         code.BLR(Xscratch0);
+         code.BR(X0);
+ 
+-        const auto fn = [](A64AddressSpace& self, A64JitState& context) -> CodePtr {
+-            return self.GetOrEmit(context.GetLocationDescriptor());
+-        };
+-
+         code.align(8);
+-        code.l(l_this);
+-        code.dx(std::bit_cast<u64>(this));
+         code.l(l_addr);
+-        code.dx(std::bit_cast<u64>(Common::FptrCast(fn)));
++        code.dx(std::bit_cast<u64>(lookup_block));
+     }
+ 
+-    prelude_info.return_from_run_code = code.xptr<void*>();
++    info.return_from_run_code = code.xptr<void*>();
+     {
+         code.l(return_from_run_code);
+ 
+         if (conf.enable_cycle_counting) {
+             code.LDR(X1, SP, offsetof(StackLayout, cycles_to_run));
+             code.SUB(X1, X1, Xticks);
+-            code.BL(prelude_info.add_ticks);
++            code.BL(info.add_ticks);
+         }
+ 
+         code.LDR(Wscratch0, SP, offsetof(StackLayout, save_host_fpcr));
+@@ -565,11 +542,11 @@ void A64AddressSpace::EmitPrelude() {
+ 
+     code.align(8);
+     code.l(l_return_to_dispatcher);
+-    code.dx(std::bit_cast<u64>(prelude_info.return_to_dispatcher));
++    code.dx(std::bit_cast<u64>(info.return_to_dispatcher));
+ 
+-    prelude_info.end_of_prelude = code.offset();
++    info.end_of_prelude = code.offset();
+ 
+-    mem.invalidate_all();
++    mem.invalidate(mem.ptr() + prelude_begin / sizeof(u32), static_cast<std::size_t>(code.offset() - prelude_begin));
+     ProtectCodeMemory();
+ }
+ 
+@@ -582,8 +559,6 @@ EmitConfig A64AddressSpace::GetEmitConfig() {
+         .cntfreq_el0 = conf.cntfrq_el0,
+         .ctr_el0 = conf.ctr_el0,
+         .dczid_el0 = conf.dczid_el0,
+-        .tpidrro_el0 = conf.tpidrro_el0,
+-        .tpidr_el0 = conf.tpidr_el0,
+ 
+         .check_halt_on_memory_access = conf.check_halt_on_memory_access,
+ 
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.h b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.h
+index 512894fdc..cc41a0d3f 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.h
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.h
+@@ -8,30 +8,63 @@
+ 
+ #pragma once
+ 
++#include <functional>
++
+ #include "dynarmic/backend/arm64/address_space.h"
+ #include "dynarmic/backend/block_range_information.h"
+ #include "dynarmic/interface/A64/config.h"
+ 
+ namespace Dynarmic::Backend::Arm64 {
+ 
++struct A64JitState;
+ struct EmittedBlockInfo;
+ 
+ class A64AddressSpace final : public AddressSpace {
+ public:
+-    explicit A64AddressSpace(const A64::UserConfig& conf);
++    /// The dispatcher calls `lookup_block` with the running Jit's A64JitState::jit_impl. The
++    /// callbacks of every Jit that runs this code must have `conf.callbacks`' dynamic type.
++    using LookupBlock = CodePtr (*)(void* jit_impl, A64JitState& jit_state);
++    A64AddressSpace(const A64::UserConfig& conf, LookupBlock lookup_block);
+ 
+     void GenerateIR(IR::Block& ir_block, IR::LocationDescriptor) const override;
+ 
+-    void InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
++    /// Whether blocks were dropped.
++    bool InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
+ 
+-protected:
+-    friend class A64Core;
++    void ClearCache() override;
+ 
+-    void EmitPrelude();
++    using AddressSpace::PrepareSpace;
++    EmittedBlockInfo EmitBlock(IR::Block block) {
++        return Emit(std::move(block));
++    }
++    HaltReason RunCode(CodePtr entry_point, A64JitState& jit_state, volatile u32* halt_reason) {
++        return prelude_info.run_code(entry_point, &jit_state, halt_reason);
++    }
++    HaltReason StepCode(CodePtr entry_point, A64JitState& jit_state, volatile u32* halt_reason) {
++        return prelude_info.step_code(entry_point, &jit_state, halt_reason);
++    }
++    /// A block entry that leaves run_code at once.
++    CodePtr ReturnFromRunCode() const {
++        return static_cast<CodePtr>(prelude_info.return_from_run_code);
++    }
++    /// The fastmem fault handler. `wrapper` replaces it and calls HandleFastmemFault itself.
++    void SetFastmemCallback(std::function<FakeCall(u64 host_pc)> wrapper) {
++        exception_handler.SetFastmemCallback(std::move(wrapper));
++    }
++    FakeCall HandleFastmemFault(u64 host_pc) {
++        return FastmemCallback(host_pc);
++    }
++
++protected:
++    void EmitPrelude(PreludeInfo& info);
++    void EmitRegionPrelude(PreludeInfo& info) override {
++        EmitPrelude(info);
++    }
+     EmitConfig GetEmitConfig() override;
+     void RegisterNewBasicBlock(const IR::Block& block, const EmittedBlockInfo& block_info) override;
+ 
+     const A64::UserConfig conf;
++    const LookupBlock lookup_block;
+     BlockRangeInformation<u64> block_ranges;
+ };
+ 
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp b/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
+index 54b36850e..c4b3a9f16 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_interface.cpp
+@@ -6,66 +6,354 @@
+  * SPDX-License-Identifier: 0BSD
+  */
+ 
++#include <algorithm>
++#include <atomic>
++#include <chrono>
++#include <functional>
+ #include <memory>
+ #include <mutex>
++#include <optional>
++#include <shared_mutex>
++#include <thread>
++#include <vector>
+ 
+ #include <boost/icl/interval_set.hpp>
+ #include "common/assert.h"
+ #include "common/common_types.h"
+ 
+ #include "dynarmic/backend/arm64/a64_address_space.h"
+-#include "dynarmic/backend/arm64/a64_core.h"
++#include "dynarmic/backend/arm64/jit_trace.h"
+ #include "dynarmic/backend/arm64/a64_jitstate.h"
+ #include "dynarmic/common/atomic.h"
++#include "dynarmic/frontend/A64/a64_location_descriptor.h"
++#include "dynarmic/frontend/A64/translate/a64_translate.h"
+ #include "dynarmic/interface/A64/a64.h"
+ #include "dynarmic/interface/A64/config.h"
++#include "dynarmic/ir/basic_block.h"
++#include "dynarmic/ir/opt_passes.h"
+ 
+ namespace Dynarmic::A64 {
+ 
+ using namespace Backend::Arm64;
+ 
++/// The code, block map and links of one or more Jits (UserConfig::shared_code_cache). Code runs
++/// while other Jits compile: lookups take `mutex` shared, emitting and invalidating take it
++/// exclusively, and a link changes with one aligned store. A dropped block's code stays until a
++/// full clear, which waits until no Jit runs code. Each Jit marks in its own `running` flag
++/// whether it runs code, so entering and leaving touch no cache line other Jits write.
++/// Each Jit keeps the blocks it looked up in a table of this size, so its dispatcher takes no lock for them.
++constexpr std::size_t lookup_cache_size = 1 << 13;
++
++constexpr std::size_t LookupCacheIndex(u64 descriptor) {
++    return static_cast<std::size_t>((descriptor >> 2) ^ (descriptor >> 15) ^ (descriptor >> 37)) & (lookup_cache_size - 1);
++}
++
++struct SharedCodeCache final {
++    struct Member {
++        volatile u32* halt_reason;
++        const std::atomic<bool>* running;
++    };
++
++    /// Builds the cache for the first Jit; later Jits must emulate the same process.
++    void Attach(Member member, const UserConfig& jit_conf, A64AddressSpace::LookupBlock lookup_block) {
++        std::unique_lock lock{mutex};
++        if (!address_space) {
++            conf.emplace(jit_conf);
++            conf->shared_code_cache.reset();  // the cache must not own itself
++            address_space.emplace(*conf, lookup_block);
++            if (JitTrace::Enabled()) {
++                JitTrace::Write(JitTrace::Type::Header, 0, jit_conf.shared_code_cache ? 1 : 0, conf->code_cache_size, 0);
++            }
++            fastmem_fault = [this](u64 host_pc) {
++                // Faults come from JIT code, which never runs while its thread holds `mutex`.
++                // A fault drops at most the one block it happened in. That block's code stays and stays correct
++                // (its fastmem accesses take the slow path), its links are gone, and slot_drops makes every
++                // Jit look the block up again, so no Jit has to be halted for it. Halting all of them for each
++                // of the several hundred thousand faults of a load made loads slower than with private caches.
++                const auto begin = std::chrono::steady_clock::now();
++                std::unique_lock fault_lock{mutex};
++                const auto locked = std::chrono::steady_clock::now();
++                const Backend::FakeCall result = address_space->HandleFastmemFault(host_pc);
++                fault_count.fetch_add(1, std::memory_order_relaxed);
++                fault_lock_wait_ns.fetch_add(static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(locked - begin).count()), std::memory_order_relaxed);
++                fault_handler_ns.fetch_add(static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - begin).count()), std::memory_order_relaxed);
++                return result;
++            };
++            address_space->SetFastmemCallback(fastmem_fault);
++            address_space->SetBlockDroppedCallback([this](IR::LocationDescriptor descriptor) {
++                slot_drops[LookupCacheIndex(descriptor.Value())].fetch_add(1, std::memory_order_release);
++                drops.fetch_add(1, std::memory_order_release);
++            });
++        } else {
++            ASSERT(jit_conf.page_table == conf->page_table && jit_conf.fastmem_pointer == conf->fastmem_pointer);
++            ASSERT(jit_conf.enable_cycle_counting == conf->enable_cycle_counting && jit_conf.optimizations == conf->optimizations);
++        }
++        members.push_back(member);
++    }
++
++    void Detach(Member member) {
++        std::unique_lock lock{mutex};
++        std::erase_if(members, [&](const Member& other) { return other.halt_reason == member.halt_reason; });
++    }
++
++    /// Marks a Jit as running code; waits out a requested full clear first. The flag is stored
++    /// before pending_clear is read and TryClear reads the flags after pending_clear is set (all
++    /// sequentially consistent), so either the Jit sees the clear or the clear sees the Jit.
++    ///
++    /// False if the Jit was asked to halt for another reason while it waited: it is then not running, and its
++    /// caller returns that halt. Another Jit can keep the clear waiting for as long as a callback of its guest
++    /// code takes, and a pause, an interrupt or the debugger must not wait with it.
++    bool Enter(std::atomic<bool>& running, UserConfig::Counters* counters, const volatile u32* halt_reason) {
++        for (u32 waits = 0;; ++waits) {
++            running.store(true);
++            if (!pending_clear.load()) {
++                return true;
++            }
++            running.store(false);
++            TryClear(counters);
++            if (!pending_clear.load()) {
++                continue;
++            }
++            if ((Atomic::Load(halt_reason) & ~static_cast<u32>(HaltReason::CacheInvalidation)) != 0) {
++                return false;
++            }
++            // The other Jits were halted and leave their code within a block or two; one in a callback can
++            // take long, so stop burning the core after a moment.
++            if (waits < 64) {
++                std::this_thread::yield();
++            } else {
++                std::this_thread::sleep_for(std::chrono::microseconds{100});
++            }
++        }
++    }
++
++    void Leave(std::atomic<bool>& running, UserConfig::Counters* counters) {
++        running.store(false);
++        if (pending_clear.load()) {
++            TryClear(counters);
++        }
++    }
++
++    void RequestClearLocked() {
++        pending_clear.store(true);
++        HaltAllLocked();
++    }
++
++    /// Blocks are gone: Jits must leave the code, which drops their return stack buffers, and
++    /// forget their looked up blocks. `entering` is not halted: it is about to run and does so
++    /// before it runs.
++    void DroppedBlocksLocked(const volatile u32* entering = nullptr) {
++        epoch.fetch_add(1);
++        HaltAllLocked(entering);
++    }
++
++    /// Drops the blocks of invalidated guest code. With one Jit nothing runs the code; with more,
++    /// links change at once and the dropped code stays until a full clear, so a Jit still in it
++    /// finishes as before the invalidation.
++    void ApplyRangesLocked(const volatile u32* entering = nullptr) {
++        if (pending_ranges.empty()) {
++            return;
++        }
++        if (address_space->InvalidateCacheRanges(pending_ranges)) {
++            DroppedBlocksLocked(entering);
++        }
++        pending_ranges.clear();
++        has_pending_ranges.store(false, std::memory_order_release);
++    }
++
++    void HaltAllLocked(const volatile u32* except = nullptr) {
++        for (const Member& member : members) {
++            if (member.halt_reason != except) {
++                Atomic::Or(member.halt_reason, static_cast<u32>(HaltReason::CacheInvalidation));
++            }
++        }
++    }
++
++    void ClearLocked(UserConfig::Counters* counters, bool full) {
++        if (counters) {
++            ++counters->cache_clears;
++            counters->full_clears += full;
++        }
++        if (JitTrace::Enabled()) {
++            JitTrace::Write(JitTrace::Type::Clear, 0, full ? 1 : 0, 0, 0);
++        }
++        address_space->ClearCache();
++        pending_ranges.clear();
++        has_pending_ranges.store(false, std::memory_order_release);
++        epoch.fetch_add(1);
++        clear_is_full = false;
++        pending_clear.store(false);
++        used_code_bytes.store(0, std::memory_order_relaxed);
++    }
++
++    /// Adds to `counters` what all Jits' code lost since any Jit last asked.
++    void TakeDroppedStats(UserConfig::Counters& counters) {
++        std::shared_lock lock{mutex};
++        std::scoped_lock stats_lock{stats_mutex};
++        const auto& stats = address_space->GetCompileStats();
++        counters.blocks_invalidated += stats.blocks_invalidated - counted.blocks_invalidated;
++        counters.invalidated_bytes += stats.invalidated_bytes - counted.invalidated_bytes;
++        counters.fastmem_recompiles += stats.fastmem_recompiles - counted.fastmem_recompiles;
++        counters.fastmem_stale_faults += stats.fastmem_stale_faults - counted.fastmem_stale_faults;
++        counters.fastmem_faults += fault_count.exchange(0, std::memory_order_relaxed);
++        counters.fastmem_handler_ns += fault_handler_ns.exchange(0, std::memory_order_relaxed);
++        counters.fastmem_lock_wait_ns += fault_lock_wait_ns.exchange(0, std::memory_order_relaxed);
++        counted = stats;
++    }
++
++    std::shared_mutex mutex;
++    std::optional<UserConfig> conf;
++    std::optional<A64AddressSpace> address_space;
++    std::vector<Member> members;
++    /// Bumped when blocks are dropped or cleared.
++    std::atomic<u64> epoch{0};
++    /// Blocks dropped per lookup table slot: a looked up block is good while its slot's count is the one it was
++    /// stored with. Written under `mutex` held exclusively, read without it.
++    std::array<std::atomic<u32>, lookup_cache_size> slot_drops{};
++    /// All blocks dropped so far: tells a Jit that there are new dropped-block statistics to take.
++    std::atomic<u64> drops{0};
++    /// Diagnostics: fastmem faults (handled on the exception thread) and Jits translating right now.
++    std::atomic<u64> fault_count{0};
++    std::atomic<u64> fault_handler_ns{0};
++    std::atomic<u64> fault_lock_wait_ns{0};
++    std::atomic<u32> translating{0};
++    /// The fastmem fault handler given to the address space; Jit::DebugFastmemFault calls it too.
++    std::function<Backend::FakeCall(u64)> fastmem_fault;
++    /// Bumped by every range invalidation: a block translated across one is translated again.
++    std::atomic<u64> invalidations{0};
++    std::atomic<bool> pending_clear{false};
++    bool clear_is_full = false;  ///< The pending clear is for a full cache
++    boost::icl::interval_set<u64> pending_ranges;
++    /// Whether pending_ranges has any: read by lookups, which take no lock.
++    std::atomic<bool> has_pending_ranges{false};
++    /// The last range asked to be invalidated, and how many blocks the cache had emitted then (under `mutex`).
++    std::optional<boost::icl::discrete_interval<u64>> last_range;
++    u64 last_range_emitted = 0;
++    /// Blocks emitted into the cache so far (under `mutex`).
++    u64 emitted_blocks = 0;
++    std::atomic<std::size_t> used_code_bytes{0};
++    u64 counted_veneers = 0;  ///< Under `mutex`, as is the next
++    u64 counted_unlinked_far_links = 0;
++    std::mutex stats_mutex;
++    AddressSpace::CompileStats counted;  ///< Under `stats_mutex`
++
++private:
++    void TryClear(UserConfig::Counters* counters) {
++        std::unique_lock lock{mutex};
++        if (pending_clear.load() && std::none_of(members.begin(), members.end(), [](const Member& member) { return member.running->load(); })) {
++            ClearLocked(counters, clear_is_full);
++        }
++    }
++};
++
++std::shared_ptr<SharedCodeCache> MakeSharedCodeCache() {
++    return std::make_shared<SharedCodeCache>();
++}
++
+ struct Jit::Impl final {
+-    Impl(Jit*, A64::UserConfig conf)
+-            : conf(conf)
+-            , current_address_space(conf)
+-            , core(conf) {}
++    Impl(Jit*, A64::UserConfig conf_)
++            : conf(conf_)
++            , cache(conf.shared_code_cache ? conf.shared_code_cache : MakeSharedCodeCache()) {
++        cache->Attach({&halt_reason, &running}, conf, &LookupBlockThunk);
++        epoch = cache->epoch.load();
++        InitJitStatePointers();
++    }
++
++    ~Impl() {
++        cache->Detach({&halt_reason, &running});
++    }
+ 
+     HaltReason Run() {
+         ASSERT(!is_executing);
+-        PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&halt_reason)));
++        const CodePtr entry_point = Enter(current_state.GetLocationDescriptor());
++        if (!entry_point) {
++            return HaltedWhileWaiting();
++        }
+         is_executing = true;
+-        HaltReason hr = core.Run(current_address_space, current_state, &halt_reason);
+-        PerformRequestedCacheInvalidation(hr);
++        const HaltReason hr = cache->address_space->RunCode(entry_point, current_state, &halt_reason);
+         is_executing = false;
++        cache->Leave(running, conf.counters);
+         UpdateCounters();
+         return hr;
+     }
+ 
+     HaltReason Step() {
+         ASSERT(!is_executing);
+-        PerformRequestedCacheInvalidation(static_cast<HaltReason>(Atomic::Load(&halt_reason)));
++        const CodePtr entry_point = Enter(A64::LocationDescriptor{current_state.GetLocationDescriptor()}.SetSingleStepping(true));
++        if (!entry_point) {
++            return HaltedWhileWaiting();
++        }
+         is_executing = true;
+-        HaltReason hr = core.Step(current_address_space, current_state, &halt_reason);
+-        PerformRequestedCacheInvalidation(hr);
++        const HaltReason hr = cache->address_space->StepCode(entry_point, current_state, &halt_reason);
+         is_executing = false;
++        cache->Leave(running, conf.counters);
+         UpdateCounters();
+         return hr;
+     }
+ 
+     void ClearCache() {
+-        std::unique_lock lock{invalidation_mutex};
+-        invalidate_entire_cache = true;
+-        HaltExecution(HaltReason::CacheInvalidation);
++        std::unique_lock lock{cache->mutex};
++        cache->RequestClearLocked();
++    }
++
++    void* DebugLookupBlock(u64 location_descriptor) {
++        const CodePtr entry_point = Enter(IR::LocationDescriptor{location_descriptor});
++        if (!entry_point) {
++            return nullptr;
++        }
++        cache->Leave(running, conf.counters);
++        UpdateCounters();
++        return entry_point;
++    }
++
++    bool DebugFastmemFault(u64 location_descriptor, unsigned access_index, void* stale_entry_point) {
++        std::optional<u64> host_pc;
++        {
++            std::shared_lock lock{cache->mutex};
++            const CodePtr entry_point = stale_entry_point ? static_cast<CodePtr>(stale_entry_point)
++                                                          : cache->address_space->Get(IR::LocationDescriptor{location_descriptor});
++            if (entry_point) {
++                host_pc = cache->address_space->FastmemPatchPc(entry_point, access_index);
++            }
++        }
++        if (!host_pc) {
++            return false;
++        }
++        cache->fastmem_fault(*host_pc);
++        return true;
+     }
+ 
+     void InvalidateCacheRange(std::uint64_t start_address, std::size_t length) {
+-        std::unique_lock lock{invalidation_mutex};
+-        invalid_cache_ranges.add(boost::icl::discrete_interval<u64>::closed(start_address, start_address + length - 1));
+-        HaltExecution(HaltReason::CacheInvalidation);
++        std::unique_lock lock{cache->mutex};
++        const auto range = boost::icl::discrete_interval<u64>::closed(start_address, start_address + length - 1);
++        // A program invalidates a range on every core's Jit. On one cache that is the same request several
++        // times over, and each would halt every Jit again. Nothing is left to drop or to halt for if the range
++        // still waits to be applied (the Jits are halted and apply it before they run on), or if it was the
++        // last one asked for and no block has been emitted since (so none can lie in it). A block being
++        // translated right now may still have read the old code, so translations are told in any case.
++        const u64 emitted = cache->emitted_blocks;
++        if (boost::icl::contains(cache->pending_ranges, range) ||
++            (cache->last_range && *cache->last_range == range && cache->last_range_emitted == emitted)) {
++            cache->invalidations.fetch_add(1);
++            return;
++        }
++        cache->last_range = range;
++        cache->last_range_emitted = emitted;
++        cache->pending_ranges.add(range);
++        cache->has_pending_ranges.store(true, std::memory_order_release);
++        if (JitTrace::Enabled()) {
++            JitTrace::Write(JitTrace::Type::Invalidate, trace_id, 0, start_address, length);
++        }
++        cache->invalidations.fetch_add(1);
++        cache->HaltAllLocked();
++        if (conf.counters) {
++            ++conf.counters->invalidation_requests;
++        }
+     }
+ 
+     void Reset() {
+         current_state = {};
++        InitJitStatePointers();
+     }
+ 
+     void HaltExecution(HaltReason hr) {
+@@ -145,59 +433,221 @@ struct Jit::Impl final {
+     }
+ 
+ private:
+-    void PerformRequestedCacheInvalidation(HaltReason hr) {
+-        if (Has(hr, HaltReason::CacheInvalidation)) {
+-            std::unique_lock lock{invalidation_mutex};
++    /// Blocks this Jit looked up, so the dispatcher takes no lock for them.
++    struct LookedUpBlock {
++        u64 descriptor = ~u64{0};
++        CodePtr entry_point = nullptr;
++        u32 slot_drops = 0;  ///< The cache's slot_drops of this slot when the block was looked up
++    };
++
++    /// What Run and Step return when the Jit was halted while it waited for a cache clear: the halt reasons,
++    /// taken as the code's own exit takes them. No guest code ran.
++    HaltReason HaltedWhileWaiting() {
++        UpdateCounters();
++        return static_cast<HaltReason>(Atomic::Exchange(&halt_reason, 0));
++    }
+ 
++    /// Waits out a full clear, applies invalidations and returns the block to enter. The Jit is
++    /// marked running from here on. Returns nullptr, with the Jit not running, if it was halted for
++    /// another reason while it waited for a clear.
++    CodePtr Enter(IR::LocationDescriptor descriptor) {
++        while (true) {
++            // Cleared first: a clear or invalidation requested after this halts the Jit again.
+             ClearHalt(HaltReason::CacheInvalidation);
++            if (!cache->Enter(running, conf.counters, &halt_reason)) {
++                return nullptr;
++            }
++            if (cache->invalidations.load() != applied_invalidations) {
++                std::unique_lock lock{cache->mutex};
++                cache->ApplyRangesLocked(&halt_reason);
++                applied_invalidations = cache->invalidations.load();
++            }
++            const CodePtr entry_point = GetBlock(descriptor);
++            if (entry_point != cache->address_space->ReturnFromRunCode()) {
++                return entry_point;
++            }
++            // The cache is full and other Jits run its code: wait for the clear.
++            cache->Leave(running, conf.counters);
++        }
++    }
++
++    void InitJitStatePointers() {
++        current_state.callbacks = std::bit_cast<u64>(conf.callbacks);
++        current_state.user_config = std::bit_cast<u64>(&conf);
++        current_state.jit_impl = std::bit_cast<u64>(this);
++        current_state.tpidr_el0 = std::bit_cast<u64>(conf.tpidr_el0);
++        current_state.tpidrro_el0 = std::bit_cast<u64>(conf.tpidrro_el0);
++    }
++
++    static CodePtr LookupBlockThunk(void* jit_impl, A64JitState& jit_state) {
++        return static_cast<Jit::Impl*>(jit_impl)->GetBlock(jit_state.GetLocationDescriptor());
++    }
++
++    void ForgetLookedUpBlocks() {
++        epoch = cache->epoch.load();
++        std::fill(lookup_cache.begin(), lookup_cache.end(), LookedUpBlock{});
++    }
++
++    CodePtr GetBlock(IR::LocationDescriptor descriptor) {
++        const std::size_t slot = LookupCacheIndex(descriptor.Value());
++        LookedUpBlock& looked_up = lookup_cache[slot];
++        const std::atomic<u32>& slot_drops = cache->slot_drops[slot];
++        {
++            const u64 now = cache->epoch.load(std::memory_order_acquire);
++            if (now != epoch) {
++                // Blocks were dropped. A link or return may still lead into one until this Jit
++                // leaves the code (it has been halted), as before the invalidation.
++                ForgetLookedUpBlocks();
++            } else if (looked_up.descriptor == descriptor.Value() && looked_up.slot_drops == slot_drops.load(std::memory_order_acquire)) {
++                if (conf.counters) {
++                    ++conf.counters->lookup_hits;
++                }
++                return looked_up.entry_point;
++            }
++        }
++        if (conf.counters) {
++            ++conf.counters->block_lookups;
++        }
++        const auto since = [](std::chrono::steady_clock::time_point from) {
++            return static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - from).count());
++        };
++        {
++            // No lock: the block map is read lock-free (block_table.h). A block dropped or an invalidation
++            // queued right after this lookup is handled as it was when the lookup held the lock and released it
++            // just before: this Jit has been halted for an invalidation, and slot_drops, read before the lookup,
++            // makes it look a dropped block up again.
++            const u32 drops_before = slot_drops.load(std::memory_order_acquire);
++            if (!cache->has_pending_ranges.load(std::memory_order_acquire)) {
++                if (const CodePtr entry_point = cache->address_space->Get(descriptor)) {
++                    if (cache->epoch.load() == epoch) {
++                        looked_up = {descriptor.Value(), entry_point, drops_before};
++                    }
++                    if (JitTrace::Enabled()) {
++                        JitTrace::Write(JitTrace::Type::Lookup, trace_id, 0, descriptor.Value(), 0);
++                    }
++                    return entry_point;
++                }
++            }
++        }
+ 
+-            if (invalidate_entire_cache) {
+-                current_address_space.ClearCache();
++        const auto begin = std::chrono::steady_clock::now();
++        while (true) {
++            // Translated without the lock; an invalidation meanwhile may have changed the code.
++            const u64 invalidations = cache->invalidations.load();
++            const auto translate_begin = std::chrono::steady_clock::now();
++            const bool has_company = cache->translating.fetch_add(1, std::memory_order_relaxed) != 0;
++            ir_block.Reset(descriptor);
++            const bool tracing = JitTrace::Enabled();
++            traced_code.clear();
++            const auto get_code = [this, tracing](u64 vaddr) {
++                const std::optional<u32> word = conf.callbacks->MemoryReadCode(vaddr);
++                if (tracing && word) {
++                    traced_code.emplace_back(vaddr, u64{*word});
++                }
++                return word;
++            };
++            A64::Translate(ir_block, A64::LocationDescriptor{descriptor}, get_code, {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
++            Optimization::Optimize(ir_block, conf, {});
++            cache->translating.fetch_sub(1, std::memory_order_relaxed);
++            if (conf.counters) {
++                conf.counters->compiles_with_company += has_company;
++            }
+ 
+-                invalidate_entire_cache = false;
+-                invalid_cache_ranges.clear();
+-                return;
++            const auto wait_begin = std::chrono::steady_clock::now();
++            std::unique_lock lock{cache->mutex};
++            const auto hold_begin = std::chrono::steady_clock::now();
++            if (conf.counters) {
++                conf.counters->emit_lock_wait_ns += static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(hold_begin - wait_begin).count());
++            }
++            cache->ApplyRangesLocked();
++            if (const CodePtr entry_point = cache->address_space->Get(descriptor)) {
++                if (tracing) {
++                    JitTrace::Write(JitTrace::Type::Lookup, trace_id, 2, descriptor.Value(), 0);
++                }
++                if (conf.counters) {
++                    ++conf.counters->discarded_translations;
++                    conf.counters->discarded_translate_ns += static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(wait_begin - translate_begin).count());
++                }
++                return entry_point;
++            }
++            if (invalidations != cache->invalidations.load()) {
++                continue;
+             }
+ 
+-            if (!invalid_cache_ranges.empty()) {
+-                current_address_space.InvalidateCacheRanges(invalid_cache_ranges);
++            if (cache->pending_clear.load() || !cache->address_space->PrepareSpace()) {
++                cache->clear_is_full |= !cache->pending_clear.load();
++                if (cache->members.size() > 1) {
++                    // Other Jits may run the code: halt all, and clear once none runs.
++                    cache->RequestClearLocked();
++                    return cache->address_space->ReturnFromRunCode();
++                }
++                // Nothing else runs the code, and this Jit is in the dispatcher: return stack
++                // buffer entries of the old generation no longer match.
++                cache->ClearLocked(conf.counters, cache->clear_is_full);
++                ForgetLookedUpBlocks();
++                ASSERT(cache->address_space->PrepareSpace());
++            }
+ 
+-                invalid_cache_ranges.clear();
+-                return;
++            const CodePtr entry_point = cache->address_space->EmitBlock(std::move(ir_block)).entry_point;
++            ++cache->emitted_blocks;
++            if (tracing) {
++                JitTrace::Write(JitTrace::Type::Compile, trace_id, 0, descriptor.Value(), 0, &traced_code);
++                JitTrace::Write(JitTrace::Type::Lookup, trace_id, 1, descriptor.Value(), 0);
++            }
++            cache->used_code_bytes.store(cache->address_space->GetUsedCodeBytes(), std::memory_order_relaxed);
++            if (conf.counters) {
++                const auto& stats = cache->address_space->GetCompileStats();
++                conf.counters->far_link_veneers += stats.veneers - cache->counted_veneers;
++                conf.counters->unlinked_far_links += stats.unlinked_far_links - cache->counted_unlinked_far_links;
++                cache->counted_veneers = stats.veneers;
++                cache->counted_unlinked_far_links = stats.unlinked_far_links;
++            }
++            if (cache->epoch.load() == epoch) {
++                looked_up = {descriptor.Value(), entry_point, slot_drops.load(std::memory_order_acquire)};
++            }
++            if (conf.counters) {
++                conf.counters->emit_lock_hold_ns += since(hold_begin);
++                ++conf.counters->blocks_compiled;
++                conf.counters->compile_ns += static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - begin).count());
+             }
++            return entry_point;
+         }
+     }
+ 
+-    // Adds what the address space compiled and cleared since the last call: JITs on the same
++    // What all Jits of the cache lost goes to the first Jit that runs after it; JITs on the same
+     // host thread may share one Counters.
+     void UpdateCounters() {
+         if (!conf.counters) {
+             return;
+         }
+-        const auto& stats = current_address_space.GetCompileStats();
+-        conf.counters->blocks_compiled += stats.blocks_compiled - counted.blocks_compiled;
+-        conf.counters->compile_ns += stats.compile_ns - counted.compile_ns;
+-        conf.counters->cache_clears += stats.cache_clears - counted.cache_clears;
+-        conf.counters->full_clears += stats.full_clears - counted.full_clears;
+-        conf.counters->blocks_invalidated += stats.blocks_invalidated - counted.blocks_invalidated;
+-        conf.counters->invalidated_bytes += stats.invalidated_bytes - counted.invalidated_bytes;
+-        conf.counters->fastmem_recompiles += stats.fastmem_recompiles - counted.fastmem_recompiles;
+-        conf.counters->code_bytes = current_address_space.GetUsedCodeBytes();
+-        counted = stats;
++        if (const u64 now = cache->drops.load(std::memory_order_acquire); now != counted_drops) {
++            cache->TakeDroppedStats(*conf.counters);
++            counted_drops = now;
++        }
++        conf.counters->code_bytes = cache->used_code_bytes.load(std::memory_order_relaxed);
+     }
+ 
++    /// The order the Jits were made in: names this Jit in a DYNARMIC_JIT_TRACE recording.
++    const u32 trace_id = [] { static std::atomic<u32> next{0}; return next.fetch_add(1); }();
+     A64::UserConfig conf;
+     A64JitState current_state{};
+-    A64AddressSpace current_address_space;
+-    A64Core core;
+-    AddressSpace::CompileStats counted;
++    std::shared_ptr<SharedCodeCache> cache;
++    IR::Block ir_block{IR::LocationDescriptor{0}};
++    std::vector<LookedUpBlock> lookup_cache = std::vector<LookedUpBlock>(lookup_cache_size);
++    /// DYNARMIC_JIT_TRACE: the guest instructions the block being translated was read from.
++    std::vector<std::pair<u64, u64>> traced_code;
++    /// The cache's epoch `lookup_cache` is valid for.
++    u64 epoch = 0;
++    /// The cache's `drops` whose dropped blocks are counted.
++    u64 counted_drops = 0;
++    /// The cache's invalidations this Jit has seen applied.
++    u64 applied_invalidations = 0;
+ 
+     volatile u32 halt_reason = 0;
+ 
+-    std::mutex invalidation_mutex;
+-    boost::icl::interval_set<u64> invalid_cache_ranges;
+-    bool invalidate_entire_cache = false;
+     bool is_executing = false;
++    /// Whether this Jit runs code of the cache (SharedCodeCache::Enter).
++    std::atomic<bool> running{false};
+ };
+ 
+ Jit::Jit(UserConfig conf)
+@@ -222,6 +672,14 @@ void Jit::InvalidateCacheRange(std::uint64_t start_address, std::size_t length)
+     impl->InvalidateCacheRange(start_address, length);
+ }
+ 
++void* Jit::DebugLookupBlock(std::uint64_t location_descriptor) {
++    return impl->DebugLookupBlock(location_descriptor);
++}
++
++bool Jit::DebugFastmemFault(std::uint64_t location_descriptor, unsigned access_index, void* stale_entry_point) {
++    return impl->DebugFastmemFault(location_descriptor, access_index, stale_entry_point);
++}
++
+ void Jit::Reset() {
+     impl->Reset();
+ }
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_jitstate.h b/src/dynarmic/src/dynarmic/backend/arm64/a64_jitstate.h
+index 29bc001f2..bd9403697 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_jitstate.h
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_jitstate.h
+@@ -30,6 +30,13 @@ struct A64JitState {
+     u32 fpsr = 0;
+     u32 fpcr = 0;
+ 
++    // This Jit's own objects, read by emitted code so one block serves every Jit of a code cache.
++    u64 callbacks = 0;  // A64::UserCallbacks*
++    u64 user_config = 0;  // const A64::UserConfig*
++    u64 jit_impl = 0;  // The dispatcher's block lookup argument
++    u64 tpidr_el0 = 0;  // u64*
++    u64 tpidrro_el0 = 0;  // const u64*
++
+     IR::LocationDescriptor GetLocationDescriptor() const {
+         const u64 fpcr_u64 = static_cast<u64>(fpcr & A64::LocationDescriptor::fpcr_mask) << A64::LocationDescriptor::fpcr_shift;
+         const u64 pc_u64 = pc & A64::LocationDescriptor::pc_mask;
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp b/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
+index 93852a075..5579df3a9 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
+@@ -8,6 +8,10 @@
+ 
+ #include <cstdio>
+ 
++#include "dynarmic/backend/arm64/jit_trace.h"
++#include <cstdlib>
++
++#include <algorithm>
+ #include <bit>
+ #include <chrono>
+ #include <mutex>
+@@ -44,14 +48,36 @@ FastmemManager::FastmemManager(ExceptionHandler& eh, std::optional<std::uintptr_
+     }
+ }
+ 
+-AddressSpace::AddressSpace(std::size_t code_cache_size, std::optional<std::uintptr_t> fastmem_arena)
++namespace {
++
++std::size_t RegionSizeSetting() {
++    const char* const value = std::getenv("DYNARMIC_ARM64_REGION_SIZE");
++    const unsigned long long bytes = value ? std::strtoull(value, nullptr, 0) : 0;
++    // At least a prelude and the megabyte kept free for the next block.
++    return bytes >= 2 * 1024 * 1024 && bytes < AddressSpace::MaxRegionSize ? static_cast<std::size_t>(bytes) & ~std::size_t{0xFFFF} : AddressSpace::MaxRegionSize;
++}
++
++}  // namespace
++
++AddressSpace::AddressSpace(std::size_t code_cache_size, std::optional<std::uintptr_t> fastmem_arena, bool use_regions)
+     : ir_block{IR::LocationDescriptor{0}}
+     , code_cache_size(code_cache_size)
++    , region_size(RegionSizeSetting())
+     , mem(code_cache_size)
+     , code(mem.ptr(), mem.ptr())
+     , fastmem_manager(exception_handler, fastmem_arena)
+ {
+-    ASSERT(code_cache_size <= 128 * 1024 * 1024 && "code_cache_size > 128 MiB not currently supported");
++    // Whole regions only, but for a cache smaller than one.
++    ASSERT((use_regions || code_cache_size <= MaxRegionSize) && "code_cache_size > 128 MiB not supported");
++    const std::size_t region_count = use_regions ? std::max<std::size_t>(1, code_cache_size / region_size) : 1;
++    regions.resize(region_count);
++    for (std::size_t i = 0; i < region_count; ++i) {
++        Region& region = regions[i];
++        region.begin = static_cast<std::ptrdiff_t>(i * region_size);
++        region.end = static_cast<std::ptrdiff_t>(region_count == 1 ? code_cache_size : (i + 1) * region_size);
++        region.code_end = region.begin;
++        region.veneer_begin = region.end;
++    }
+ 
+     exception_handler.Register(mem, code_cache_size);
+     exception_handler.SetFastmemCallback([this](u64 host_pc) {
+@@ -62,10 +88,8 @@ AddressSpace::AddressSpace(std::size_t code_cache_size, std::optional<std::uintp
+ AddressSpace::~AddressSpace() = default;
+ 
+ CodePtr AddressSpace::Get(IR::LocationDescriptor descriptor) {
+-    if (const auto iter = block_entries.find(descriptor); iter != block_entries.end()) {
+-        return iter->second;
+-    }
+-    return nullptr;
++    // Safe on any thread without the cache's lock.
++    return block_entries.Find(descriptor.Value());
+ }
+ 
+ std::optional<IR::LocationDescriptor> AddressSpace::ReverseGetLocation(CodePtr host_pc) {
+@@ -100,12 +124,25 @@ CodePtr AddressSpace::GetOrEmit(IR::LocationDescriptor descriptor) {
+     return block_info.entry_point;
+ }
+ 
++std::optional<u64> AddressSpace::FastmemPatchPc(CodePtr entry_point, unsigned access_index) const {
++    const auto block_info = block_infos.find(entry_point);
++    if (block_info == block_infos.end()) {
++        return std::nullopt;
++    }
++    for (const auto& [offset, patch] : block_info->second.fastmem_patch_info) {
++        if (std::get<1>(patch.marker) == access_index) {
++            return std::bit_cast<u64>(entry_point + offset);
++        }
++    }
++    return std::nullopt;
++}
++
+ void AddressSpace::InvalidateBasicBlocks(const ::Common::unordered_set<IR::LocationDescriptor>& descriptors) {
+     UnprotectCodeMemory();
+ 
+     for (const auto& descriptor : descriptors) {
+-        const auto iter = block_entries.find(descriptor);
+-        if (iter == block_entries.end()) {
++        const CodePtr entry_point = block_entries.Find(descriptor.Value());
++        if (entry_point == nullptr) {
+             continue;
+         }
+ 
+@@ -114,10 +151,13 @@ void AddressSpace::InvalidateBasicBlocks(const ::Common::unordered_set<IR::Locat
+         RelinkForDescriptor(descriptor, nullptr);
+ 
+         ++compile_stats.blocks_invalidated;
+-        if (const auto info = block_infos.find(iter->second); info != block_infos.end()) {
++        if (const auto info = block_infos.find(entry_point); info != block_infos.end()) {
+             compile_stats.invalidated_bytes += info->second.size;
+         }
+-        block_entries.erase(iter);
++        block_entries.Erase(descriptor.Value());
++        if (block_dropped) {
++            block_dropped(descriptor);
++        }
+     }
+ 
+     ProtectCodeMemory();
+@@ -126,21 +166,121 @@ void AddressSpace::InvalidateBasicBlocks(const ::Common::unordered_set<IR::Locat
+ void AddressSpace::ClearCache() {
+     ++compile_stats.cache_clears;
+     ++cache_generation;
+-    block_entries.clear();
++    block_entries.Clear();
+     reverse_block_entries.clear();
+     block_infos.clear();
+     block_references.clear();
++    for (Region& region : regions) {
++        region.code_end = region.begin;
++        region.veneer_begin = region.end;
++        region.veneers.clear();
++    }
++    current_region = 0;
+     code.set_offset(prelude_info.end_of_prelude);
+ }
+ 
+-std::size_t AddressSpace::GetRemainingSize() {
+-    return code_cache_size - static_cast<std::size_t>(code.offset());
++bool AddressSpace::PrepareSpace() {
++    constexpr std::ptrdiff_t minimum_remaining = 1024 * 1024;
++    while (regions[current_region].veneer_begin - static_cast<std::ptrdiff_t>(code.offset()) < minimum_remaining) {
++        if (current_region + 1 == regions.size()) {
++            return false;
++        }
++        regions[current_region].code_end = static_cast<std::ptrdiff_t>(code.offset());
++        Region& region = regions[++current_region];
++        if (region.has_prelude) {
++            code.set_offset(region.prelude.end_of_prelude);
++            continue;
++        }
++        code.set_offset(region.begin);
++        EmitRegionPrelude(region.prelude);
++        region.has_prelude = true;
++    }
++    return true;
++}
++
++std::size_t AddressSpace::RegionOf(CodePtr ptr) const {
++    const auto offset = static_cast<std::size_t>(ptr - std::bit_cast<CodePtr>(mem.ptr()));
++    return std::min(offset / region_size, regions.size() - 1);
++}
++
++const AddressSpace::PreludeInfo& AddressSpace::PreludeOf(CodePtr ptr) const {
++    const std::size_t region = RegionOf(ptr);
++    return region == 0 ? prelude_info : regions[region].prelude;
++}
++
++namespace {
++
++// Other threads may run the code that links are written into. An aligned word is written at
++// once, and a branch or NOP may be replaced by another while it is executed (Arm ARM B2.2.5).
++void StoreInstruction(CodePtr at, u32 instruction) {
++#ifdef _MSC_VER
++    *reinterpret_cast<volatile u32*>(at) = instruction;
++#else
++    __atomic_store_n(reinterpret_cast<u32*>(at), instruction, __ATOMIC_RELAXED);
++#endif
++}
++
++u32 LoadInstruction(CodePtr at) {
++#ifdef _MSC_VER
++    return *reinterpret_cast<volatile u32*>(at);
++#else
++    return __atomic_load_n(reinterpret_cast<u32*>(at), __ATOMIC_RELAXED);
++#endif
++}
++
++void StorePointer(CodePtr at, u64 value) {
++    ASSERT(std::bit_cast<u64>(at) % sizeof(u64) == 0);
++#ifdef _MSC_VER
++    *reinterpret_cast<volatile u64*>(at) = value;
++#else
++    __atomic_store_n(reinterpret_cast<u64*>(at), value, __ATOMIC_RELAXED);
++#endif
++}
++
++constexpr u32 nop_instruction = 0xD503201F;
++
++bool BranchReaches(CodePtr from, CodePtr to, std::size_t reach) {
++    const std::ptrdiff_t distance = to - from;
++    return distance >= -static_cast<std::ptrdiff_t>(reach) && distance < static_cast<std::ptrdiff_t>(reach);
++}
++
++u32 BranchInstruction(CodePtr from, CodePtr to) {
++    return 0x14000000 | (static_cast<u32>((to - from) >> 2) & 0x03FFFFFF);
++}
++
++}  // namespace
++
++CodePtr AddressSpace::GetVeneer(std::size_t region_index, IR::LocationDescriptor target_descriptor, CodePtr target_ptr) {
++    Region& region = regions[region_index];
++    const CodePtr base = std::bit_cast<CodePtr>(mem.ptr());
++    constexpr std::ptrdiff_t veneer_size = 16;
++
++    if (const auto iter = region.veneers.find(target_descriptor); iter != region.veneers.end()) {
++        StorePointer(iter->second + 8, std::bit_cast<u64>(target_ptr));
++        return iter->second;
++    }
++
++    const std::ptrdiff_t code_end = region_index == current_region ? static_cast<std::ptrdiff_t>(code.offset()) : region.code_end;
++    if (region.veneer_begin - veneer_size < code_end) {
++        ++compile_stats.unlinked_far_links;
++        return nullptr;
++    }
++    region.veneer_begin -= veneer_size;
++    const CodePtr veneer = base + region.veneer_begin;
++    StoreInstruction(veneer, 0x58000050);  // LDR X16, #8
++    StoreInstruction(veneer + 4, 0xD61F0200);  // BR X16
++    StorePointer(veneer + 8, std::bit_cast<u64>(target_ptr));
++    mem.invalidate(reinterpret_cast<u32*>(veneer), 8);
++    region.veneers.emplace(target_descriptor, veneer);
++    ++compile_stats.veneers;
++    return veneer;
+ }
+ 
+ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+-    if (GetRemainingSize() < 1024 * 1024) {
++    if (!PrepareSpace()) {
+         ++compile_stats.full_clears;
+         ClearCache();
++        ASSERT(PrepareSpace());
+     }
+ 
+     UnprotectCodeMemory();
+@@ -149,14 +289,16 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+     emit_config.cache_generation = cache_generation;
+     EmittedBlockInfo block_info = EmitArm64(code, std::move(block), emit_config, fastmem_manager);
+ 
+-    ASSERT(block_entries.insert({block.Location(), block_info.entry_point}).second);
++    ASSERT(block_entries.Find(block.Location().Value()) == nullptr);
+     ASSERT(reverse_block_entries.insert({block_info.entry_point, block.Location()}).second);
+     ASSERT(block_infos.insert({block_info.entry_point, block_info}).second);
+ 
+     Link(block_info);
+-    RelinkForDescriptor(block.Location(), block_info.entry_point);
+-
++    // Before other threads can reach the block: they may take a link to it, or find it in the block table
++    // (which they read without the cache's lock), at once. Its own links to itself are made by the relink below.
+     mem.invalidate(reinterpret_cast<u32*>(block_info.entry_point), block_info.size);
++    ASSERT(block_entries.Insert(block.Location().Value(), block_info.entry_point));
++    RelinkForDescriptor(block.Location(), block_info.entry_point);
+     ProtectCodeMemory();
+ 
+     RegisterNewBasicBlock(block, block_info);
+@@ -168,136 +310,138 @@ void AddressSpace::Link(EmittedBlockInfo& block_info) {
+     using namespace oaknut;
+     using namespace oaknut::util;
+ 
++    const PreludeInfo& prelude = PreludeOf(block_info.entry_point);
++
+     for (auto [ptr_offset, target] : block_info.relocations) {
+         CodeGenerator c{mem.ptr(), mem.ptr()};
+         c.set_xptr(reinterpret_cast<u32*>(block_info.entry_point + ptr_offset));
+ 
+         switch (target) {
+         case LinkTarget::ReturnToDispatcher:
+-            c.B(prelude_info.return_to_dispatcher);
++            c.B(prelude.return_to_dispatcher);
+             break;
+         case LinkTarget::ReturnFromRunCode:
+-            c.B(prelude_info.return_from_run_code);
++            c.B(prelude.return_from_run_code);
+             break;
+         // { this, vaddr, size }
+         case LinkTarget::ReadMemory8:
+-            c.BL(prelude_info.read_memory_8);
++            c.BL(prelude.read_memory_8);
+             break;
+         case LinkTarget::ReadMemory16:
+-            c.BL(prelude_info.read_memory_16);
++            c.BL(prelude.read_memory_16);
+             break;
+         case LinkTarget::ReadMemory32:
+-            c.BL(prelude_info.read_memory_32);
++            c.BL(prelude.read_memory_32);
+             break;
+         case LinkTarget::ReadMemory64:
+-            c.BL(prelude_info.read_memory_64);
++            c.BL(prelude.read_memory_64);
+             break;
+         case LinkTarget::ReadMemory128:
+-            c.BL(prelude_info.read_memory_128);
++            c.BL(prelude.read_memory_128);
+             break;
+         // { this, vaddr, size }
+         case LinkTarget::WrappedReadMemory8:
+-            c.BL(prelude_info.wrapped_read_memory_8);
++            c.BL(prelude.wrapped_read_memory_8);
+             break;
+         case LinkTarget::WrappedReadMemory16:
+-            c.BL(prelude_info.wrapped_read_memory_16);
++            c.BL(prelude.wrapped_read_memory_16);
+             break;
+         case LinkTarget::WrappedReadMemory32:
+-            c.BL(prelude_info.wrapped_read_memory_32);
++            c.BL(prelude.wrapped_read_memory_32);
+             break;
+         case LinkTarget::WrappedReadMemory64:
+-            c.BL(prelude_info.wrapped_read_memory_64);
++            c.BL(prelude.wrapped_read_memory_64);
+             break;
+         case LinkTarget::WrappedReadMemory128:
+-            c.BL(prelude_info.wrapped_read_memory_128);
++            c.BL(prelude.wrapped_read_memory_128);
+             break;
+         //
+         case LinkTarget::ExclusiveReadMemory8:
+-            c.BL(prelude_info.exclusive_read_memory_8);
++            c.BL(prelude.exclusive_read_memory_8);
+             break;
+         case LinkTarget::ExclusiveReadMemory16:
+-            c.BL(prelude_info.exclusive_read_memory_16);
++            c.BL(prelude.exclusive_read_memory_16);
+             break;
+         case LinkTarget::ExclusiveReadMemory32:
+-            c.BL(prelude_info.exclusive_read_memory_32);
++            c.BL(prelude.exclusive_read_memory_32);
+             break;
+         case LinkTarget::ExclusiveReadMemory64:
+-            c.BL(prelude_info.exclusive_read_memory_64);
++            c.BL(prelude.exclusive_read_memory_64);
+             break;
+         case LinkTarget::ExclusiveReadMemory128:
+-            c.BL(prelude_info.exclusive_read_memory_128);
++            c.BL(prelude.exclusive_read_memory_128);
+             break;
+         // { this, vaddr, value, size }
+         case LinkTarget::WriteMemory8:
+-            c.BL(prelude_info.write_memory_8);
++            c.BL(prelude.write_memory_8);
+             break;
+         case LinkTarget::WriteMemory16:
+-            c.BL(prelude_info.write_memory_16);
++            c.BL(prelude.write_memory_16);
+             break;
+         case LinkTarget::WriteMemory32:
+-            c.BL(prelude_info.write_memory_32);
++            c.BL(prelude.write_memory_32);
+             break;
+         case LinkTarget::WriteMemory64:
+-            c.BL(prelude_info.write_memory_64);
++            c.BL(prelude.write_memory_64);
+             break;
+         case LinkTarget::WriteMemory128:
+-            c.BL(prelude_info.write_memory_128);
++            c.BL(prelude.write_memory_128);
+             break;
+         //
+         case LinkTarget::WrappedWriteMemory8:
+-            c.BL(prelude_info.wrapped_write_memory_8);
++            c.BL(prelude.wrapped_write_memory_8);
+             break;
+         case LinkTarget::WrappedWriteMemory16:
+-            c.BL(prelude_info.wrapped_write_memory_16);
++            c.BL(prelude.wrapped_write_memory_16);
+             break;
+         case LinkTarget::WrappedWriteMemory32:
+-            c.BL(prelude_info.wrapped_write_memory_32);
++            c.BL(prelude.wrapped_write_memory_32);
+             break;
+         case LinkTarget::WrappedWriteMemory64:
+-            c.BL(prelude_info.wrapped_write_memory_64);
++            c.BL(prelude.wrapped_write_memory_64);
+             break;
+         case LinkTarget::WrappedWriteMemory128:
+-            c.BL(prelude_info.wrapped_write_memory_128);
++            c.BL(prelude.wrapped_write_memory_128);
+             break;
+         //
+         case LinkTarget::ExclusiveWriteMemory8:
+-            c.BL(prelude_info.exclusive_write_memory_8);
++            c.BL(prelude.exclusive_write_memory_8);
+             break;
+         case LinkTarget::ExclusiveWriteMemory16:
+-            c.BL(prelude_info.exclusive_write_memory_16);
++            c.BL(prelude.exclusive_write_memory_16);
+             break;
+         case LinkTarget::ExclusiveWriteMemory32:
+-            c.BL(prelude_info.exclusive_write_memory_32);
++            c.BL(prelude.exclusive_write_memory_32);
+             break;
+         case LinkTarget::ExclusiveWriteMemory64:
+-            c.BL(prelude_info.exclusive_write_memory_64);
++            c.BL(prelude.exclusive_write_memory_64);
+             break;
+         case LinkTarget::ExclusiveWriteMemory128:
+-            c.BL(prelude_info.exclusive_write_memory_128);
++            c.BL(prelude.exclusive_write_memory_128);
+             break;
+         case LinkTarget::CallSVC:
+-            c.BL(prelude_info.call_svc);
++            c.BL(prelude.call_svc);
+             break;
+         case LinkTarget::ExceptionRaised:
+-            c.BL(prelude_info.exception_raised);
++            c.BL(prelude.exception_raised);
+             break;
+         case LinkTarget::InstructionSynchronizationBarrierRaised:
+-            c.BL(prelude_info.isb_raised);
++            c.BL(prelude.isb_raised);
+             break;
+         case LinkTarget::InstructionCacheOperationRaised:
+-            c.BL(prelude_info.ic_raised);
++            c.BL(prelude.ic_raised);
+             break;
+         case LinkTarget::DataCacheOperationRaised:
+-            c.BL(prelude_info.dc_raised);
++            c.BL(prelude.dc_raised);
+             break;
+         case LinkTarget::GetCNTPCT:
+-            c.BL(prelude_info.get_cntpct);
++            c.BL(prelude.get_cntpct);
+             break;
+         case LinkTarget::AddTicks:
+-            c.BL(prelude_info.add_ticks);
++            c.BL(prelude.add_ticks);
+             break;
+         case LinkTarget::GetTicksRemaining:
+-            c.BL(prelude_info.get_ticks_remaining);
++            c.BL(prelude.get_ticks_remaining);
+             break;
+         default:
+             UNREACHABLE();
+@@ -306,32 +450,36 @@ void AddressSpace::Link(EmittedBlockInfo& block_info) {
+ 
+     for (auto [target_descriptor, list] : block_info.block_relocations) {
+         block_references[target_descriptor].insert(block_info.entry_point);
+-        LinkBlockLinks(block_info.entry_point, Get(target_descriptor), list);
++        LinkBlockLinks(block_info.entry_point, target_descriptor, Get(target_descriptor), list, false);
+     }
+ }
+ 
+-void AddressSpace::LinkBlockLinks(const CodePtr entry_point, const CodePtr target_ptr, const std::vector<BlockRelocation>& block_relocations_list) {
+-    using namespace oaknut;
+-    using namespace oaknut::util;
+-
++void AddressSpace::LinkBlockLinks(const CodePtr entry_point, IR::LocationDescriptor target_descriptor, const CodePtr target_ptr, const std::vector<BlockRelocation>& block_relocations_list, bool live) {
+     for (auto [ptr_offset, type] : block_relocations_list) {
+-        CodeGenerator c{mem.ptr(), mem.ptr()};
+-        c.set_xptr(reinterpret_cast<u32*>(entry_point + ptr_offset));
++        const CodePtr at = entry_point + ptr_offset;
+ 
+         switch (type) {
+-        case BlockRelocationType::Branch:
++        case BlockRelocationType::Branch: {
++            u32 instruction = nop_instruction;
+             if (target_ptr) {
+-                c.B((void*)target_ptr);
+-            } else {
+-                c.NOP();
++                if (BranchReaches(at, target_ptr, region_size)) {
++                    instruction = BranchInstruction(at, target_ptr);
++                } else if (const CodePtr veneer = GetVeneer(RegionOf(entry_point), target_descriptor, target_ptr)) {
++                    instruction = BranchInstruction(at, veneer);
++                }
++            }
++            if (!live) {
++                // A new block: its code is invalidated as a whole.
++                StoreInstruction(at, instruction);
++            } else if (LoadInstruction(at) != instruction) {
++                StoreInstruction(at, instruction);
++                mem.invalidate(reinterpret_cast<u32*>(at), sizeof(u32));
+             }
+             break;
++        }
+         case BlockRelocationType::MoveToScratch1:
+-            if (target_ptr) {
+-                c.ADRL(Xscratch1, (void*)target_ptr);
+-            } else {
+-                c.ADRL(Xscratch1, prelude_info.return_to_dispatcher);
+-            }
++            // The literal the block loads into Xscratch1.
++            StorePointer(at, std::bit_cast<u64>(target_ptr ? static_cast<void*>(target_ptr) : PreludeOf(entry_point).return_to_dispatcher));
+             break;
+         default:
+             UNREACHABLE();
+@@ -345,10 +493,8 @@ void AddressSpace::RelinkForDescriptor(IR::LocationDescriptor target_descriptor,
+             const EmittedBlockInfo& block_info = block_iter->second;
+ 
+             if (auto relocation_iter = block_info.block_relocations.find(target_descriptor); relocation_iter != block_info.block_relocations.end()) {
+-                LinkBlockLinks(block_info.entry_point, target_ptr, relocation_iter->second);
++                LinkBlockLinks(block_info.entry_point, target_descriptor, target_ptr, relocation_iter->second, true);
+             }
+-
+-            mem.invalidate(reinterpret_cast<u32*>(block_info.entry_point), block_info.size);
+         }
+     }
+ }
+@@ -376,9 +522,27 @@ FakeCall AddressSpace::FastmemCallback(u64 host_pc) {
+ 
+         if (patch_entry->second.recompile) {
+             const auto marker = patch_entry->second.marker;
+-            ++compile_stats.fastmem_recompiles;
++            const auto descriptor = std::get<0>(marker);
++            // Dropped code stays until the cache is cleared: the faulting block finishes its run, and with a
++            // shared cache another Jit can still be in it or return into it. A fault there takes the slow path
++            // like any other. The access is marked in any case, so that one pass through a block marks all of
++            // its faulting accesses. The block that now stands for the descriptor is dropped only if it still
++            // has this access as fastmem: it is the faulting block itself, or it was emitted before the mark.
++            const CodePtr current = block_entries.Find(descriptor.Value());
++            const bool is_current = current == entry_point;
++            const bool was_marked = !fastmem_manager.ShouldFastmem(marker);
+             fastmem_manager.MarkDoNotFastmem(marker);
+-            InvalidateBasicBlocks({std::get<0>(marker)});
++            const bool drops = is_current || (!was_marked && current != nullptr);
++            if (JitTrace::Enabled()) {
++                JitTrace::Write(JitTrace::Type::Fault, 0, static_cast<u16>((is_current ? 0 : 1) | (drops ? 2 : 0)),
++                                descriptor.Value(), std::get<1>(marker));
++            }
++            if (drops) {
++                ++compile_stats.fastmem_recompiles;
++                InvalidateBasicBlocks({descriptor});
++            } else {
++                ++compile_stats.fastmem_stale_faults;
++            }
+         }
+ 
+         return fc;
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/address_space.h b/src/dynarmic/src/dynarmic/backend/arm64/address_space.h
+index 1935c5fae..4daf9331a 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/address_space.h
++++ b/src/dynarmic/src/dynarmic/backend/arm64/address_space.h
+@@ -8,15 +8,19 @@
+ 
+ #pragma once
+ 
++#include <functional>
+ #include <map>
+ #include <optional>
++#include <vector>
+ 
++#include "common/assert.h"
+ #include "common/common_types.h"
+ #include <oaknut/code_block.hpp>
+ #include <oaknut/oaknut.hpp>
+ #include "common/container/unordered_map.h"
+ #include "common/container/unordered_set.h"
+ 
++#include "dynarmic/backend/arm64/block_table.h"
+ #include "dynarmic/backend/arm64/emit_arm64.h"
+ #include "dynarmic/backend/arm64/fastmem.h"
+ #include "dynarmic/interface/halt_reason.h"
+@@ -27,7 +31,9 @@ namespace Dynarmic::Backend::Arm64 {
+ 
+ class AddressSpace {
+ public:
+-    AddressSpace(std::size_t code_cache_size, std::optional<std::uintptr_t> fastmem_arena);
++    /// `regions`: whether the cache may be a row of regions (EmitRegionPrelude), and so larger
++    /// than a direct branch reaches.
++    AddressSpace(std::size_t code_cache_size, std::optional<std::uintptr_t> fastmem_arena, bool regions = false);
+     virtual ~AddressSpace();
+ 
+     virtual void GenerateIR(IR::Block& ir_block, IR::LocationDescriptor) const = 0;
+@@ -39,12 +45,20 @@ public:
+ 
+     // Returns "most likely" entry_point associated with the emitted code at that location
+     CodePtr ReverseGetEntryPoint(CodePtr host_pc);
++    /// Where in a block's code the memory access with the given marker index is done as fastmem, if it is.
++    /// The caller holds the cache's lock.
++    std::optional<u64> FastmemPatchPc(CodePtr entry_point, unsigned access_index) const;
+ 
+     CodePtr GetOrEmit(IR::LocationDescriptor descriptor);
+ 
+     void InvalidateBasicBlocks(const ::Common::unordered_set<IR::LocationDescriptor>& descriptors);
+ 
+-    void ClearCache();
++    virtual void ClearCache();
++
++    /// A direct branch reaches 128 MiB. A larger cache is a row of regions of this size, each
++    /// with its own prelude at its start; a link to a block out of reach goes through a veneer
++    /// at the end of the linking block's region.
++    static constexpr std::size_t MaxRegionSize = 128 * 1024 * 1024;
+ 
+     /// Totals since creation; the JIT adds their growth to UserConfig::counters.
+     struct CompileStats {
+@@ -55,7 +69,14 @@ public:
+         u64 blocks_invalidated = 0;
+         u64 invalidated_bytes = 0;
+         u64 fastmem_recompiles = 0;
++        u64 fastmem_stale_faults = 0;  ///< Fastmem faults in code that was already replaced
++        u64 veneers = 0;  ///< Veneers made for links out of a direct branch's reach
++        u64 unlinked_far_links = 0;  ///< Such links left to the dispatcher: no room for a veneer
+     };
++    /// Called for each block InvalidateBasicBlocks drops (its code stays until the cache is cleared).
++    void SetBlockDroppedCallback(std::function<void(IR::LocationDescriptor)> callback) {
++        block_dropped = std::move(callback);
++    }
+     const CompileStats& GetCompileStats() const {
+         return compile_stats;
+     }
+@@ -78,16 +99,33 @@ protected:
+ #endif
+     }
+ 
+-    std::size_t GetRemainingSize();
++    struct PreludeInfo;
++
++    /// Makes room for a block, moving to the next region when this one is full. False when the
++    /// whole cache is full: the caller clears it.
++    bool PrepareSpace();
++    /// Emits the prelude of a region after the first at the code pointer.
++    virtual void EmitRegionPrelude(PreludeInfo&) {
++        UNREACHABLE();
++    }
+     EmittedBlockInfo Emit(IR::Block ir_block);
+     void Link(EmittedBlockInfo& block);
+-    void LinkBlockLinks(const CodePtr entry_point, const CodePtr target_ptr, const std::vector<BlockRelocation>& block_relocations_list);
++    /// `live`: other threads may run the block, and its instruction cache is up to date.
++    void LinkBlockLinks(const CodePtr entry_point, IR::LocationDescriptor target_descriptor, const CodePtr target_ptr, const std::vector<BlockRelocation>& block_relocations_list, bool live);
+     void RelinkForDescriptor(IR::LocationDescriptor target_descriptor, CodePtr target_ptr);
+ 
++    std::size_t RegionOf(CodePtr ptr) const;
++    const PreludeInfo& PreludeOf(CodePtr ptr) const;
++    /// The veneer in `region` that jumps to `target_ptr`, or nullptr when the region has no room.
++    CodePtr GetVeneer(std::size_t region, IR::LocationDescriptor target_descriptor, CodePtr target_ptr);
++
+     FakeCall FastmemCallback(u64 host_pc);
+ 
+     IR::Block ir_block;
+     const std::size_t code_cache_size;
++    /// MaxRegionSize, or less for tests (DYNARMIC_ARM64_REGION_SIZE): links then count as out of
++    /// reach beyond it too.
++    const std::size_t region_size;
+     u64 cache_generation = 0;
+     oaknut::CodeBlock mem;
+     oaknut::CodeGenerator code;
+@@ -95,7 +133,8 @@ protected:
+     // A IR::LocationDescriptor will have one current CodePtr.
+     // However, there can be multiple other CodePtrs which are older, previously invalidated blocks.
+     std::map<CodePtr, IR::LocationDescriptor> reverse_block_entries;
+-    ::Common::unordered_map<IR::LocationDescriptor, CodePtr> block_entries;
++    BlockTable block_entries;  ///< Find needs no lock; see block_table.h
++    std::function<void(IR::LocationDescriptor)> block_dropped;
+     ::Common::unordered_map<CodePtr, EmittedBlockInfo> block_infos;
+     ::Common::unordered_map<IR::LocationDescriptor, ::Common::unordered_set<CodePtr>> block_references;
+ 
+@@ -154,6 +193,18 @@ protected:
+         void* add_ticks;
+         void* get_ticks_remaining;
+     } prelude_info;
++
++    struct Region {
++        PreludeInfo prelude;  ///< Regions after the first; the first has prelude_info
++        bool has_prelude = false;
++        std::ptrdiff_t begin = 0;
++        std::ptrdiff_t end = 0;
++        std::ptrdiff_t code_end = 0;  ///< Where its blocks end, once emission has moved on
++        std::ptrdiff_t veneer_begin = 0;  ///< Veneers grow down from `end`
++        ::Common::unordered_map<IR::LocationDescriptor, CodePtr> veneers;
++    };
++    std::vector<Region> regions;
++    std::size_t current_region = 0;
+ };
+ 
+ }  // namespace Dynarmic::Backend::Arm64
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.cpp b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.cpp
+index 9b22d7d2e..4169af4b2 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.cpp
+@@ -275,15 +275,24 @@ void EmitRelocation(oaknut::CodeGenerator& code, EmitContext& ctx, LinkTarget li
+ }
+ 
+ void EmitBlockLinkRelocation(oaknut::CodeGenerator& code, EmitContext& ctx, const IR::LocationDescriptor& descriptor, BlockRelocationType type) {
+-    ctx.ebi.block_relocations[descriptor].emplace_back(BlockRelocation{code.xptr<CodePtr>() - ctx.ebi.entry_point, type});
+     switch (type) {
+     case BlockRelocationType::Branch:
++        ctx.ebi.block_relocations[descriptor].emplace_back(BlockRelocation{code.xptr<CodePtr>() - ctx.ebi.entry_point, type});
+         code.NOP();
+         break;
+-    case BlockRelocationType::MoveToScratch1:
+-        code.BRK(0);
+-        code.NOP();
++    case BlockRelocationType::MoveToScratch1: {
++        // A literal after the block: a link is one aligned store, made while other threads may
++        // run the block.
++        SharedLabel literal = GenSharedLabel();
++        code.LDR(Xscratch1, *literal);
++        ctx.deferred_emits.emplace_back([&code, &ctx, descriptor, literal] {
++            code.align(8);
++            code.l(*literal);
++            ctx.ebi.block_relocations[descriptor].emplace_back(BlockRelocation{code.xptr<CodePtr>() - ctx.ebi.entry_point, BlockRelocationType::MoveToScratch1});
++            code.dx(0);
++        });
+         break;
++    }
+     default:
+         UNREACHABLE();
+     }
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.h b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.h
+index 2807e233f..fff3c0ea6 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.h
++++ b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.h
+@@ -119,8 +119,6 @@ struct EmitConfig {
+     u64 cntfreq_el0;
+     u32 ctr_el0;
+     u32 dczid_el0;
+-    const u64* tpidrro_el0;
+-    u64* tpidr_el0;
+ 
+     // Memory
+     bool check_halt_on_memory_access;
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64.cpp b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64.cpp
+index 2a4465aa9..98aa9a980 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64.cpp
+@@ -522,7 +522,7 @@ template<>
+ void EmitIR<IR::Opcode::A64GetTPIDR>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
+     auto Xvalue = ctx.reg_alloc.WriteX(inst);
+     RegAlloc::Realize(Xvalue);
+-    code.MOV(Xscratch0, std::bit_cast<u64>(ctx.conf.tpidr_el0));
++    code.LDR(Xscratch0, Xstate, offsetof(A64JitState, tpidr_el0));
+     code.LDR(Xvalue, Xscratch0);
+ }
+ 
+@@ -530,7 +530,7 @@ template<>
+ void EmitIR<IR::Opcode::A64GetTPIDRRO>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
+     auto Xvalue = ctx.reg_alloc.WriteX(inst);
+     RegAlloc::Realize(Xvalue);
+-    code.MOV(Xscratch0, std::bit_cast<u64>(ctx.conf.tpidrro_el0));
++    code.LDR(Xscratch0, Xstate, offsetof(A64JitState, tpidrro_el0));
+     code.LDR(Xvalue, Xscratch0);
+ }
+ 
+@@ -539,7 +539,7 @@ void EmitIR<IR::Opcode::A64SetTPIDR>(oaknut::CodeGenerator& code, EmitContext& c
+     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+     auto Xvalue = ctx.reg_alloc.ReadX(args[0]);
+     RegAlloc::Realize(Xvalue);
+-    code.MOV(Xscratch0, std::bit_cast<u64>(ctx.conf.tpidr_el0));
++    code.LDR(Xscratch0, Xstate, offsetof(A64JitState, tpidr_el0));
+     code.STR(Xvalue, Xscratch0);
+ }
+ 
+diff --git a/src/dynarmic/src/dynarmic/common/atomic.h b/src/dynarmic/src/dynarmic/common/atomic.h
+index 8af6626be..9ef843fec 100644
+--- a/src/dynarmic/src/dynarmic/common/atomic.h
++++ b/src/dynarmic/src/dynarmic/common/atomic.h
+@@ -36,6 +36,14 @@ inline void And(volatile u32* ptr, u32 value) {
+ #endif
+ }
+ 
++inline u32 Load(const volatile u32* ptr) {
++#ifdef _MSC_VER
++    return static_cast<u32>(_InterlockedOr(reinterpret_cast<volatile long*>(const_cast<volatile u32*>(ptr)), 0));
++#else
++    return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);
++#endif
++}
++
+ inline u32 Exchange(volatile u32* ptr, u32 value) {
+ #ifdef _MSC_VER
+     return static_cast<u32>(_InterlockedExchange(reinterpret_cast<volatile long*>(ptr), value));
+diff --git a/src/dynarmic/src/dynarmic/interface/A64/a64.h b/src/dynarmic/src/dynarmic/interface/A64/a64.h
+index fc6f073e5..caaccb2fc 100644
+--- a/src/dynarmic/src/dynarmic/interface/A64/a64.h
++++ b/src/dynarmic/src/dynarmic/interface/A64/a64.h
+@@ -21,7 +21,7 @@
+ namespace Dynarmic {
+ namespace A64 {
+ 
+-/// An empty code cache for UserConfig::shared_code_cache (x64 backend only).
++/// An empty code cache for UserConfig::shared_code_cache (x64 and arm64 backends).
+ std::shared_ptr<SharedCodeCache> MakeSharedCodeCache();
+ 
+ class Jit final {
+@@ -127,6 +127,15 @@ public:
+ 
+     /// @brief Disassemble the instructions following the current pc and return
+     /// the resulting instructions as a vector of their string representations.
++/// Benchmark hooks (tests/A64/jit_cache_replay.cpp replays a DYNARMIC_JIT_TRACE recording through them, with
++    /// no guest code run). What the dispatcher does to find the block of a location: looks it up, and translates
++    /// and emits it if it is missing. Returns its entry point.
++    void* DebugLookupBlock(std::uint64_t location_descriptor);
++    /// A fastmem fault at the memory access `access_index` of a location's block: of the block that now stands
++    /// for the location, or of `stale_entry_point` if given (code that has since been replaced). False if there
++    /// is no such block or access (arm64 only).
++    bool DebugFastmemFault(std::uint64_t location_descriptor, unsigned access_index, void* stale_entry_point);
++
+     std::string Disassemble() const;
+ 
+ private:
+diff --git a/src/dynarmic/src/dynarmic/interface/A64/config.h b/src/dynarmic/src/dynarmic/interface/A64/config.h
+index d1a8ed7be..edd4735e3 100644
+--- a/src/dynarmic/src/dynarmic/interface/A64/config.h
++++ b/src/dynarmic/src/dynarmic/interface/A64/config.h
+@@ -209,13 +209,15 @@ struct UserConfig {
+     /// This is only used if fastmem_pointer is set.
+     std::uint32_t fastmem_address_space_bits = 36;
+ 
+-    // Minimum size is about 8MiB. Maximum size is about 128MiB (arm64 host) or 2GiB (x64 host).
+-    // Maximum size is limited by the maximum length of a x86_64 / arm64 jump.
++    // Minimum size is about 8MiB. Maximum size is about 2GiB, the maximum length of a x86_64
++    // jump. An arm64 host uses whole multiples of 128MiB, the length of its jump (A32: 128MiB).
+     std::uint32_t code_cache_size = 128 * 1024 * 1024;  // bytes
+ 
+-    /// x64 backend: Jits made with the same cache (MakeSharedCodeCache) run each other's code.
+-    /// They must emulate one process (same page table and fastmem arena), count no cycles, use
+-    /// compact_block_exits and be destroyed together. The first Jit's config sizes the cache.
++    /// x64 and arm64 backends: Jits made with the same cache (MakeSharedCodeCache) run each
++    /// other's code. They must emulate one process (same page table and fastmem arena) and be
++    /// destroyed together; on x64 they must also count no cycles and use compact_block_exits. On
++    /// arm64 their callbacks must be of one class, and the cache may be larger than 128 MiB. The
++    /// first Jit's config sizes the cache.
+     std::shared_ptr<SharedCodeCache> shared_code_cache;
+ 
+     /// Diagnostics: when set, the x64 backend counts here the dispatcher's C++ block lookups,
+@@ -232,7 +234,22 @@ struct UserConfig {
+         std::uint64_t blocks_invalidated = 0; ///< arm64 only
+         std::uint64_t invalidated_bytes = 0; ///< Code space they keep until a clear (arm64 only)
+         std::uint64_t fastmem_recompiles = 0; ///< Blocks dropped by a fastmem fault (arm64 only)
++        std::uint64_t fastmem_stale_faults = 0; ///< Fastmem faults in code already replaced (arm64 only)
++        // Diagnostics of the arm64 code cache (shared or private), for deciding what to improve.
++        std::uint64_t lookup_hits = 0; ///< Dispatcher lookups answered by this Jit's own table, without a lock
++        std::uint64_t lookup_lock_wait_ns = 0; ///< Waiting for the cache lock (shared) on the other lookups
++        std::uint64_t emit_lock_wait_ns = 0; ///< Waiting for the cache lock (exclusive) to emit a translated block
++        std::uint64_t emit_lock_hold_ns = 0; ///< Holding it while emitting and linking
++        std::uint64_t discarded_translations = 0; ///< Blocks translated here that another Jit emitted first
++        std::uint64_t discarded_translate_ns = 0; ///< Time those translations took
++        std::uint64_t compiles_with_company = 0; ///< Translations begun while another Jit was translating
++        std::uint64_t invalidation_requests = 0; ///< InvalidateCacheRange calls (each halts every Jit of the cache)
++        std::uint64_t fastmem_faults = 0; ///< All fastmem faults handled
++        std::uint64_t fastmem_handler_ns = 0; ///< Time in the fault handler, lock wait included
++        std::uint64_t fastmem_lock_wait_ns = 0; ///< Of that, waiting for the cache lock
+         std::uint64_t code_bytes = 0; ///< Code cache in use at the last update (arm64 only)
++        std::uint64_t far_link_veneers = 0; ///< Veneers for links over 128 MiB (arm64 only)
++        std::uint64_t unlinked_far_links = 0; ///< Such links without room for one (arm64 only)
+     };
+     Counters* counters = nullptr;
+ 
+diff --git a/src/dynarmic/tests/CMakeLists.txt b/src/dynarmic/tests/CMakeLists.txt
+index 075a32c21..943ea24cf 100644
+--- a/src/dynarmic/tests/CMakeLists.txt
++++ b/src/dynarmic/tests/CMakeLists.txt
+@@ -53,6 +53,8 @@ if ("arm64" IN_LIST ARCHITECTURE)
+     target_architecture_specific_sources(dynarmic_tests "arm64"
+         A64/cache_clear_rsb.cpp
+         A64/shared_fastmem.cpp
++        A64/block_table.cpp
++        A64/jit_cache_replay.cpp
+     )
+ endif()
+ 
+diff --git a/src/tests/CMakeLists.txt b/src/tests/CMakeLists.txt
+index fcf3c60f7..d250bc5f8 100644
+--- a/src/tests/CMakeLists.txt
++++ b/src/tests/CMakeLists.txt
+@@ -330,8 +330,8 @@ if (TARGET dynarmic::dynarmic)
+     target_sources(tests PRIVATE core/jit_codegen_options.cpp core/jit_ordered_loads.cpp core/window_trace.cpp)
+     target_link_libraries(tests PRIVATE dynarmic::dynarmic)
+ 
+-    # The shared code cache is x64 only.
+-    if (ARCHITECTURE_x86_64)
++    # The shared code cache is in the x64 and arm64 backends.
++    if (ARCHITECTURE_x86_64 OR ARCHITECTURE_arm64)
+         target_sources(tests PRIVATE core/jit_shared_cache.cpp)
+ 
+         # The shared code cache test on its own for ThreadSanitizer: configure a separate build with
+diff --git a/src/tests/core/jit_shared_cache.cpp b/src/tests/core/jit_shared_cache.cpp
+index ba6bf73a0..ef0dee9d5 100644
+--- a/src/tests/core/jit_shared_cache.cpp
++++ b/src/tests/core/jit_shared_cache.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include <array>
+ #include <atomic>
++#include <cstdlib>
+ #include <memory>
+ #include <optional>
+ #include <thread>
+@@ -172,9 +173,15 @@ void RunToSvc(A64::Jit& jit, Env& env) {
+     }
+ }
+ 
+-} // namespace
++/// What the Jits of a test counted, summed.
++struct Totals {
++    u64 clears = 0;
++    u64 compiled = 0;
++    u64 veneers = 0;
++    u64 unlinked_far_links = 0;
++};
+ 
+-TEST_CASE("Jits on one code cache run while others compile, invalidate and clear", "[jit_shared_cache]") {
++Totals RunnersAndWriter() {
+     Guest guest;
+     ExclusiveMonitor monitor{Runners + 1};
+     const auto cache = A64::MakeSharedCodeCache();
+@@ -240,17 +247,527 @@ TEST_CASE("Jits on one code cache run while others compile, invalidate and clear
+         thread.join();
+     }
+ 
+-    u64 clears = 0;
+-    u64 compiled = 0;
++    Totals totals;
+     for (const auto& env : envs) {
+-        clears += env->counters.cache_clears;
+-        compiled += env->counters.blocks_compiled;
++        totals.clears += env->counters.cache_clears;
++        totals.compiled += env->counters.blocks_compiled;
++        totals.veneers += env->counters.far_link_veneers;
++        totals.unlinked_far_links += env->counters.unlinked_far_links;
+     }
+-    INFO("rewrites " << rewrites << ", blocks compiled " << compiled << ", clears " << clears);
++    INFO("rewrites " << rewrites << ", blocks compiled " << totals.compiled << ", clears " << totals.clears);
+     CHECK(bad_sums.load() == 0);
+     CHECK(bad_svcs.load() == 0);
+     CHECK(stale == 0);
+     CHECK(guest.counter.load() == Runners * Rounds * Iterations);
+     CHECK(rewrites > 0);
+-    CHECK(clears > 0);
++    CHECK(totals.clears > 0);
++    return totals;
++}
++
++} // namespace
++
++TEST_CASE("Jits on one code cache run while others compile, invalidate and clear", "[jit_shared_cache]") {
++    RunnersAndWriter();
++}
++
++#if defined(__aarch64__)
++
++#include <chrono>
++#include <cstring>
++#include <sys/mman.h>
++
++namespace {
++
++/// The arm64 backend's test setting: code cache regions of 2 MiB instead of 128 MiB, with links
++/// counted as out of a branch's reach beyond that. Read when a code cache is made.
++struct SmallRegions {
++    SmallRegions() { setenv("DYNARMIC_ARM64_REGION_SIZE", "0x200000", 1); }
++    ~SmallRegions() { unsetenv("DYNARMIC_ARM64_REGION_SIZE"); }
++};
++
++constexpr u32 LdrX(u32 t, u32 n) { return 0xF9400000 | n << 5 | t; }
++constexpr u32 MovX(u32 d, u32 m) { return 0xAA0003E0 | m << 16 | d; }
++
++constexpr u64 LoopBase = 0x1000;       // blr x3; add x3, x3, #16; subs x1, x1, #1; b.ne; svc #0
++constexpr u64 Loop32Base = 0x1100;     // The same in steps of 32
++constexpr u64 CommonBase = 0x4000;     // common j at CommonBase + 8 * j: add x0, x0, #inc; ret
++constexpr u64 Commons = 8;
++constexpr u64 CallerFuncBase = 0x100'0000; // func i at + 16 * i: mov x9, x30; bl common i % 8; mov x30, x9; ret
++constexpr u64 LoaderFuncBase = 0x4000'0000; // func i at + 32 * i: ldr x2, [x7]; ldr x4, [x8]; x0 += x2 + x4; ret
++
++constexpr std::array<u32, 5> Loop{
++    Blr(3), AddImm(3, 3, 16), SubsImm(1, 1, 1), BCond(-3 * 4, CondNe), Svc(0),
++};
++constexpr std::array<u32, 5> Loop32{
++    Blr(3), AddImm(3, 3, 32), SubsImm(1, 1, 1), BCond(-3 * 4, CondNe), Svc(0),
++};
++
++/// Guest code for the tests below. Data reads that miss the fastmem arena return `callback_value`.
++class CodeEnv final : public A64::UserCallbacks {
++public:
++    A64::Jit* jit = nullptr;
++    std::optional<u32> svc;
++    A64::UserConfig::Counters counters;
++    std::atomic<u32>* common_increment = nullptr;
++    u64 callback_value = 0;
++    std::atomic<u64>* callback_reads = nullptr;
++
++    std::optional<std::uint32_t> MemoryReadCode(u64 vaddr) override {
++        if (vaddr - LoopBase < Loop.size() * 4) {
++            return Loop[(vaddr - LoopBase) / 4];
++        }
++        if (vaddr - Loop32Base < Loop32.size() * 4) {
++            return Loop32[(vaddr - Loop32Base) / 4];
++        }
++        if (vaddr - CommonBase < Commons * 8) {
++            return (vaddr & 4) ? Ret : AddImm(0, 0, common_increment->load());
++        }
++        if (vaddr >= LoaderFuncBase) {
++            const std::array<u32, 8> func{LdrX(2, 7), LdrX(4, 8), AddReg(0, 0, 2), AddReg(0, 0, 4), Ret, Nop, Nop, Nop};
++            return func[(vaddr - LoaderFuncBase) / 4 % 8];
++        }
++        if (vaddr >= CallerFuncBase) {
++            const u64 i = (vaddr - CallerFuncBase) / 16;
++            const u64 bl_address = CallerFuncBase + 16 * i + 4;
++            const std::array<u32, 4> func{MovX(9, 30), Bl(s64(CommonBase + 8 * (i % Commons)) - s64(bl_address)), MovX(30, 9), Ret};
++            return func[(vaddr - CallerFuncBase) / 4 % 4];
++        }
++        return Svc(2);
++    }
++    u64 MemoryRead(u64, size_t) override {
++        if (callback_reads) {
++            ++*callback_reads;
++        }
++        return callback_value;
++    }
++    Vector MemoryRead128(u64) override { return {}; }
++    void MemoryWrite(u64, u64, size_t) override { svc = 3; }
++    void MemoryWrite128(u64, Vector) override { svc = 3; }
++    void CallSVC(std::uint32_t imm) override {
++        svc = imm;
++        jit->HaltExecution();
++    }
++    void ExceptionRaised(u64, A64::Exception) override {
++        svc = 4;
++        jit->HaltExecution();
++    }
++    void AddTicks(u64) override {}
++    u64 GetTicksRemaining() override { return 0; }
++    u64 GetCNTPCT() override { return 0; }
++};
++
++/// Calls `count` functions of 16 or 32 bytes from `first` on and returns x0, or ~0 if that failed.
++u64 CallFunctions(A64::Jit& jit, CodeEnv& env, u64 first, u64 count, u64 stride) {
++    jit.SetRegister(0, 0);
++    jit.SetRegister(1, count);
++    jit.SetRegister(3, first);
++    jit.SetPC(stride == 16 ? LoopBase : Loop32Base);
++    env.svc.reset();
++    while (!env.svc) {
++        jit.Run();
++    }
++    return *env.svc == 0 ? jit.GetRegister(0) : ~u64{0};
++}
++
++} // namespace
++
++TEST_CASE("Jits on one code cache of several regions link through veneers", "[jit_shared_cache]") {
++    const SmallRegions small_regions;
++    constexpr size_t Cores = 4;
++    constexpr u64 Functions = 8000;
++    std::atomic<u32> increment{1};
++    std::atomic<u64> bad_sums{0};
++    std::atomic<size_t> finished{0};
++    const auto cache = A64::MakeSharedCodeCache();
++    std::vector<std::unique_ptr<CodeEnv>> envs;
++    std::vector<std::unique_ptr<A64::Jit>> jits;
++    for (size_t i = 0; i <= Cores; ++i) {
++        envs.push_back(std::make_unique<CodeEnv>());
++        envs[i]->common_increment = &increment;
++        A64::UserConfig config{};
++        config.callbacks = envs[i].get();
++        config.counters = &envs[i]->counters;
++        config.processor_id = u8(i);
++        config.shared_code_cache = cache;
++        config.code_cache_size = 16 * 1024 * 1024;
++        config.enable_cycle_counting = false;
++        jits.push_back(std::make_unique<A64::Jit>(config));
++        envs[i]->jit = jits[i].get();
++    }
++
++    std::vector<std::thread> threads;
++    for (size_t core = 0; core < Cores; ++core) {
++        threads.emplace_back([&, core] {
++            // More functions than the cache holds.
++            for (u64 round = 0; round < 2 * Rounds; ++round) {
++                // Core pairs run the same functions at the same time, then all run the first ones.
++                const u64 first = CallerFuncBase + 16 * Functions * (round + core % 2);
++                bad_sums += CallFunctions(*jits[core], *envs[core], first, Functions, 16) != Functions;
++                bad_sums += CallFunctions(*jits[core], *envs[core], CallerFuncBase, Functions, 16) != Functions;
++            }
++            ++finished;
++        });
++    }
++    // The common functions are dropped and compiled again meanwhile: their callers' links and
++    // veneers follow. Not more often or for longer: each time relinks every caller.
++    u64 invalidations = 0;
++    threads.emplace_back([&] {
++        while (finished.load() < Cores && invalidations < 24) {
++            jits[Cores]->InvalidateCacheRange(CommonBase, Commons * 8);
++            ++invalidations;
++            std::this_thread::sleep_for(std::chrono::milliseconds(50));
++        }
++    });
++    for (std::thread& thread : threads) {
++        thread.join();
++    }
++
++    Totals totals;
++    for (const auto& env : envs) {
++        totals.clears += env->counters.cache_clears;
++        totals.compiled += env->counters.blocks_compiled;
++        totals.veneers += env->counters.far_link_veneers;
++        totals.unlinked_far_links += env->counters.unlinked_far_links;
++    }
++    INFO("invalidations " << invalidations << ", blocks compiled " << totals.compiled << ", clears " << totals.clears << ", veneers " << totals.veneers);
++    CHECK(bad_sums.load() == 0);
++    CHECK(totals.veneers > 0);
++    CHECK(totals.unlinked_far_links == 0);
++    CHECK(totals.clears > 0);
++}
++
++TEST_CASE("Blocks out of a branch's reach link through veneers that follow their target", "[jit_shared_cache]") {
++    const SmallRegions small_regions;
++    std::atomic<u32> increment{1};
++    CodeEnv env;
++    env.common_increment = &increment;
++    A64::UserConfig config{};
++    config.callbacks = &env;
++    config.counters = &env.counters;
++    config.code_cache_size = 16 * 1024 * 1024;
++    config.enable_cycle_counting = false;
++    A64::Jit jit{config};
++    env.jit = &jit;
++
++    // Enough functions for several regions, each calling a common one compiled first.
++    constexpr u64 Functions = 20000;
++    CHECK(CallFunctions(jit, env, CallerFuncBase, Functions, 16) == Functions);
++    const u64 veneers = env.counters.far_link_veneers;
++    INFO("veneers " << veneers << ", code bytes " << env.counters.code_bytes << ", clears " << env.counters.cache_clears);
++    CHECK(veneers > 0);
++    CHECK(env.counters.unlinked_far_links == 0);
++    CHECK(env.counters.cache_clears == 0);
++    // All linked now.
++    CHECK(CallFunctions(jit, env, CallerFuncBase, Functions, 16) == Functions);
++
++    // New common functions, in another region: the veneers lead to them, and their old
++    // neighbours get veneers too.
++    increment = 2;
++    jit.InvalidateCacheRange(CommonBase, Commons * 8);
++    CHECK(CallFunctions(jit, env, CallerFuncBase, Functions, 16) == 2 * Functions);
++    CHECK(env.counters.far_link_veneers > veneers);
++    CHECK(env.counters.unlinked_far_links == 0);
++    CHECK(env.counters.blocks_invalidated >= Commons);
++
++    // More code than the cache holds: it clears and starts over in the first region.
++    CHECK(CallFunctions(jit, env, CallerFuncBase, 8 * Functions, 16) == 2 * 8 * Functions);
++    CHECK(env.counters.cache_clears > 0);
++    CHECK(env.counters.full_clears > 0);
++    CHECK(CallFunctions(jit, env, CallerFuncBase, Functions, 16) == 2 * Functions);
++}
++
++TEST_CASE("Jits on one code cache take fastmem faults in each other's blocks", "[jit_shared_cache]") {
++    // A fastmem arena of 256 KiB whose upper half is not mapped: reads there fault, take the
++    // callback and have their block compiled again without fastmem.
++    constexpr size_t ArenaBits = 18;
++    constexpr size_t ArenaSize = size_t{1} << ArenaBits;
++    constexpr u64 MappedAddress = 0x100;
++    constexpr u64 UnmappedAddress = ArenaSize / 2 + 0x100;
++    constexpr u64 MappedValue = 5;
++    constexpr u64 CallbackValue = 3;
++    void* const arena = mmap(nullptr, ArenaSize, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
++    REQUIRE(arena != MAP_FAILED);
++    REQUIRE(mprotect(arena, ArenaSize / 2, PROT_READ | PROT_WRITE) == 0);
++    std::memcpy(static_cast<char*>(arena) + MappedAddress, &MappedValue, sizeof(MappedValue));
++
++    constexpr size_t Cores = 4;
++    constexpr u64 FunctionsPerRound = 1500;
++    std::atomic<u32> increment{1};
++    std::atomic<u64> callback_reads{0};
++    std::atomic<u64> bad_sums{0};
++    const auto cache = A64::MakeSharedCodeCache();
++    std::vector<std::unique_ptr<CodeEnv>> envs;
++    std::vector<std::unique_ptr<A64::Jit>> jits;
++    for (size_t i = 0; i < Cores; ++i) {
++        envs.push_back(std::make_unique<CodeEnv>());
++        envs[i]->common_increment = &increment;
++        envs[i]->callback_value = CallbackValue;
++        envs[i]->callback_reads = &callback_reads;
++        A64::UserConfig config{};
++        config.callbacks = envs[i].get();
++        config.counters = &envs[i]->counters;
++        config.processor_id = u8(i);
++        config.shared_code_cache = cache;
++        config.code_cache_size = 16 * 1024 * 1024;
++        config.enable_cycle_counting = false;
++        config.fastmem_pointer = reinterpret_cast<uintptr_t>(arena);
++        config.fastmem_address_space_bits = ArenaBits;
++        config.silently_mirror_fastmem = false;
++        config.recompile_on_fastmem_failure = true;
++        jits.push_back(std::make_unique<A64::Jit>(config));
++        envs[i]->jit = jits[i].get();
++    }
++
++    std::vector<std::thread> threads;
++    for (size_t core = 0; core < Cores; ++core) {
++        threads.emplace_back([&, core] {
++            A64::Jit& jit = *jits[core];
++            jit.SetRegister(7, UnmappedAddress);
++            jit.SetRegister(8, MappedAddress);
++            for (u64 round = 0; round < Rounds; ++round) {
++                // Core pairs run the same functions at the same time, and each twice.
++                const u64 first = LoaderFuncBase + 32 * FunctionsPerRound * (2 * round + core % 2);
++                for (int pass = 0; pass < 2; ++pass) {
++                    const u64 sum = CallFunctions(jit, *envs[core], first, FunctionsPerRound, 32);
++                    bad_sums += sum != FunctionsPerRound * (MappedValue + CallbackValue);
++                }
++            }
++        });
++    }
++    for (std::thread& thread : threads) {
++        thread.join();
++    }
++
++    u64 recompiles = 0;
++    for (const auto& env : envs) {
++        recompiles += env->counters.fastmem_recompiles;
++    }
++    INFO("fastmem recompiles " << recompiles << ", callback reads " << callback_reads.load());
++    CHECK(bad_sums.load() == 0);
++    CHECK(callback_reads.load() == Cores * Rounds * 2 * FunctionsPerRound);
++    CHECK(recompiles >= 2 * Rounds * FunctionsPerRound);
++    jits.clear();
++    munmap(arena, ArenaSize);
++}
++
++// Hidden: compiles 300 MiB of code. Run with "[jit_large_cache]".
++namespace {
++
++constexpr u64 BlockedBase = 0x4000;  // svc #5 (its callback waits to be released); svc #0
++constexpr u64 PlainBase = 0x5000;    // svc #0
++constexpr u64 PatchedBase = 0x6000;  // movz x5, #value; svc #0
++
++/// Guest code whose svc #5 stays in its callback until released, as a slow service call does.
++class WaitEnv final : public A64::UserCallbacks {
++public:
++    A64::Jit* jit = nullptr;
++    std::optional<u32> svc;
++    A64::UserConfig::Counters counters;
++    std::atomic<bool> in_callback{false};
++    std::atomic<bool> release{false};
++    std::atomic<u64> patched_value{1};
++
++    std::optional<std::uint32_t> MemoryReadCode(u64 vaddr) override {
++        switch (vaddr) {
++        case BlockedBase: return Svc(5);
++        case PatchedBase: return Movz(5, patched_value.load());
++        default: return Svc(0);
++        }
++    }
++    u64 MemoryRead(u64, size_t) override { return 0; }
++    Vector MemoryRead128(u64) override { return {}; }
++    void MemoryWrite(u64, u64, size_t) override {}
++    void MemoryWrite128(u64, Vector) override {}
++    void CallSVC(std::uint32_t imm) override {
++        if (imm == 5) {
++            in_callback.store(true);
++            while (!release.load()) {
++                std::this_thread::sleep_for(std::chrono::milliseconds{1});
++            }
++        }
++        svc = imm;
++        jit->HaltExecution();
++    }
++    void ExceptionRaised(u64, A64::Exception) override {
++        svc = 4;
++        jit->HaltExecution();
++    }
++    void AddTicks(u64) override {}
++    u64 GetTicksRemaining() override { return 0; }
++    u64 GetCNTPCT() override { return 0; }
++};
++
++A64::UserConfig WaitConfig(WaitEnv& env, ExclusiveMonitor& monitor, std::shared_ptr<A64::SharedCodeCache> cache, u8 id) {
++    A64::UserConfig config{};
++    config.callbacks = &env;
++    config.global_monitor = &monitor;
++    config.processor_id = id;
++    config.counters = &env.counters;
++    config.shared_code_cache = std::move(cache);
++    config.code_cache_size = 16 * 1024 * 1024;
++    config.enable_cycle_counting = false;
++    return config;
++}
++
++template <typename Condition>
++bool WaitFor(Condition condition, std::chrono::milliseconds limit) {
++    const auto deadline = std::chrono::steady_clock::now() + limit;
++    while (!condition()) {
++        if (std::chrono::steady_clock::now() > deadline) {
++            return false;
++        }
++        std::this_thread::sleep_for(std::chrono::milliseconds{1});
++    }
++    return true;
+ }
++
++} // namespace
++
++TEST_CASE("A Jit waiting for a cache clear returns for another halt", "[jit_shared_cache]") {
++    ExclusiveMonitor monitor{2};
++    const auto cache = A64::MakeSharedCodeCache();
++    WaitEnv blocked_env, waiting_env;
++    A64::Jit blocked{WaitConfig(blocked_env, monitor, cache, 0)};
++    A64::Jit waiting{WaitConfig(waiting_env, monitor, cache, 1)};
++    blocked_env.jit = &blocked;
++    waiting_env.jit = &waiting;
++
++    // One Jit sits in a callback of its guest code: it runs code, so a full clear has to wait for it.
++    blocked.SetPC(BlockedBase);
++    std::thread blocked_thread{[&] {
++        while (!blocked_env.svc) {
++            blocked.Run();
++        }
++    }};
++    REQUIRE(WaitFor([&] { return blocked_env.in_callback.load(); }, std::chrono::seconds{10}));
++    waiting.ClearCache();
++
++    // The other Jit waits for that clear. Asked to halt for another reason, it has to return without running.
++    waiting.SetPC(PlainBase);
++    std::atomic<bool> returned{false};
++    HaltReason reason{};
++    std::thread waiting_thread{[&] {
++        reason = waiting.Run();
++        returned.store(true);
++    }};
++    std::this_thread::sleep_for(std::chrono::milliseconds{100});
++    CHECK(!returned.load());
++    waiting.HaltExecution(HaltReason::UserDefined1);
++    const bool answered = WaitFor([&] { return returned.load(); }, std::chrono::seconds{3});
++    blocked_env.release.store(true);  // also when it failed: nothing may stay blocked
++    waiting_thread.join();
++    blocked_thread.join();
++    REQUIRE(answered);
++    CHECK(Has(reason, HaltReason::UserDefined1));
++    CHECK(!waiting_env.svc);
++    CHECK(waiting.GetPC() == PlainBase);
++
++    // With the first Jit out of its code the clear happens, and the second runs as usual.
++    while (!waiting_env.svc) {
++        waiting.Run();
++    }
++    CHECK(*waiting_env.svc == 0);
++    CHECK(blocked_env.counters.cache_clears + waiting_env.counters.cache_clears == 1);
++}
++
++TEST_CASE("One invalidation asked of every Jit of a code cache counts once", "[jit_shared_cache]") {
++    constexpr size_t Jits = 6;
++    ExclusiveMonitor monitor{Jits};
++    const auto cache = A64::MakeSharedCodeCache();
++    std::array<WaitEnv, Jits> envs;
++    std::vector<std::unique_ptr<A64::Jit>> jits;
++    for (size_t i = 0; i < Jits; ++i) {
++        jits.push_back(std::make_unique<A64::Jit>(WaitConfig(envs[i], monitor, cache, static_cast<u8>(i))));
++        envs[i].jit = jits[i].get();
++    }
++    const auto run = [&](size_t i) {
++        envs[i].svc.reset();
++        jits[i]->SetPC(PatchedBase);
++        while (!envs[i].svc) {
++            jits[i]->Run();
++        }
++        return jits[i]->GetRegister(5);
++    };
++    const auto requests = [&] {
++        u64 sum = 0;
++        for (const WaitEnv& env : envs) {
++            sum += env.counters.invalidation_requests;
++        }
++        return sum;
++    };
++    const auto invalidate_on_all = [&] {
++        for (const auto& jit : jits) {
++            jit->InvalidateCacheRange(PatchedBase, 4);
++        }
++    };
++
++    REQUIRE(run(0) == 1);
++    // The program patches the code and tells every core's Jit.
++    envs[0].patched_value = 2;
++    for (WaitEnv& env : envs) {
++        env.patched_value = 2;
++    }
++    invalidate_on_all();
++    CHECK(requests() == 1);
++    for (size_t i = 0; i < Jits; ++i) {
++        CHECK(run(i) == 2);
++    }
++    // The same range again after its block was compiled anew: a new request, once.
++    for (WaitEnv& env : envs) {
++        env.patched_value = 3;
++    }
++    invalidate_on_all();
++    CHECK(requests() == 2);
++    for (size_t i = 0; i < Jits; ++i) {
++        CHECK(run(i) == 3);
++    }
++    // Twice with no block compiled in between (patched and patched back): nothing to drop the second time,
++    // and the code that runs is the latest.
++    for (WaitEnv& env : envs) {
++        env.patched_value = 4;
++    }
++    invalidate_on_all();
++    for (WaitEnv& env : envs) {
++        env.patched_value = 5;
++    }
++    invalidate_on_all();
++    CHECK(requests() == 3);
++    for (size_t i = 0; i < Jits; ++i) {
++        CHECK(run(i) == 5);
++    }
++}
++
++TEST_CASE("A code cache of three 128 MiB regions links across them", "[.][jit_large_cache]") {
++    std::atomic<u32> increment{1};
++    CodeEnv env;
++    env.common_increment = &increment;
++    A64::UserConfig config{};
++    config.callbacks = &env;
++    config.counters = &env.counters;
++    config.code_cache_size = 384 * 1024 * 1024;
++    config.enable_cycle_counting = false;
++    A64::Jit jit{config};
++    env.jit = &jit;
++
++    // In chunks, until the code is in the third region.
++    constexpr u64 Chunk = 100000;
++    u64 functions = 0;
++    while (env.counters.code_bytes < 300ull * 1024 * 1024) {
++        REQUIRE(functions < 40 * Chunk);
++        REQUIRE(CallFunctions(jit, env, CallerFuncBase + 16 * functions, Chunk, 16) == Chunk);
++        functions += Chunk;
++    }
++    INFO("functions " << functions << ", veneers " << env.counters.far_link_veneers << ", code bytes " << env.counters.code_bytes);
++    CHECK(env.counters.cache_clears == 0);
++    CHECK(env.counters.far_link_veneers > 0);
++    CHECK(env.counters.unlinked_far_links == 0);
++    // Every function again, linked, then with new common functions in the third region.
++    CHECK(CallFunctions(jit, env, CallerFuncBase, functions, 16) == functions);
++    increment = 2;
++    jit.InvalidateCacheRange(CommonBase, Commons * 8);
++    CHECK(CallFunctions(jit, env, CallerFuncBase, functions, 16) == 2 * functions);
++    CHECK(env.counters.unlinked_far_links == 0);
++    CHECK(env.counters.cache_clears == 0);
++}
++
++#endif
+--- /dev/null
++++ b/src/dynarmic/src/dynarmic/backend/arm64/block_table.h
+@@ -0,0 +1,161 @@
++// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#pragma once
++
++#include <atomic>
++#include <cstddef>
++#include <memory>
++#include <vector>
++
++#include "common/common_types.h"
++
++namespace Dynarmic::Backend::Arm64 {
++
++using CodePtr = std::byte*;
++
++/// The code cache's map from a block's location descriptor to its entry point. Any thread may call Find at any
++/// time, without a lock: the dispatcher of every Jit of a shared cache does, and with one lock around the map those
++/// lookups waited behind every block being emitted (about 7 s per game load, summed over six cores). Everything
++/// else needs the caller to hold the cache's lock exclusively.
++///
++/// An open-addressing table of atomic slots. A key, once written, stays in its slot: dropping a block clears the
++/// slot's entry point, and the block compiled for the same location later takes the slot again. A full table is
++/// replaced by a larger copy; the old one is kept, because a Find may still be walking it. Such a Find can miss a
++/// block inserted since, or return one dropped since, exactly as a Find that ran a moment earlier would have.
++class BlockTable {
++public:
++    BlockTable() {
++        Publish(std::make_unique<Table>(initial_capacity));
++    }
++
++    CodePtr Find(u64 key) const {
++        const Table& table = *current.load(std::memory_order_acquire);
++        for (std::size_t index = Hash(key) & table.mask;; index = (index + 1) & table.mask) {
++            const Slot& slot = table.slots[index];
++            const u64 slot_key = slot.key.load(std::memory_order_acquire);
++            if (slot_key == key) {
++                return slot.entry_point.load(std::memory_order_acquire);
++            }
++            if (slot_key == empty_key) {
++                return nullptr;
++            }
++        }
++    }
++
++    /// False if the key has an entry point already.
++    bool Insert(u64 key, CodePtr entry_point) {
++        if ((keys + 1) * 5 > Capacity() * 3) {
++            Grow();
++        }
++        Table& table = *current.load(std::memory_order_relaxed);
++        for (std::size_t index = Hash(key) & table.mask;; index = (index + 1) & table.mask) {
++            Slot& slot = table.slots[index];
++            const u64 slot_key = slot.key.load(std::memory_order_relaxed);
++            if (slot_key == key) {
++                if (slot.entry_point.load(std::memory_order_relaxed) != nullptr) {
++                    return false;
++                }
++                slot.entry_point.store(entry_point, std::memory_order_release);
++                return true;
++            }
++            if (slot_key == empty_key) {
++                // The entry point first: a Find that sees the key then sees it too.
++                slot.entry_point.store(entry_point, std::memory_order_release);
++                slot.key.store(key, std::memory_order_release);
++                ++keys;
++                return true;
++            }
++        }
++    }
++
++    /// The entry point the key had, or nullptr.
++    CodePtr Erase(u64 key) {
++        Table& table = *current.load(std::memory_order_relaxed);
++        for (std::size_t index = Hash(key) & table.mask;; index = (index + 1) & table.mask) {
++            Slot& slot = table.slots[index];
++            const u64 slot_key = slot.key.load(std::memory_order_relaxed);
++            if (slot_key == key) {
++                return slot.entry_point.exchange(nullptr, std::memory_order_acq_rel);
++            }
++            if (slot_key == empty_key) {
++                return nullptr;
++            }
++        }
++    }
++
++    /// Forgets every block. No Find may run meanwhile: the cache is cleared only when no Jit runs its code.
++    void Clear() {
++        Table& table = *current.load(std::memory_order_relaxed);
++        for (std::size_t index = 0; index <= table.mask; ++index) {
++            table.slots[index].key.store(empty_key, std::memory_order_relaxed);
++            table.slots[index].entry_point.store(nullptr, std::memory_order_relaxed);
++        }
++        keys = 0;
++        // Tables replaced before this clear: nothing can still be walking them.
++        if (tables.size() > 1) {
++            tables.erase(tables.begin(), tables.end() - 1);
++        }
++    }
++
++private:
++    struct Slot {
++        std::atomic<u64> key{empty_key};
++        std::atomic<CodePtr> entry_point{nullptr};
++    };
++    struct Table {
++        explicit Table(std::size_t capacity)
++                : mask{capacity - 1}, slots{std::make_unique<Slot[]>(capacity)} {}
++        std::size_t mask;
++        std::unique_ptr<Slot[]> slots;
++    };
++
++    /// No location descriptor has this value (the Jits' own lookup tables use it the same way).
++    static constexpr u64 empty_key = ~u64{0};
++    static constexpr std::size_t initial_capacity = std::size_t{1} << 16;
++
++    static std::size_t Hash(u64 key) {
++        key ^= key >> 33;
++        key *= 0xff51afd7ed558ccdULL;
++        key ^= key >> 33;
++        return static_cast<std::size_t>(key);
++    }
++
++    std::size_t Capacity() const {
++        return current.load(std::memory_order_relaxed)->mask + 1;
++    }
++
++    void Publish(std::unique_ptr<Table> table) {
++        current.store(table.get(), std::memory_order_release);
++        tables.push_back(std::move(table));
++    }
++
++    /// Copies the blocks that still have an entry point into a table of twice the size.
++    void Grow() {
++        const Table& old = *current.load(std::memory_order_relaxed);
++        auto table = std::make_unique<Table>((old.mask + 1) * 2);
++        std::size_t kept = 0;
++        for (std::size_t index = 0; index <= old.mask; ++index) {
++            const u64 key = old.slots[index].key.load(std::memory_order_relaxed);
++            const CodePtr entry_point = old.slots[index].entry_point.load(std::memory_order_relaxed);
++            if (key == empty_key || entry_point == nullptr) {
++                continue;
++            }
++            std::size_t to = Hash(key) & table->mask;
++            while (table->slots[to].key.load(std::memory_order_relaxed) != empty_key) {
++                to = (to + 1) & table->mask;
++            }
++            table->slots[to].entry_point.store(entry_point, std::memory_order_relaxed);
++            table->slots[to].key.store(key, std::memory_order_relaxed);
++            ++kept;
++        }
++        keys = kept;
++        Publish(std::move(table));
++    }
++
++    std::atomic<Table*> current{nullptr};
++    std::vector<std::unique_ptr<Table>> tables;  ///< The last one is `current`
++    std::size_t keys = 0;  ///< Slots of `current` with a key
++};
++
++}  // namespace Dynarmic::Backend::Arm64
+--- /dev/null
++++ b/src/dynarmic/src/dynarmic/backend/arm64/jit_trace.h
+@@ -0,0 +1,81 @@
++// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#pragma once
++
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <mutex>
++#include <utility>
++#include <vector>
++
++#include "common/common_types.h"
++
++namespace Dynarmic::Backend::Arm64::JitTrace {
++
++/// DYNARMIC_JIT_TRACE=<file>: records what a program asks of the arm64 code cache, so that the cache can be
++/// benchmarked afterwards with tests/A64 jit_cache_replay and no program at all. Recorded: the block lookups that
++/// miss a Jit's own table (hits there cost nothing and are not), every block compiled with the guest instructions
++/// it was translated from, fastmem faults, invalidated ranges and cache clears; each with the time and the Jit.
++///
++/// File: records of 32 bytes, little endian: u8 type, u8 jit, u16 flags, u32 count, u64 time_ns, u64 a, u64 b;
++/// a Compile record is followed by `count` pairs of (u64 guest address, u64 instruction word).
++enum class Type : u8 {
++    Header = 0,      ///< a = code cache size, flags = 1 if shared between Jits
++    Lookup = 1,      ///< a = location descriptor; flags: 0 found, 1 compiled here, 2 translated here but found emitted
++    Compile = 2,     ///< a = location descriptor, count = instructions that follow
++    Fault = 3,       ///< a = location descriptor of the block, b = index of the access; flags: 1 the code was stale, 2 a block was dropped
++    Invalidate = 4,  ///< a = start address, b = length
++    Clear = 5,       ///< flags: 1 the cache was full
++};
++
++struct Record {
++    u8 type;
++    u8 jit;
++    u16 flags;
++    u32 count;
++    u64 time_ns;
++    u64 a;
++    u64 b;
++};
++static_assert(sizeof(Record) == 32);
++
++inline std::FILE* File() {
++    static std::FILE* const file = [] {
++        const char* const path = std::getenv("DYNARMIC_JIT_TRACE");
++        std::FILE* const opened = path && *path ? std::fopen(path, "wb") : nullptr;
++        if (opened) {
++            std::setvbuf(opened, nullptr, _IOFBF, 8 << 20);
++        }
++        return opened;
++    }();
++    return file;
++}
++
++inline bool Enabled() {
++    return File() != nullptr;
++}
++
++inline void Write(Type type, u32 jit, u16 flags, u64 a, u64 b, const std::vector<std::pair<u64, u64>>* code = nullptr) {
++    std::FILE* const file = File();
++    if (!file) {
++        return;
++    }
++    static const auto start = std::chrono::steady_clock::now();
++    static std::mutex mutex;
++    const Record record{
++        static_cast<u8>(type), static_cast<u8>(jit), flags, code ? static_cast<u32>(code->size()) : 0,
++        static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count()),
++        a, b};
++    std::scoped_lock lock{mutex};
++    std::fwrite(&record, sizeof(record), 1, file);
++    if (code && !code->empty()) {
++        std::fwrite(code->data(), sizeof(code->front()), code->size(), file);
++    }
++    if (type == Type::Clear || type == Type::Header) {
++        std::fflush(file);
++    }
++}
++
++}  // namespace Dynarmic::Backend::Arm64::JitTrace
+--- /dev/null
++++ b/src/dynarmic/tests/A64/block_table.cpp
+@@ -0,0 +1,102 @@
++// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#include <atomic>
++#include <thread>
++#include <vector>
++
++#include <catch2/catch_test_macros.hpp>
++
++#include "dynarmic/backend/arm64/block_table.h"
++
++using namespace Dynarmic::Backend::Arm64;
++
++namespace {
++// An entry point that names its key and a version, so a reader can tell a right answer from a wrong one.
++CodePtr EntryPoint(u64 key, u64 version) {
++    return reinterpret_cast<CodePtr>((key << 16) | (version & 0xffff) | 1);
++}
++}  // namespace
++
++TEST_CASE("A64: the block table keeps blocks across growth, drops and re-inserts", "[a64]") {
++    BlockTable table;
++    constexpr u64 count = 300'000;  // several times the first table
++    for (u64 key = 0; key < count; ++key) {
++        REQUIRE(table.Insert(key * 4, EntryPoint(key, 0)));
++    }
++    REQUIRE(!table.Insert(8, EntryPoint(2, 1)));
++    for (u64 key = 0; key < count; ++key) {
++        REQUIRE(table.Find(key * 4) == EntryPoint(key, 0));
++    }
++    REQUIRE(table.Find(count * 4) == nullptr);
++    for (u64 key = 0; key < count; key += 2) {
++        REQUIRE(table.Erase(key * 4) == EntryPoint(key, 0));
++    }
++    REQUIRE(table.Erase(0) == nullptr);
++    for (u64 key = 0; key < count; ++key) {
++        REQUIRE(table.Find(key * 4) == (key % 2 ? EntryPoint(key, 0) : nullptr));
++    }
++    for (u64 key = 0; key < count; key += 2) {
++        REQUIRE(table.Insert(key * 4, EntryPoint(key, 1)));
++    }
++    // More keys than before: grows again, without the dropped entries.
++    for (u64 key = count; key < 3 * count; ++key) {
++        REQUIRE(table.Insert(key * 4, EntryPoint(key, 0)));
++    }
++    for (u64 key = 0; key < 3 * count; ++key) {
++        REQUIRE(table.Find(key * 4) == EntryPoint(key, key < count && key % 2 == 0 ? 1 : 0));
++    }
++    table.Clear();
++    REQUIRE(table.Find(4) == nullptr);
++    REQUIRE(table.Insert(4, EntryPoint(1, 2)));
++    REQUIRE(table.Find(4) == EntryPoint(1, 2));
++}
++
++TEST_CASE("A64: the block table is read while it is written", "[a64]") {
++    BlockTable table;
++    constexpr u64 count = 200'000;
++    std::atomic<bool> stop{false};
++    std::atomic<u64> wrong{0};
++    std::atomic<u64> found{0};
++    std::vector<std::thread> readers;
++    for (int reader = 0; reader < 4; ++reader) {
++        readers.emplace_back([&, reader] {
++            u64 state = 0x9e3779b97f4a7c15ULL * (reader + 1);
++            u64 hits = 0;
++            while (!stop.load(std::memory_order_relaxed)) {
++                state = state * 6364136223846793005ULL + 1442695040888963407ULL;
++                const u64 key = (state >> 20) % count;
++                const CodePtr entry_point = table.Find(key * 4);
++                if (entry_point == nullptr) {
++                    continue;
++                }
++                // Whatever version, it must be an entry point of this key.
++                if ((reinterpret_cast<u64>(entry_point) >> 16) != key) {
++                    wrong.fetch_add(1);
++                }
++                ++hits;
++            }
++            found.fetch_add(hits);
++        });
++    }
++    // One writer, as under the cache's lock: insert all (the table grows under the readers), then drop and
++    // re-insert with new versions.
++    for (u64 key = 0; key < count; ++key) {
++        REQUIRE(table.Insert(key * 4, EntryPoint(key, 0)));
++    }
++    for (u64 version = 1; version <= 4; ++version) {
++        for (u64 key = 0; key < count; ++key) {
++            REQUIRE(table.Erase(key * 4) == EntryPoint(key, version - 1));
++            REQUIRE(table.Insert(key * 4, EntryPoint(key, version)));
++        }
++    }
++    stop.store(true);
++    for (std::thread& reader : readers) {
++        reader.join();
++    }
++    REQUIRE(wrong.load() == 0);
++    REQUIRE(found.load() > 0);
++    for (u64 key = 0; key < count; ++key) {
++        REQUIRE(table.Find(key * 4) == EntryPoint(key, 4));
++    }
++}
+--- /dev/null
++++ b/src/dynarmic/tests/A64/jit_cache_replay.cpp
+@@ -0,0 +1,309 @@
++// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++// Replays a DYNARMIC_JIT_TRACE recording (backend/arm64/jit_trace.h) through the arm64 code cache, with no
++// emulator and no guest code run: every recorded dispatcher lookup, compile, fastmem fault and invalidation is
++// done again, on one thread per recorded Jit, and the cache's own counters say what it cost. A benchmark for
++// ideas about the cache (locking, lookups, fault handling); it cannot show the kernel's cost of a fault or how
++// fast the emitted code runs.
++//
++//   DYNARMIC_JIT_REPLAY=<file> ./dynarmic_tests "[jit_replay]"
++//   DYNARMIC_JIT_REPLAY_SHARED=0|1   one cache for all Jits or one each (default: as recorded)
++//   DYNARMIC_JIT_REPLAY_MIB=<n>      code cache size (default: as recorded)
++//   DYNARMIC_JIT_REPLAY_SPEED=<x>    recorded time divided by x between operations; 0 (default) = no waiting
++//   DYNARMIC_JIT_REPLAY_UNTIL_S=<s>  only the first s seconds of the recording
++
++#include <algorithm>
++#include <array>
++#include <atomic>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <memory>
++#include <mutex>
++#include <string>
++#include <thread>
++#include <unordered_map>
++#include <vector>
++
++#include <catch2/catch_test_macros.hpp>
++
++#include "dynarmic/backend/arm64/jit_trace.h"
++#include "dynarmic/interface/A64/a64.h"
++#include "dynarmic/interface/A64/config.h"
++#include "dynarmic/interface/exclusive_monitor.h"
++
++using namespace Dynarmic;
++using Backend::Arm64::JitTrace::Record;
++using Backend::Arm64::JitTrace::Type;
++
++namespace {
++
++struct Op {
++    u64 time_ns;
++    u64 a;
++    u64 b;
++    Type type;
++    u16 flags;
++    u8 jit;
++};
++
++class ReplayEnv final : public A64::UserCallbacks {
++public:
++    explicit ReplayEnv(const std::unordered_map<u64, u32>& code_) : code{code_} {}
++
++    std::optional<std::uint32_t> MemoryReadCode(u64 vaddr) override {
++        const auto word = code.find(vaddr);
++        return word != code.end() ? std::optional<std::uint32_t>{word->second} : std::nullopt;
++    }
++    // No guest code runs, so nothing else is called.
++    u64 MemoryRead(u64, size_t) override { return 0; }
++    A64::Vector MemoryRead128(u64) override { return {}; }
++    void MemoryWrite(u64, std::uint64_t, size_t) override {}
++    void MemoryWrite128(u64, A64::Vector) override {}
++    bool MemoryWriteExclusive8(u64, std::uint8_t, std::uint8_t) override { return true; }
++    bool MemoryWriteExclusive16(u64, std::uint16_t, std::uint16_t) override { return true; }
++    bool MemoryWriteExclusive32(u64, std::uint32_t, std::uint32_t) override { return true; }
++    bool MemoryWriteExclusive64(u64, std::uint64_t, std::uint64_t) override { return true; }
++    bool MemoryWriteExclusive128(u64, A64::Vector, A64::Vector) override { return true; }
++    void CallSVC(std::uint32_t) override {}
++    void ExceptionRaised(u64, A64::Exception) override {}
++    void AddTicks(std::uint64_t) override {}
++    std::uint64_t GetTicksRemaining() override { return 1'000'000; }
++    std::uint64_t GetCNTPCT() override { return 0; }
++
++private:
++    const std::unordered_map<u64, u32>& code;
++};
++
++// The entry points each location's block has had, as the replay saw them: a stale fault needs the one before.
++struct Entries {
++    struct Pair {
++        void* current = nullptr;
++        void* previous = nullptr;
++    };
++    static constexpr size_t stripes = 256;
++    std::array<std::mutex, stripes> mutexes;
++    std::array<std::unordered_map<u64, Pair>, stripes> maps;
++
++    static size_t Stripe(u64 key) {
++        return (key ^ (key >> 17) ^ (key >> 31)) % stripes;
++    }
++    void Saw(u64 key, void* entry_point) {
++        const size_t stripe = Stripe(key);
++        std::scoped_lock lock{mutexes[stripe]};
++        Pair& pair = maps[stripe][key];
++        if (pair.current != entry_point) {
++            pair.previous = pair.current;
++            pair.current = entry_point;
++        }
++    }
++    void* Previous(u64 key) {
++        const size_t stripe = Stripe(key);
++        std::scoped_lock lock{mutexes[stripe]};
++        const auto pair = maps[stripe].find(key);
++        return pair != maps[stripe].end() ? pair->second.previous : nullptr;
++    }
++};
++
++double EnvNumber(const char* name, double fallback) {
++    const char* const value = std::getenv(name);
++    return value && *value ? std::strtod(value, nullptr) : fallback;
++}
++
++}  // namespace
++
++TEST_CASE("A64: replay a recorded JIT cache trace", "[.][jit_replay]") {
++    const char* const path = std::getenv("DYNARMIC_JIT_REPLAY");
++    if (!path || !*path) {
++        SKIP("set DYNARMIC_JIT_REPLAY to a DYNARMIC_JIT_TRACE recording");
++    }
++    std::FILE* const file = std::fopen(path, "rb");
++    REQUIRE(file != nullptr);
++
++    // Read: operations per Jit, the faults, and every guest instruction any block was translated from.
++    const u64 until_ns = static_cast<u64>(EnvNumber("DYNARMIC_JIT_REPLAY_UNTIL_S", 1e9) * 1e9);
++    std::unordered_map<u64, u32> code;
++    std::array<std::vector<Op>, 256> by_jit;
++    u64 fault_count = 0;
++    std::unordered_map<u64, u8> last_compiler;  // location -> the Jit that compiled it last (for private caches)
++    u64 recorded_cache_size = 0;
++    bool recorded_shared = false;
++    u64 compiles = 0, last_time = 0;
++    std::vector<std::pair<u64, u64>> words;
++    for (Record record; std::fread(&record, sizeof(record), 1, file) == 1;) {
++        const Type type = static_cast<Type>(record.type);
++        if (type == Type::Compile) {
++            words.resize(record.count);
++            if (record.count && std::fread(words.data(), sizeof(words.front()), record.count, file) != record.count) {
++                break;
++            }
++            for (const auto& [vaddr, word] : words) {
++                code.emplace(vaddr, static_cast<u32>(word));
++            }
++            last_compiler[record.a] = record.jit;
++            ++compiles;
++            continue;
++        }
++        if (record.time_ns > until_ns) {
++            continue;
++        }
++        last_time = std::max(last_time, record.time_ns);
++        const Op op{record.time_ns, record.a, record.b, type, record.flags, record.jit};
++        switch (type) {
++        case Type::Header:
++            if (recorded_cache_size == 0) {
++                recorded_cache_size = record.a;
++                recorded_shared = record.flags & 1;
++            }
++            break;
++        case Type::Lookup:
++        case Type::Invalidate:
++            by_jit[record.jit].push_back(op);
++            break;
++        case Type::Fault: {
++            Op fault = op;
++            // Recorded without its Jit: with private caches, the Jit that compiled the block last.
++            const auto compiler = last_compiler.find(record.a);
++            fault.jit = compiler != last_compiler.end() ? compiler->second : 0;
++            by_jit[fault.jit].push_back(fault);
++            ++fault_count;
++            break;
++        }
++        default:
++            break;
++        }
++    }
++    std::fclose(file);
++
++    // A fault is replayed by the Jit that compiled its block, in the order of the recording: on the real machine
++    // that core waits while the exception thread handles it, and the block must have been compiled first.
++    std::vector<u8> jit_ids;
++    u64 lookups = 0;
++    for (size_t jit = 0; jit < by_jit.size(); ++jit) {
++        if (!by_jit[jit].empty()) {
++            std::stable_sort(by_jit[jit].begin(), by_jit[jit].end(), [](const Op& x, const Op& y) { return x.time_ns < y.time_ns; });
++            jit_ids.push_back(static_cast<u8>(jit));
++            lookups += static_cast<u64>(std::count_if(by_jit[jit].begin(), by_jit[jit].end(), [](const Op& op) { return op.type == Type::Lookup; }));
++        }
++    }
++    REQUIRE(!jit_ids.empty());
++
++    const bool shared = EnvNumber("DYNARMIC_JIT_REPLAY_SHARED", recorded_shared ? 1 : 0) != 0;
++    const u64 cache_mib = static_cast<u64>(EnvNumber("DYNARMIC_JIT_REPLAY_MIB", static_cast<double>(recorded_cache_size >> 20)));
++    const double speed = EnvNumber("DYNARMIC_JIT_REPLAY_SPEED", 0);
++    std::printf("trace %s: %.1f s recorded, %zu Jits, %llu lookups, %llu compiles, %zu faults, %zu instructions; recorded %s %llu MiB\n",
++                path, static_cast<double>(last_time) / 1e9, jit_ids.size(), static_cast<unsigned long long>(lookups),
++                static_cast<unsigned long long>(compiles), static_cast<size_t>(fault_count), code.size(), recorded_shared ? "shared" : "private",
++                static_cast<unsigned long long>(recorded_cache_size >> 20));
++
++    // Jits configured as the emulator's (fastmem with recompiling, the unsafe options of its default accuracy).
++    ReplayEnv env{code};
++    ExclusiveMonitor monitor{jit_ids.size()};
++    std::array<u64, 256> tpidr{}, tpidrro{};
++    std::vector<A64::UserConfig::Counters> counters(jit_ids.size());
++    std::vector<std::unique_ptr<A64::Jit>> jits;
++    std::array<A64::Jit*, 256> jit_of{};
++    const auto shared_cache = shared ? A64::MakeSharedCodeCache() : nullptr;
++    for (size_t index = 0; index < jit_ids.size(); ++index) {
++        A64::UserConfig conf;
++        conf.callbacks = &env;
++        conf.processor_id = index;
++        conf.global_monitor = &monitor;
++        conf.tpidr_el0 = &tpidr[index];
++        conf.tpidrro_el0 = &tpidrro[index];
++        conf.dczid_el0 = 4;
++        conf.ctr_el0 = 0x8444c004;
++        conf.fastmem_pointer = std::uintptr_t{0x200000000000};  // never dereferenced: no code runs
++        conf.fastmem_address_space_bits = 64;
++        conf.silently_mirror_fastmem = false;
++        conf.fastmem_exclusive_access = true;
++        conf.recompile_on_exclusive_fastmem_failure = true;
++        conf.define_unpredictable_behaviour = true;
++        conf.wall_clock_cntpct = true;
++        conf.enable_cycle_counting = false;
++        conf.unsafe_optimizations = true;
++        conf.optimizations |= OptimizationFlag::Unsafe_UnfuseFMA;
++        conf.optimizations |= OptimizationFlag::Unsafe_IgnoreGlobalMonitor;
++        conf.code_cache_size = static_cast<std::uint32_t>(cache_mib << 20);
++        conf.shared_code_cache = shared_cache;
++        conf.counters = &counters[index];
++        jits.push_back(std::make_unique<A64::Jit>(conf));
++        jit_of[jit_ids[index]] = jits.back().get();
++    }
++
++    Entries entries;
++    const auto entry_key = [shared](u8 jit, u64 descriptor) { return shared ? descriptor : descriptor ^ (u64{jit} << 56); };
++    std::atomic<u64> faults_done{0}, faults_missed{0};
++    std::atomic<u64> busy_ns{0};
++    const auto start = std::chrono::steady_clock::now();
++    const auto wait_for = [&](u64 time_ns) {
++        if (speed <= 0) {
++            return;
++        }
++        const auto due = start + std::chrono::nanoseconds{static_cast<u64>(static_cast<double>(time_ns) / speed)};
++        if (due - std::chrono::steady_clock::now() > std::chrono::microseconds{50}) {
++            std::this_thread::sleep_until(due);
++        }
++    };
++
++    std::vector<std::thread> threads;
++    for (const u8 id : jit_ids) {
++        threads.emplace_back([&, id] {
++            A64::Jit& jit = *jit_of[id];
++            u64 busy = 0;
++            for (const Op& op : by_jit[id]) {
++                wait_for(op.time_ns);
++                const auto begin = std::chrono::steady_clock::now();
++                if (op.type == Type::Lookup) {
++                    entries.Saw(entry_key(id, op.a), jit.DebugLookupBlock(op.a));
++                } else if (op.type == Type::Fault) {
++                    void* const stale = (op.flags & 1) ? entries.Previous(entry_key(id, op.a)) : nullptr;
++                    const bool done = (!(op.flags & 1) || stale) && jit.DebugFastmemFault(op.a, static_cast<unsigned>(op.b), stale);
++                    (done ? faults_done : faults_missed).fetch_add(1, std::memory_order_relaxed);
++                } else {
++                    jit.InvalidateCacheRange(op.a, op.b);
++                }
++                busy += static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - begin).count());
++            }
++            busy_ns.fetch_add(busy);
++        });
++    }
++    for (std::thread& thread : threads) {
++        thread.join();
++    }
++    const double wall_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
++
++    A64::UserConfig::Counters sum;
++    for (const auto& c : counters) {
++        sum.blocks_compiled += c.blocks_compiled;
++        sum.compile_ns += c.compile_ns;
++        sum.block_lookups += c.block_lookups;
++        sum.lookup_hits += c.lookup_hits;
++        sum.lookup_lock_wait_ns += c.lookup_lock_wait_ns;
++        sum.emit_lock_wait_ns += c.emit_lock_wait_ns;
++        sum.emit_lock_hold_ns += c.emit_lock_hold_ns;
++        sum.discarded_translations += c.discarded_translations;
++        sum.compiles_with_company += c.compiles_with_company;
++        sum.fastmem_recompiles += c.fastmem_recompiles;
++        sum.fastmem_stale_faults += c.fastmem_stale_faults;
++        sum.fastmem_handler_ns += c.fastmem_handler_ns;
++        sum.fastmem_lock_wait_ns += c.fastmem_lock_wait_ns;
++        sum.cache_clears += c.cache_clears;
++        sum.far_link_veneers += c.far_link_veneers;
++    }
++    const auto ms = [](u64 ns) { return static_cast<double>(ns) / 1e6; };
++    std::printf("replay %s %llu MiB, speed %g: wall %.2f s, threads busy %.2f s\n", shared ? "shared" : "private",
++                static_cast<unsigned long long>(cache_mib), speed, wall_s, static_cast<double>(busy_ns.load()) / 1e9);
++    std::printf("  blocks %llu, compile %.0f ms (emit hold %.0f ms), lookups %llu (+%llu own-table hits), discarded %llu, with company %llu\n",
++                static_cast<unsigned long long>(sum.blocks_compiled), ms(sum.compile_ns), ms(sum.emit_lock_hold_ns),
++                static_cast<unsigned long long>(sum.block_lookups), static_cast<unsigned long long>(sum.lookup_hits),
++                static_cast<unsigned long long>(sum.discarded_translations), static_cast<unsigned long long>(sum.compiles_with_company));
++    std::printf("  lock waits: lookup %.0f ms, emit %.0f ms, fault handler %.0f ms (handler total %.0f ms)\n",
++                ms(sum.lookup_lock_wait_ns), ms(sum.emit_lock_wait_ns), ms(sum.fastmem_lock_wait_ns), ms(sum.fastmem_handler_ns));
++    std::printf("  faults replayed %llu, not replayable %llu; recompiles %llu, stale %llu; clears %llu, veneers %llu\n",
++                static_cast<unsigned long long>(faults_done.load()), static_cast<unsigned long long>(faults_missed.load()),
++                static_cast<unsigned long long>(sum.fastmem_recompiles), static_cast<unsigned long long>(sum.fastmem_stale_faults),
++                static_cast<unsigned long long>(sum.cache_clears), static_cast<unsigned long long>(sum.far_link_veneers));
++    REQUIRE(sum.blocks_compiled > 0);
++}

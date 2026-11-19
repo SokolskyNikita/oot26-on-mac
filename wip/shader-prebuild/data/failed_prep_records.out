@@ -1,0 +1,27 @@
+file: version 54, environments 46031, records 311091 (graphics 307033, compute 4058 from index 307033)
+index: version 1, record count 311091 (file 311091), stamp 153 bytes
+entries {3: 309584, 1: 71786, 2: 309072} records prepared 309072
+failed 20 started twice, never finished 0
+  failed    300108  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300109  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x4ee
+  failed    300110  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300111  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300112  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300113  mesh, predicted      graphics hashes 06be981e28a23725 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2be
+  failed    300114  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300115  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x4ee
+  failed    300116  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300117  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300118  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300119  mesh, predicted      graphics hashes 2da5372aa78b9311 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2be
+  failed    300120  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300121  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x4ee
+  failed    300122  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300123  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300124  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2ae
+  failed    300125  mesh, predicted      graphics hashes d224e695a29d567b 8dfdc4b9d04c677e envs 2 raw1 0x280 raw2 0x2be
+  failed    309380  compute, oracle      compute 9082510efbbcd227 shared 1280 workgroup [32, 1, 1]
+  failed    309831  compute, oracle      compute aedac479bfa966d9 shared 1280 workgroup [32, 1, 1]
+failed by origin {'mesh, predicted': 18, 'compute, oracle': 2}
+graphics records with provoking_vertex_last: 2019 (with a twin whose bit is clear: 1873); prepared: 0
+records with no prepared entry: 2019 (of them provoking_vertex_last: 2019)

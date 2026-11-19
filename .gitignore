@@ -10,3 +10,12 @@ __pycache__/
 .DS_Store
 # Large local data of unfinished threads (build trees, run data)
 wip/*/local/
+# Harness: logs, queue switches, the built frame hook
+tools/harness/*.log
+tools/harness/PAUSE
+tools/harness/STOP
+tools/verify/build/
+tools/verify/*.png
+# State check: built recorder libraries
+tools/statecheck/*/*.dylib
+tools/speckcheck/ab_at_end.py

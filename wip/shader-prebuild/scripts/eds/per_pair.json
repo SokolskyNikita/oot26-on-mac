@@ -1,0 +1,44 @@
+{
+ "L0": {
+  "shader_combinations": 1121,
+  "keys": 4014,
+  "combinations_with_one_state": 406,
+  "keys_beyond_first_per_combination": 2893,
+  "max_states": 435
+ },
+ "L1": {
+  "shader_combinations": 1121,
+  "keys": 3279,
+  "combinations_with_one_state": 436,
+  "keys_beyond_first_per_combination": 2158,
+  "max_states": 374
+ },
+ "L2": {
+  "shader_combinations": 1121,
+  "keys": 3272,
+  "combinations_with_one_state": 439,
+  "keys_beyond_first_per_combination": 2151,
+  "max_states": 372
+ },
+ "L3": {
+  "shader_combinations": 1121,
+  "keys": 3247,
+  "combinations_with_one_state": 439,
+  "keys_beyond_first_per_combination": 2126,
+  "max_states": 360
+ },
+ "L3_no_provoking": {
+  "shader_combinations": 1121,
+  "keys": 2082,
+  "combinations_with_one_state": 796,
+  "keys_beyond_first_per_combination": 961,
+  "max_states": 200
+ },
+ "L0_no_provoking": {
+  "shader_combinations": 1121,
+  "keys": 2540,
+  "combinations_with_one_state": 675,
+  "keys_beyond_first_per_combination": 1419,
+  "max_states": 244
+ }
+}

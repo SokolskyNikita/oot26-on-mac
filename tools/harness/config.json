@@ -1,0 +1,12 @@
+{
+ "_doc": "Harness defaults. save: the map name in a save's caption (caption.sav), as Area/Map or just Map; the newest save with it is loaded (the Load list is newest first). expect_spawn: where Link must stand after the load, or null to skip the check. save_index: set to a number (0 = newest) to pick that Load-list position instead of looking up save by name. session_name: shown in the Lichii window title with the scenario, attempt and step.",
+ "save": "KokiriForest_Child",
+ "expect_spawn": [
+  -17.297,
+  109.946,
+  -1.843
+ ],
+ "save_dir": "~/.local/share/lichii/nand/user/save/0000000000000000/4E58D07E7FD3B1E83B5D83EADCD2EBC8/0400486024DEC000",
+ "save_index": null,
+ "session_name": "emu-options"
+}

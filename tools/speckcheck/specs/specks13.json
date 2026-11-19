@@ -1,0 +1,38 @@
+[
+ {
+  "label": "wall-mvk-cullfix",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-mvkfix/lichii.app",
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall with the MoltenVK mesh cull-mode fix: gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "wall"
+   }
+  ]
+ },
+ {
+  "label": "wall-mvk-unfixed",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "phase_frames": 600,
+  "desc": "Control for the cull-mode fix: the same MoltenVK without it, same run",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "wall"
+   }
+  ]
+ },
+ {
+  "label": "wall-mvk-cullfix-2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-mvkfix/lichii.app",
+  "phase_frames": 600,
+  "desc": "Second run of the cull-mode fix at the cave wall",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "wall"
+   }
+  ]
+ }
+]

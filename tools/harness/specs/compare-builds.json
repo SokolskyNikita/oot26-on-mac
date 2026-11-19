@@ -1,0 +1,32 @@
+[
+ {
+  "label": "builds-practice-1",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Compiler builds, run 1: the practice build (Apple clang) - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ },
+ {
+  "label": "builds-lto-1",
+  "app": "${REPO}/build/old-trees/path-60/app-lto/lichii.app",
+  "desc": "Compiler builds, run 1: Apple clang + ThinLTO + apple-m4 - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ },
+ {
+  "label": "builds-llvm-lto-1",
+  "app": "${REPO}/build/old-trees/path-60/app-llvm-lto/lichii.app",
+  "desc": "Compiler builds, run 1: upstream LLVM 23 + ThinLTO + apple-m4 (lld) - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ },
+ {
+  "label": "builds-practice-2",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Compiler builds, run 2: the practice build (Apple clang) - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ },
+ {
+  "label": "builds-lto-2",
+  "app": "${REPO}/build/old-trees/path-60/app-lto/lichii.app",
+  "desc": "Compiler builds, run 2: Apple clang + ThinLTO + apple-m4 - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ },
+ {
+  "label": "builds-llvm-lto-2",
+  "app": "${REPO}/build/old-trees/path-60/app-llvm-lto/lichii.app",
+  "desc": "Compiler builds, run 2: upstream LLVM 23 + ThinLTO + apple-m4 (lld) - all three with the same fixed #2901 MoltenVK (17f76f69f2)"
+ }
+]

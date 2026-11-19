@@ -1,0 +1,27 @@
+[
+ {
+  "label": "warm-practice",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Warm cache: the practice build (same-session reference)"
+ },
+ {
+  "label": "warm-pown",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpown/lichii.app",
+  "desc": "Warm cache: MoltenVK with our parallel pipeline-cache load (must not be slower)"
+ },
+ {
+  "label": "warm-p2901",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "desc": "Warm cache: MoltenVK with PR 2901 (must not be slower)"
+ },
+ {
+  "label": "warm-p2905",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2905/lichii.app",
+  "desc": "Warm cache: MoltenVK with PR 2905 (must not be slower)"
+ },
+ {
+  "label": "warm-pboth",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpboth/lichii.app",
+  "desc": "Warm cache: MoltenVK with PRs 2901 + 2905 (must not be slower)"
+ }
+]

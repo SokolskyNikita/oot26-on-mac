@@ -2,9 +2,10 @@
 # build.sh [STEP...]: build the pinned emulator from public source and the patches in this repository.
 #
 #   fetch     clone Lichii and MoltenVK at the commits in versions.lock and apply patches/<name>/*.patch
-#   verify    check that the patched source is exactly the pinned source (git tree ids in versions.lock)
+#   verify    check that the patched source is exactly the pinned source (commit and tree ids in versions.lock)
 #   mvk       build MoltenVK
 #   lichii    build Lichii
+#   cli       build eden-cli, the command-line Lichii that replays recorded GPU traces (tools/statecheck needs it)
 #   app       assemble <build dir>/app/lichii.app: Lichii + this MoltenVK + the switches in config/
 #   install   copy the app to /Applications/lichii.app (the app there is kept as lichii.app.before-<time>)
 #   versions  print the tool versions on this machine next to the ones the pinned build was made with
@@ -35,17 +36,27 @@ fetch_one() { # name url base
   else
     git -C "$d" checkout --quiet -b gold "$base"
     say "$name: applying $(ls "$HERE/patches/$name"/*.patch | wc -l | tr -d ' ') patches on ${base:0:10}"
-    git -C "$d" -c user.name="${GIT_AUTHOR_NAME:-oot26-on-mac build}" -c user.email="${GIT_AUTHOR_EMAIL:-build@localhost}" \
-      am --quiet --keep-cr "$HERE/patches/$name"/*.patch || die "$name: a patch did not apply (git -C $d am --show-current-patch)"
+    # Each commit gets its patch's author as committer and the author date as commit date, so the same series
+    # always gives the same commit ids. MoltenVK stamps its shader cache with the commit it is built from: a
+    # different id would throw away Lichii's pipeline file and make the next boot translate every shader again.
+    local p from
+    for p in "$HERE/patches/$name"/*.patch; do
+      from=$(sed -n 's/^From: //p' "$p" | head -1)
+      GIT_COMMITTER_NAME=${from%% <*} GIT_COMMITTER_EMAIL=$(printf '%s' "$from" | sed 's/.*<\(.*\)>.*/\1/') \
+        git -C "$d" am --quiet --keep-cr --committer-date-is-author-date "$p" \
+        || die "$name: $(basename "$p") did not apply (git -C $d am --show-current-patch)"
+    done
   fi
 }
 
-verify_one() { # name tree
+verify_one() { # name tree commit
   local d=$SRC/$1 got
   [ -z "$(git -C "$d" status --porcelain --untracked-files=no)" ] || die "$1: the source tree has uncommitted changes"
   got=$(git -C "$d" rev-parse 'HEAD^{tree}')
   [ "$got" = "$2" ] || die "$1: source tree is $got, versions.lock pins $2"
-  say "$1: source matches versions.lock (tree ${2:0:10})"
+  got=$(git -C "$d" rev-parse HEAD)
+  [ "$got" = "$3" ] || die "$1: commit is $got, versions.lock pins $3 (same source, but a different shader cache identity)"
+  say "$1: source matches versions.lock (commit ${3:0:10}, tree ${2:0:10})"
 }
 
 step_fetch() {
@@ -54,19 +65,30 @@ step_fetch() {
   fetch_one moltenvk "$MOLTENVK_URL" "$MOLTENVK_BASE"
 }
 
+cache_inputs() { # hash of the MoltenVK files that decide generated shader source
+  git -C "$SRC/moltenvk" ls-tree -r HEAD -- ExternalRevisions MoltenVKShaderConverter \
+    MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm \
+    MoltenVK/MoltenVK/GPUObjects/MVKPipeline.h MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm | shasum | cut -c1-16
+}
+
 step_verify() {
-  verify_one lichii "$LICHII_TREE"
-  verify_one moltenvk "$MOLTENVK_TREE"
+  verify_one lichii "$LICHII_TREE" "$LICHII_COMMIT"
+  verify_one moltenvk "$MOLTENVK_TREE" "$MOLTENVK_COMMIT"
+  local got; got=$(cache_inputs)
+  [ "$got" = "$MOLTENVK_CACHE_INPUTS" ] || die "MoltenVK's shader translation inputs changed (hash $got, versions.lock has $MOLTENVK_CACHE_INPUTS): the stored shader caches may no longer be valid. Set a new MOLTENVK_CACHE_ID and MOLTENVK_CACHE_INPUTS=$got in versions.lock"
+  say "moltenvk: pipeline cache id $MOLTENVK_CACHE_ID (translation inputs ${got})"
 }
 
 step_mvk() {
   mkdir -p "$LOG"; cd "$SRC/moltenvk"
-  [ -e build/build.ninja ] || cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release > "$LOG/moltenvk-configure.log" 2>&1 \
-    || die "MoltenVK configure failed: $LOG/moltenvk-configure.log"
+  [ "$(cache_inputs)" = "$MOLTENVK_CACHE_INPUTS" ] || die "MoltenVK's shader translation inputs changed; run: build.sh verify"
+  cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release "-DMVK_PIPELINE_CACHE_REV=$MOLTENVK_CACHE_ID" \
+    > "$LOG/moltenvk-configure.log" 2>&1 || die "MoltenVK configure failed: $LOG/moltenvk-configure.log"
   say "building MoltenVK (log: $LOG/moltenvk-build.log)"
   cmake --build build > "$LOG/moltenvk-build.log" 2>&1 || { grep -n 'error:' "$LOG/moltenvk-build.log" | head -8; die "MoltenVK build failed"; }
   [ -e "build/MoltenVK/$MOLTENVK_DYLIB" ] || die "no build/MoltenVK/$MOLTENVK_DYLIB"
-  say "MoltenVK built: $(shasum "build/MoltenVK/$MOLTENVK_DYLIB" | cut -c1-12)"
+  grep -q "\"$MOLTENVK_CACHE_ID\"" build/MoltenVK/mvkGitRevDerived.h || die "the built library does not carry pipeline cache id $MOLTENVK_CACHE_ID"
+  say "MoltenVK built: $(shasum "build/MoltenVK/$MOLTENVK_DYLIB" | cut -c1-12), pipeline cache id $MOLTENVK_CACHE_ID"
 }
 
 step_lichii() {
@@ -83,6 +105,14 @@ step_lichii() {
   cmake --build build/release --target lichii > "$LOG/lichii-build.log" 2>&1 || { grep -n 'error:' "$LOG/lichii-build.log" | head -12; die "Lichii build failed"; }
   [ -d build/release/bin/lichii.app ] || die "no build/release/bin/lichii.app"
   say "Lichii built: $(shasum build/release/bin/lichii.app/Contents/MacOS/lichii | cut -c1-12)"
+}
+
+step_cli() {
+  mkdir -p "$LOG"; cd "$SRC/lichii"
+  [ -e build/release/build.ninja ] || die "Lichii is not configured; run: build.sh lichii"
+  say "building eden-cli (log: $LOG/lichii-cli-build.log)"
+  cmake --build build/release --target eden-cli > "$LOG/lichii-cli-build.log" 2>&1 || { grep -n 'error:' "$LOG/lichii-cli-build.log" | head -12; die "eden-cli build failed"; }
+  say "eden-cli built: $SRC/lichii/build/release/bin/eden-cli"
 }
 
 step_app() {
@@ -138,7 +168,7 @@ step_versions() {
 for step in "$@"; do
   case $step in
     all) step_fetch; step_verify; step_mvk; step_lichii; step_app ;;
-    fetch|verify|mvk|lichii|app|install|versions) "step_$step" ;;
-    *) die "unknown step '$step' (fetch verify mvk lichii app install versions all)" ;;
+    fetch|verify|mvk|lichii|cli|app|install|versions) "step_$step" ;;
+    *) die "unknown step '$step' (fetch verify mvk lichii cli app install versions all)" ;;
   esac
 done

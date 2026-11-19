@@ -1,0 +1,176 @@
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
+index c05f688d1e..d408a2471b 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp
+@@ -8,6 +8,8 @@
+ 
+ #include "dynarmic/backend/arm64/a64_address_space.h"
+ 
++#include <chrono>
++
+ #include <bit>
+ #include <cstdio>
+ #include <cstdlib>
+@@ -368,11 +370,20 @@ A64AddressSpace::A64AddressSpace(const A64::UserConfig& conf)
+     EmitPrelude();
+ }
+ 
++// EDEN_NX2_JIT_LOG (see address_space.cpp): the split of GenerateIR's time, read by GetOrEmit.
++thread_local u64 g_jitlog_translate_ns = 0;
++thread_local u64 g_jitlog_optimize_ns = 0;
++
+ void A64AddressSpace::GenerateIR(IR::Block& ir_block, IR::LocationDescriptor descriptor) const {
+     ir_block.Reset(descriptor);
+     const auto get_code = [this](u64 vaddr) { return conf.callbacks->MemoryReadCode(vaddr); };
++    const auto t0 = std::chrono::steady_clock::now();
+     A64::Translate(ir_block, A64::LocationDescriptor{descriptor}, get_code, {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
++    const auto t1 = std::chrono::steady_clock::now();
+     Optimization::Optimize(ir_block, conf, {});
++    const auto t2 = std::chrono::steady_clock::now();
++    g_jitlog_translate_ns = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
++    g_jitlog_optimize_ns = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count());
+ }
+ 
+ void A64AddressSpace::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp b/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
+index 93852a075b..1b33aa7427 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
+@@ -6,6 +6,13 @@
+  * SPDX-License-Identifier: 0BSD
+  */
+ 
++#include <algorithm>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++#include <pthread.h>
+ #include <cstdio>
+ 
+ #include <bit>
+@@ -61,6 +68,77 @@ AddressSpace::AddressSpace(std::size_t code_cache_size, std::optional<std::uintp
+ 
+ AddressSpace::~AddressSpace() = default;
+ 
++
++namespace {
++
++// EDEN_NX2_JIT_LOG=<file>: one 40-byte record per compiled block (layout in JitLogRecord), for working out where
++// JIT compile time goes per core and phase. Buffered, flushed about every 0.5 s so a killed process loses little.
++struct JitLogRecord {
++    u64 t_ns;           // steady clock
++    u64 location;       // IR::LocationDescriptor value (A64: PC in the low bits, flags above)
++    u32 ir_ops;
++    u32 host_bytes;
++    u32 translate_ns;
++    u32 optimize_ns;
++    u32 emit_ns;        // EmitArm64
++    u8 core;            // from the host thread's name "CPUCore_N"; 255 if not a core thread
++    u8 full_clear;      // this compile flushed the whole cache first
++    u16 link_us;        // Link + relink + icache invalidate, in microseconds
++};
++static_assert(sizeof(JitLogRecord) == 40);
++
++struct JitLog {
++    std::FILE* file = nullptr;
++    std::mutex mutex;
++    u64 last_flush_ns = 0;
++    JitLog() {
++        if (const char* path = std::getenv("EDEN_NX2_JIT_LOG"); path != nullptr && path[0] != '\0') {
++            file = std::fopen(path, "wb");
++            if (file) {
++                std::setvbuf(file, nullptr, _IOFBF, 8u << 20);
++            }
++        }
++    }
++    void Write(const JitLogRecord& r) {
++        std::scoped_lock lock{mutex};
++        std::fwrite(&r, sizeof(r), 1, file);
++        if (r.t_ns - last_flush_ns > 500'000'000ULL) {
++            std::fflush(file);
++            last_flush_ns = r.t_ns;
++        }
++    }
++};
++
++JitLog& GetJitLog() {
++    static JitLog log;
++    return log;
++}
++
++u8 CurrentCoreIndex() {
++    thread_local int core = -1;
++    if (core < 0) {
++        char name[64]{};
++        pthread_getname_np(pthread_self(), name, sizeof(name));
++        const char* digits = std::strstr(name, "CPUCore_");
++        core = digits ? std::atoi(digits + 8) : 255;
++    }
++    return static_cast<u8>(core);
++}
++
++u64 NowNs() {
++    return static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
++                                std::chrono::steady_clock::now().time_since_epoch())
++                                .count());
++}
++
++}  // namespace
++
++extern thread_local u64 g_jitlog_translate_ns;
++extern thread_local u64 g_jitlog_optimize_ns;
++thread_local u64 g_jitlog_emit_ns = 0;
++thread_local u64 g_jitlog_link_ns = 0;
++thread_local bool g_jitlog_full_clear = false;
++
+ CodePtr AddressSpace::Get(IR::LocationDescriptor descriptor) {
+     if (const auto iter = block_entries.find(descriptor); iter != block_entries.end()) {
+         return iter->second;
+@@ -92,7 +170,18 @@ CodePtr AddressSpace::GetOrEmit(IR::LocationDescriptor descriptor) {
+     }
+     const auto begin = std::chrono::steady_clock::now();
+     GenerateIR(ir_block, descriptor);
++    const u32 ir_ops = static_cast<u32>(ir_block.Instructions().size());
++    g_jitlog_full_clear = false;
+     const EmittedBlockInfo block_info = Emit(std::move(ir_block));
++    if (JitLog& log = GetJitLog(); log.file != nullptr) {
++        const auto clamp32 = [](u64 v) { return static_cast<u32>(std::min<u64>(v, 0xFFFFFFFFu)); };
++        log.Write(JitLogRecord{
++            .t_ns = NowNs(), .location = descriptor.Value(), .ir_ops = ir_ops,
++            .host_bytes = static_cast<u32>(block_info.size), .translate_ns = clamp32(g_jitlog_translate_ns),
++            .optimize_ns = clamp32(g_jitlog_optimize_ns), .emit_ns = clamp32(g_jitlog_emit_ns),
++            .core = CurrentCoreIndex(), .full_clear = static_cast<u8>(g_jitlog_full_clear),
++            .link_us = static_cast<u16>(std::min<u64>(g_jitlog_link_ns / 1000, 0xFFFF))});
++    }
+     ++compile_stats.blocks_compiled;
+     compile_stats.compile_ns += static_cast<u64>(
+         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - begin)
+@@ -140,6 +229,7 @@ std::size_t AddressSpace::GetRemainingSize() {
+ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+     if (GetRemainingSize() < 1024 * 1024) {
+         ++compile_stats.full_clears;
++        g_jitlog_full_clear = true;
+         ClearCache();
+     }
+ 
+@@ -147,7 +237,10 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+ 
+     auto emit_config = GetEmitConfig();
+     emit_config.cache_generation = cache_generation;
++    const u64 emit_begin = NowNs();
+     EmittedBlockInfo block_info = EmitArm64(code, std::move(block), emit_config, fastmem_manager);
++    const u64 link_begin = NowNs();
++    g_jitlog_emit_ns = link_begin - emit_begin;
+ 
+     ASSERT(block_entries.insert({block.Location(), block_info.entry_point}).second);
+     ASSERT(reverse_block_entries.insert({block_info.entry_point, block.Location()}).second);
+@@ -160,6 +253,7 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
+     ProtectCodeMemory();
+ 
+     RegisterNewBasicBlock(block, block_info);
++    g_jitlog_link_ns = NowNs() - link_begin;
+ 
+     return block_info;
+ }

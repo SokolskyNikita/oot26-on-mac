@@ -1,0 +1,15 @@
+[
+ {
+  "label": "safety-p2901-cold",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "cold_metal_cache": true,
+  "repeat": 3,
+  "desc": "Safety check: PR 2901 from an empty Metal cache, screenshots scored for blowout"
+ },
+ {
+  "label": "safety-p2901-warm",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "repeat": 3,
+  "desc": "Safety check: PR 2901 warm, screenshots scored for blowout"
+ }
+]

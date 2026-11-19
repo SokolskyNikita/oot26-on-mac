@@ -1,0 +1,107 @@
+[
+ {
+  "label": "jit6-warmup",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up of the new build, discarded"
+ },
+ {
+  "label": "jit6-off-r1",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1
+  },
+  "phase_frames": 600,
+  "desc": "Control: one 128 MiB JIT cache per core; every frame logged"
+ },
+ {
+  "label": "jit6-512-r1",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache with lock-free block lookups; every frame logged"
+ },
+ {
+  "label": "jit6-off-r2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1
+  },
+  "phase_frames": 600,
+  "desc": "Control: one 128 MiB JIT cache per core; every frame logged"
+ },
+ {
+  "label": "jit6-512-r2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache with lock-free block lookups; every frame logged"
+ },
+ {
+  "label": "jit6-off-r3",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1
+  },
+  "phase_frames": 600,
+  "desc": "Control: one 128 MiB JIT cache per core; every frame logged"
+ },
+ {
+  "label": "jit6-512-r3",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache with lock-free block lookups; every frame logged"
+ },
+ {
+  "label": "jit6-trace-512",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512,
+   "DYNARMIC_JIT_TRACE": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/jit-traces/load-walk-shared512.jittrace"
+  },
+  "phase_frames": 600,
+  "desc": "Records the JIT cache operations of a boot, load and walk (shared cache); not for timing"
+ },
+ {
+  "label": "jit6-trace-off",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_STUTTER_ALL_FRAMES": 1,
+   "DYNARMIC_JIT_TRACE": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/jit-traces/load-walk-private.jittrace"
+  },
+  "phase_frames": 600,
+  "desc": "Records the JIT cache operations of a boot, load and walk (private caches); not for timing"
+ }
+]

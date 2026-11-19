@@ -1,0 +1,52 @@
+[
+ {
+  "label": "pinned-cold",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "First boot of the pinned build as build.sh makes it: new MoltenVK commit id, every shader translated again, discarded"
+ },
+ {
+  "label": "pinned-warmup",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up, discarded"
+ },
+ {
+  "label": "pinned-r1",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build from build.sh"
+ },
+ {
+  "label": "pinned-r2",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build from build.sh"
+ },
+ {
+  "label": "pinned-r3",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build from build.sh"
+ }
+]

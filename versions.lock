@@ -9,9 +9,17 @@ LICHII_COMMIT=0c5fc7d22a912fdeaadce725aac4de9ecdee2ac1
 # MoltenVK: upstream base, then the series in patches/moltenvk/
 MOLTENVK_URL=https://github.com/KhronosGroup/MoltenVK.git
 MOLTENVK_BASE=5189f8de86ec365860f63bf1da736815cfaea5cd
-MOLTENVK_TREE=47505de53bdaea5bd4ee7758df0cceef6baa12a9
-MOLTENVK_COMMIT=04ac9befce7e0e5f403b1a2efce45f8053612d8f
+MOLTENVK_TREE=6a305b718c149230f02c281b72a876ef3bb0685d
+MOLTENVK_COMMIT=dc964d4011302f189e91b52d3b759cdf2a0878eb
 MOLTENVK_DYLIB=libMoltenVK.1.4.3.dylib
+
+# MoltenVK's pipeline cache identity (MVK_PIPELINE_CACHE_REV, 8 hex digits). Lichii discards its stored pipeline file
+# and translates every shader again when this changes, so it changes only when shader translation does.
+# MOLTENVK_CACHE_INPUTS is a hash of the files that decide generated shader source; build.sh refuses to build when
+# they differ from it. To accept a change: set MOLTENVK_CACHE_ID to a new value (the new commit's first 8 digits)
+# and MOLTENVK_CACHE_INPUTS to the hash `build.sh verify` prints.
+MOLTENVK_CACHE_ID=04ac9bef
+MOLTENVK_CACHE_INPUTS=67a426dac8939354
 
 # Pinned inside the MoltenVK series (ExternalRevisions/SPIRV-Cross_repo_revision)
 SPIRV_CROSS=98cbb7c02be35364ecacc23dc0c038d2360b0ed0

@@ -1,0 +1,20 @@
+[
+ {
+  "label": "gdb-attached",
+  "cfg": {
+   "cpu_accuracy": 1,
+   "use_gdbstub": true
+  },
+  "jsdbg": "attach",
+  "desc": "Check frame time with the GDB stub on and lldb attached through jsdbg, no breakpoints"
+ },
+ {
+  "label": "gdb-armed",
+  "cfg": {
+   "cpu_accuracy": 1,
+   "use_gdbstub": true
+  },
+  "jsdbg": "arm",
+  "desc": "Check frame time with lldb attached and jsdbg's per-frame jumpslash/Fall breakpoints armed"
+ }
+]

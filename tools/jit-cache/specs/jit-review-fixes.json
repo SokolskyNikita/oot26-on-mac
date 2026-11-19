@@ -1,0 +1,104 @@
+[
+ {
+  "label": "fix-gold-warmup",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up of the gold build, discarded"
+ },
+ {
+  "label": "fix-gold-r1",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Gold: shared 512 MiB JIT cache as installed"
+ },
+ {
+  "label": "fix-gold-r2",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Gold: shared 512 MiB JIT cache as installed"
+ },
+ {
+  "label": "fix-gold-r3",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Gold: shared 512 MiB JIT cache as installed"
+ },
+ {
+  "label": "fix-gold-128",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 128
+  },
+  "phase_frames": 600,
+  "desc": "Gold with a 128 MiB shared cache: it fills and clears during the load"
+ },
+ {
+  "label": "fix-cand-warmup",
+  "app": "${REPO}/build/old-trees/path-60/app-jitfix/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up of the candidate, discarded"
+ },
+ {
+  "label": "fix-cand-r1",
+  "app": "${REPO}/build/old-trees/path-60/app-jitfix/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Candidate: gold plus the two review fixes (clear wait answers halts; one invalidation per request)"
+ },
+ {
+  "label": "fix-cand-r2",
+  "app": "${REPO}/build/old-trees/path-60/app-jitfix/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Candidate: gold plus the two review fixes (clear wait answers halts; one invalidation per request)"
+ },
+ {
+  "label": "fix-cand-r3",
+  "app": "${REPO}/build/old-trees/path-60/app-jitfix/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Candidate: gold plus the two review fixes (clear wait answers halts; one invalidation per request)"
+ },
+ {
+  "label": "fix-cand-128",
+  "app": "${REPO}/build/old-trees/path-60/app-jitfix/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 128
+  },
+  "phase_frames": 600,
+  "desc": "Candidate with a 128 MiB shared cache: full clears with the new waiting code"
+ }
+]

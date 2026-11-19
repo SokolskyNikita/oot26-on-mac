@@ -1,0 +1,7 @@
+[
+ {
+  "label": "fastmath-always",
+  "env": {"MVK_CONFIG_FAST_MATH_ENABLED": 1},
+  "desc": "Check frame time with every Metal shader compiled with fast math (cold compile allowed to finish)"
+ }
+]

@@ -1,9 +1,10 @@
 # Environment for launches through Finder, the Dock or `open`: NAME=VALUE lines that build.sh writes into the
 # app's Info.plist (LSEnvironment). A binary started directly, as the harness does, ignores them.
-# Nothing is set: the pinned build launches with the game's own upscaling network.
-#
-# Bilinear stand-in for the game's upscaling network (about 8 ms a frame faster, softer picture):
-#EDEN_NX2_DLSS_REPLACEMENT=fsr
-#P60_OOT_BILINEAR=1
-# Keep macOS from moving a hidden or covered emulator window to the efficiency cores:
-#MVK_P60_NO_APPNAP=1
+
+# Bilinear stand-in for the game's upscaling network: faster, softer picture. Remove both lines to get the game's
+# own network back (with the shuffle-free multiply it costs about 2.3 ms a frame).
+EDEN_NX2_DLSS_REPLACEMENT=fsr
+P60_OOT_BILINEAR=1
+
+# Keep macOS from moving a hidden or covered emulator window to the efficiency cores (frame times of 50-60 ms).
+MVK_P60_NO_APPNAP=1

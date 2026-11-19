@@ -1,0 +1,105 @@
+diff -ru -x build* -x .git -x External -x *.log moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm moltenvk-pown/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-16 15:35:37
++++ moltenvk-pown/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-17 19:30:51
+@@ -26,6 +26,9 @@
+ #include "MTLRenderPipelineDescriptor+MoltenVK.h"
+ #include "mvk_datatypes.hpp"
+ #include <sys/stat.h>
++#include <atomic>
++#include <vector>
++#include <dispatch/dispatch.h>
+ #include <sstream>
+ 
+ #ifndef MVK_USE_CEREAL
+@@ -2801,30 +2804,31 @@
+ 		reader(pcUUID);			// Pipeline cache UUID
+ 		if ( !mvkAreEqual(pcUUID, dvcProps.pipelineCacheUUID, VK_UUID_SIZE) ) { return; }
+ 
++		// path-60: read every entry first, then compile the libraries in parallel (one Metal compile per core at a
++		// time instead of one in all), then add them to the caches in file order. MVK_P60_SERIAL_PIPELINE_CACHE_LOAD=1
++		// keeps the original one-at-a-time load. Prints "[mvk-diag] pipeline cache load N libraries, P%" as it goes.
++		struct P60Entry {
++			MVKShaderModuleKey smKey;
++			SPIRVToMSLConversionConfiguration config;
++			SPIRVToMSLConversionResultInfo resultInfo;
++			MVKCompressor<std::string> compressedMSL;
++			MVKShaderLibrary* lib = nullptr;
++		};
++		const bool p60Serial = getenv("MVK_P60_SERIAL_PIPELINE_CACHE_LOAD") != nullptr;
++		std::vector<P60Entry> p60Entries;
+ 		bool done = false;
+ 		while ( !done ) {
+ 			reader(cacheEntryType);
+ 			switch (cacheEntryType) {
+ 				case MVKPipelineCacheEntryTypeShaderLibrary: {
+ 					uint64_t startTime = getPerformanceTimestamp();
+-
+-					MVKShaderModuleKey smKey;
+-					reader(smKey);
+-
+-					SPIRVToMSLConversionConfiguration shaderConversionConfig;
+-					reader(shaderConversionConfig);
+-
+-					SPIRVToMSLConversionResultInfo resultInfo;
+-					reader(resultInfo);
+-
+-					MVKCompressor<std::string> compressedMSL;
+-					reader(compressedMSL);
+-
+-					// Add the shader library to the staging cache.
+-					MVKShaderLibraryCache* slCache = getShaderLibraryCache(smKey);
++					P60Entry e;
++					reader(e.smKey);
++					reader(e.config);
++					reader(e.resultInfo);
++					reader(e.compressedMSL);
+ 					addPerformanceInterval(getPerformanceStats().pipelineCache.readPipelineCache, startTime);
+-					slCache->addShaderLibrary(&shaderConversionConfig, resultInfo, compressedMSL);
+-
++					p60Entries.push_back(std::move(e));
+ 					break;
+ 				}
+ 
+@@ -2833,6 +2837,27 @@
+ 					break;
+ 				}
+ 			}
++		}
++		const size_t p60Count = p60Entries.size();
++		std::atomic<size_t> p60Done{0};
++		const uint64_t p60Start = mvkGetTimestamp();
++		auto p60Build = [&](size_t i) {
++			P60Entry& e = p60Entries[i];
++			e.lib = new MVKShaderLibrary(this, e.resultInfo, e.compressedMSL);
++			const size_t n = ++p60Done;
++			if (n % 200 == 0 || n == p60Count) {
++				fprintf(stderr, "[mvk-diag] pipeline cache load %zu libraries, %zu%% (%.1f s%s)\n", n,
++						p60Count ? n * 100 / p60Count : 100, mvkGetElapsedMilliseconds(p60Start) / 1000.0,
++						p60Serial ? ", serial" : "");
++			}
++		};
++		if (p60Serial) {
++			for (size_t i = 0; i < p60Count; i++) { p60Build(i); }
++		} else {
++			dispatch_apply(p60Count, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^(size_t i) { p60Build(i); });
++		}
++		for (P60Entry& e : p60Entries) {
++			getShaderLibraryCache(e.smKey)->addPrebuiltShaderLibrary(e.config, e.lib);
+ 		}
+ 
+ 	} catch (cereal::Exception& ex) {
+diff -ru -x build* -x .git -x External -x *.log moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h moltenvk-pown/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-16 11:51:43
++++ moltenvk-pown/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-17 19:30:51
+@@ -192,6 +192,11 @@
+ 
+ 	MVKShaderLibraryCache(MVKVulkanAPIDeviceObject* owner) : MVKBaseDeviceObject(owner->getDevice()), _owner(owner) {};
+ 
++	/** path-60: adds a library already built (compiled in parallel while a pipeline cache loads). */
++	void addPrebuiltShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration& config, MVKShaderLibrary* shLib) {
++		_shaderLibraries.emplace_back(config, shLib);
++	}
++
+ 	~MVKShaderLibraryCache() override;
+ 
+ protected:

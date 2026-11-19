@@ -1,0 +1,55 @@
+[
+ {
+  "label": "base",
+  "desc": "Check frame time at the Kokiri spawn and on the walk with default settings"
+ },
+ {
+  "label": "async-wait",
+  "cfg": {
+   "native_async_draws": 0
+  },
+  "desc": "Check frame time when Switch 2 draws wait for their pipeline instead of being dropped (native_async_draws Wait)"
+ },
+ {
+  "label": "mesh-compute",
+  "cfg": {
+   "mesh_shaders": 2
+  },
+  "desc": "Check frame time with Switch 2 mesh shaders always emulated in compute (mesh_shaders Compute)"
+ },
+ {
+  "label": "mesh-native",
+  "cfg": {
+   "mesh_shaders": 1
+  },
+  "desc": "Check frame time with Switch 2 mesh shaders always native in Metal (mesh_shaders Native)"
+ },
+ {
+  "label": "no-mesh",
+  "env": {
+   "EDEN_NX2_NO_MESH": 1
+  },
+  "desc": "Check frame time with all mesh-shader draws skipped (EDEN_NX2_NO_MESH, diagnostic only)"
+ },
+ {
+  "label": "gpu-high",
+  "cfg": {
+   "gpu_accuracy": 1
+  },
+  "desc": "Check frame time with GPU accuracy High instead of Low"
+ },
+ {
+  "label": "write-full",
+  "cfg": {
+   "native_compute_write_mark": 1
+  },
+  "desc": "Check frame time with compute writes marked in full (native_compute_write_mark Full)"
+ },
+ {
+  "label": "lod0",
+  "env": {
+   "EDEN_NX2_FORCE_LOD0": 1
+  },
+  "desc": "Check frame time with textures forced to their top mip (EDEN_NX2_FORCE_LOD0, diagnostic only)"
+ }
+]

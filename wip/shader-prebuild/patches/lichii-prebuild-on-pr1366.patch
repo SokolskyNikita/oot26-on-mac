@@ -1,0 +1,555 @@
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+index d0c220b5a2..9213cd1561 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
+@@ -870,6 +870,18 @@ private:
+ 
+ /// Records a precompiled preparation keeps in flight in the background, by default: a quarter of
+ /// the CPU threads, 1 to 4. EDEN_NX2_PRECOMPILED_THREADS sets it.
++/// Set on a worker while it creates a preparation pipeline (local, MoltenVK): see null_driver_cache.
++thread_local bool tl_prep_without_driver_cache = false;
++struct PrepWithoutDriverCache {
++    explicit PrepWithoutDriverCache(bool on) : before{tl_prep_without_driver_cache} {
++        tl_prep_without_driver_cache = on;
++    }
++    ~PrepWithoutDriverCache() {
++        tl_prep_without_driver_cache = before;
++    }
++    bool before;
++};
++
+ size_t BackgroundPrecompiledJobs() {
+     if (const char* value = std::getenv("EDEN_NX2_PRECOMPILED_THREADS")) {
+         const long count = std::strtol(value, nullptr, 10);
+@@ -2711,7 +2723,8 @@ void PipelineCache::PreparePrecompiled(const std::filesystem::path& base_dir,
+     }
+     // The prepared pipelines are kept by the driver's own cache. Without one they would go to the
+     // emulator's pipeline cache file, which is loaded whole at boot: only on request there.
+-    if (!DriverCachesPipelines(device) && !(enabled && enabled[0] == '1')) {
++    // Local: on MoltenVK Metal's own on-disk cache (per bundle id) keeps what is compiled.
++    if (!DriverCachesPipelines(device) && !device.IsMoltenVK() && !(enabled && enabled[0] == '1')) {
+         LOG_INFO(Render_Vulkan, "Precompiled pipelines skipped: the driver keeps no pipeline cache "
+                                 "of its own (EDEN_NX2_PRECOMPILED=1 prepares them anyway)");
+         return;
+@@ -2892,6 +2905,7 @@ void PipelineCache::PreparePrecompiled(const std::filesystem::path& base_dir,
+     std::vector<Ordered> ordered;
+     ordered.reserve(total);
+     size_t done_before = 0;
++    size_t unfit = 0;
+     for (u32 index = 0; index < total; ++index) {
+         auto& record = records[index];
+         if (loaded.states[index] != Store::RecordState::Pending) {
+@@ -2901,6 +2915,7 @@ void PipelineCache::PreparePrecompiled(const std::filesystem::path& base_dir,
+         if (!record.compute && !KeyFitsDevice(record.graphics_key)) {
+             // Made for a device with other dynamic state.
+             ++done_before;
++            ++unfit;
+             continue;
+         }
+         const u8 group = record.compute ? 0
+@@ -2916,6 +2931,12 @@ void PipelineCache::PreparePrecompiled(const std::filesystem::path& base_dir,
+         prep.order.push_back(entry.index);
+     }
+     prep.done = done_before;
++    if (unfit != 0) {
++        LOG_WARNING(Render_Vulkan,
++                    "Precompiled pipelines: {} graphics records were made for a device with other "
++                    "dynamic state or provoking vertex modes; left out (counted as prepared before)",
++                    unfit);
++    }
+     LOG_INFO(Render_Vulkan,
+              "Precompiled pipelines: {} records, {} prepared before ({} kept for draws), {} to "
+              "prepare{}",
+@@ -3078,6 +3099,11 @@ PipelineCache::PrecompiledPrepOutcome PipelineCache::RunPrecompiledPrep(
+                  try {
+                      auto envs = prep.ReadEnvs(record.envs);
+                      ShaderPools pools;
++                     static const bool prep_uses_vk_cache = [] {
++                         const char* value = std::getenv("P60_PREP_USE_VKCACHE");
++                         return value && value[0] == '1';
++                     }();
++                     PrepWithoutDriverCache without_cache{device.IsMoltenVK() && !prep_uses_vk_cache};
+                      if (record.compute) {
+                          std::array<std::vector<u32>, Maxwell::MaxShaderStage> spirv;
+                          auto entry{CreateComputePipeline(pools, record.compute_key, envs.front(),
+@@ -4316,7 +4342,7 @@ bool PipelineCache::TranslateGraphicsStages(ShaderPools& pools, const GraphicsPi
+                             "needs {} B of compute workgroup memory, but the device supports {} B",
+                             hash, key.unique_hashes[index], workgroup_memory_size,
+                             max_compute_shared_memory);
+-                return nullptr;
++                return false;
+             }
+         }
+         // Per-primitive outputs reach the pixel program flat through the vertex shader. A vertex
+@@ -4699,7 +4725,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
+         }
+     }
+     auto pipeline = std::make_unique<GraphicsPipeline>(
+-        scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, pipeline_binaries.get(),
++        scheduler, buffer_cache, texture_cache, (tl_prep_without_driver_cache ? null_driver_cache : vulkan_pipeline_cache), pipeline_binaries.get(),
+         &shader_notify, device, descriptor_pool, guest_descriptor_queue, descriptor_buffer_ring,
+         BuildQueue(build_in_parallel, defer_emission ? deferred_ir_bytes : 0), statistics,
+         render_pass_cache, key, std::move(stage_spirv), infos, std::move(emit_stages),
+@@ -5216,7 +5242,7 @@ ComputePipelineCacheEntry PipelineCache::CreateComputePipeline(
+             return module;
+         };
+         pipeline = std::make_unique<ComputePipeline>(
+-            device, scheduler, vulkan_pipeline_cache, pipeline_binaries.get(), hash,
++            device, scheduler, (tl_prep_without_driver_cache ? null_driver_cache : vulkan_pipeline_cache), pipeline_binaries.get(), hash,
+             descriptor_pool, guest_descriptor_queue, descriptor_buffer_ring,
+             BuildQueue(build_in_parallel, ir_bytes), statistics,
+             &shader_notify, info, vk::ShaderModule{}, key.unique_hash, std::vector<u8>{},
+@@ -5234,7 +5260,7 @@ ComputePipelineCacheEntry PipelineCache::CreateComputePipeline(
+             pools.inst.Free();
+         }
+         pipeline = std::make_unique<ComputePipeline>(
+-            device, scheduler, vulkan_pipeline_cache, pipeline_binaries.get(), hash,
++            device, scheduler, (tl_prep_without_driver_cache ? null_driver_cache : vulkan_pipeline_cache), pipeline_binaries.get(), hash,
+             descriptor_pool, guest_descriptor_queue, descriptor_buffer_ring,
+             BuildQueue(build_in_parallel), statistics, &shader_notify, info, std::move(module),
+             key.unique_hash, std::move(kept_spirv));
+diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.h b/src/video_core/renderer_vulkan/vk_pipeline_cache.h
+index 9702235f90..518a34c7e7 100644
+--- a/src/video_core/renderer_vulkan/vk_pipeline_cache.h
++++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.h
+@@ -469,6 +469,10 @@ private:
+ 
+     std::filesystem::path vulkan_pipeline_cache_filename;
+     vk::PipelineCache vulkan_pipeline_cache;
++    /// Empty handle: preparation builds on MoltenVK pass no VkPipelineCache (local). A shared cache
++    /// serialises every conversion and Metal compile there, and would hold the MSL of every
++    /// prepared pipeline; Metal's own on-disk cache keeps the compiled code either way.
++    vk::PipelineCache null_driver_cache;
+     size_t pipelines_since_flush{};
+     std::chrono::steady_clock::time_point last_flush{};
+     std::atomic<size_t> last_cache_size{};
+diff --git a/src/video_core/shader_jobs.cpp b/src/video_core/shader_jobs.cpp
+index 8282098e72..b9071c0e0f 100644
+--- a/src/video_core/shader_jobs.cpp
++++ b/src/video_core/shader_jobs.cpp
+@@ -4,6 +4,9 @@
+ #include <atomic>
+ #include <optional>
+ #include <utility>
++#ifdef __APPLE__
++#include <pthread.h>
++#endif
+ 
+ #include "common/literals.h"
+ #include "common/logging.h"
+@@ -157,10 +160,35 @@ ShaderJobScheduler::ShaderJobScheduler(const ShaderJobConfig& config)
+     stats.budget_bytes = budget;
+     const auto start{[this](std::string name, bool driver) {
+         threads.emplace_back([this, name = std::move(name), driver] {
+-            Common::SetCurrentThreadName(name.c_str());
+-            Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
+-            Common::SetCurrentThreadToBackgroundWork();
+-            Worker(driver);
++            const auto body = [this, &name, driver] {
++                Common::SetCurrentThreadName(name.c_str());
++                Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
++                Common::SetCurrentThreadToBackgroundWork();
++                Worker(driver);
++            };
++#ifdef __APPLE__
++            // Local: a secondary thread has 512 KiB of stack on macOS. SPIRV-Cross walks a
++            // shader's control flow graph recursively (CFG::walk_from) and overflowed it on a
++            // compute program of the precompiled file (MoltenVK converts on this thread).
++            using Body = decltype(body);
++            pthread_attr_t attr;
++            pthread_attr_init(&attr);
++            pthread_attr_setstacksize(&attr, size_t{256} << 20);
++            pthread_t worker;
++            const int result = pthread_create(
++                &worker, &attr,
++                [](void* arg) -> void* {
++                    (*static_cast<const Body*>(arg))();
++                    return nullptr;
++                },
++                const_cast<void*>(static_cast<const void*>(&body)));
++            pthread_attr_destroy(&attr);
++            if (result == 0) {
++                pthread_join(worker, nullptr);
++                return;
++            }
++#endif
++            body();
+         });
+     }};
+     for (size_t i = 0; i < std::max<size_t>(config.cpu_threads, 1); ++i) {
+diff --git a/tools/nx2-precompile/py/build_precompiled.py b/tools/nx2-precompile/py/build_precompiled.py
+index c370c51e87..edb4a77121 100644
+--- a/tools/nx2-precompile/py/build_precompiled.py
++++ b/tools/nx2-precompile/py/build_precompiled.py
+@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ import lichii_cache as lc  # noqa: E402
+ import state_model as sm  # noqa: E402
+ import statefields as sf  # noqa: E402
++import state_model_static as sms  # noqa: E402
+ 
+ GRAPHICS_KEY = 1056
+ STATE_TAIL = GRAPHICS_KEY - 48 - sf.STATE_LEN
+@@ -47,6 +48,16 @@ ap.add_argument('--report')
+ ap.add_argument('--mesh-combos', help='(task, mesh, pixel) combinations, mesh_variations.py')
+ ap.add_argument('--mesh-envs', help='NXPMESH1 file, nx2-precompile mesh-envs')
+ ap.add_argument('--mesh-k', type=int, default=2)
++ap.add_argument('--static', action='store_true',
++                help='keys without dynamic vertex input or extended dynamic state (MoltenVK): '
++                     'state_model_static, 432 hashed bytes')
++ap.add_argument('--scene-from', help='--static: cache whose scene part (device and build bits) predictions use; default the last --train')
++ap.add_argument('--kf', type=int, default=6, help='--static: render target states per pair')
++ap.add_argument('--kl', type=int, default=4, help='--static: vertex layouts per pair')
++ap.add_argument('--kt', type=int, default=2, help='--static: topology states per pair')
++ap.add_argument('--kd', type=int, default=1, help='--static: depth/cull/stencil states per pair')
++ap.add_argument('--drop-pairs', help='JSON list of [vertex, pixel] code hashes to predict no states for '
++                                     '(recorded pairs are kept)')
+ ap.add_argument('--cache-version', type=int, required=True,
+                 help="the Lichii build's VulkanPipelineCacheVersion (the file name's v<N>)")
+ args = ap.parse_args()
+@@ -82,6 +93,7 @@ class Writer:
+         self.env_ids = {}
+         self.records = []
+         self.keys = set()
++        self.predicted_again = set()   # predicted keys already written
+ 
+     def env(self, blob):
+         digest = hashlib.sha256(blob).digest()
+@@ -90,10 +102,12 @@ class Writer:
+             self.envs.append(blob)
+         return self.env_ids[digest]
+ 
+-    def graphics(self, blobs, key):
++    def graphics(self, blobs, key, predicted=False):
+         assert len(key) == GRAPHICS_KEY
+         h = lc.graphics_key_hash(key)
+         if h in self.keys:
++            if predicted:
++                self.predicted_again.add(h)
+             return False
+         self.keys.add(h)
+         self.records.append((0, [self.env(b) for b in blobs], key))
+@@ -151,8 +165,22 @@ def canonical_key(rec):
+ 
+ 
+ w = Writer()
+-model = sm.Model()
+-mesh_model = sm.Model()
++model = sms.Model() if args.static else sm.Model()
++mesh_model = sms.Model() if args.static else sm.Model()
++STATIC_TAIL = GRAPHICS_KEY - 48 - sms.STATE_LEN
++# Device bits of a key: the scene part's flags (state_model_static.parts) and every bit
++# PipelineCache::KeyFitsDevice compares. raw1: extended dynamic state 1-3 and dynamic vertex input
++# (bits 0-5), color_write_enable_dynamic (bit 20); raw2: y_negate, provoking_vertex_last,
++# conservative raster, smooth lines, app_stage and the unused bits (0xFFFE7801).
++SCENE_RAW1 = 0x0010003F
++SCENE_RAW2 = 0xFFFE7801
++PROVOKING_VERTEX_LAST = 1 << 12   # raw2 bit 12, key offset 52
++
++
++def static_state(key):
++    """The 432 hashed bytes of a static key, or None for a key of another shape."""
++    return sms.canonical(key[48:48 + sms.STATE_LEN]) if lc.fps_size(key[48:]) == sms.STATE_LEN else None
++
+ recorded_pairs = set()
+ counts = collections.Counter()
+ 
+@@ -172,6 +200,35 @@ def shader_info(env, vertex):
+ # (the host properties it was made with): left out, so it does not reach the precompiled file.
+ READ_PROPERTIES_KEY = 0xFFFFFFFF << 32
+ recorded_compute = collections.defaultdict(list)   # key -> recorded environments, in cache order
++recorded_graphics_keys = []   # canonical keys of the recorded graphics records written
++
++# The scene part (features of the device and build) as the last training cache has it: caches of
++# older builds differ there and their value would match no draw.
++scene_model = sms.Model()
++scene = None
++if args.static:
++    _, recs = lc.parse_cache(open(args.scene_from or args.train[-1], 'rb').read(), mesh_fields=True)
++    for rec in recs:
++        if not rec.is_compute and static_state(canonical_key(rec)) is not None:
++            scene_model.S[sms.parts(static_state(canonical_key(rec)))[4]] += 1
++    if scene_model.S:
++        scene = scene_model.S.most_common(1)[0][0]
++converted, unconverted = set(), set()
++
++
++def to_scene_device(key):
++    """A recorded key made where the device has last-vertex provoking (an older MoltenVK with Metal's
++    private API) and otherwise the scene part's device bits: the key with provoking_vertex_last
++    cleared, which is what FixedPipelineState::Refresh records for the same draw on a device without
++    it. Other keys are returned as they are."""
++    if scene is None or scene[2] & PROVOKING_VERTEX_LAST:
++        return key, False
++    raw1, raw2 = struct.unpack_from('<II', key, 48)
++    if not raw2 & PROVOKING_VERTEX_LAST or (raw1 & SCENE_RAW1, raw2 & SCENE_RAW2 & ~PROVOKING_VERTEX_LAST) != (
++            scene[0] | scene[1], scene[2]):
++        return key, False
++    return key[:52] + struct.pack('<I', raw2 & ~PROVOKING_VERTEX_LAST) + key[56:], True
++
+ 
+ for path in args.train:
+     _, recs = lc.parse_cache(open(path, 'rb').read(), mesh_fields=True)
+@@ -186,10 +243,28 @@ for path in args.train:
+                 e.stage == 8 and (e.mesh_registers[0] & 0xF) != 4 for e in rec.envs):
+             counts['recorded mesh skipped (topology)'] += 1
+             continue
+-        key = canonical_key(rec)
+-        counts['recorded graphics'] += w.graphics(blobs, key)
++        key, was_converted = to_scene_device(canonical_key(rec))
++        (converted if was_converted else unconverted).add(lc.graphics_key_hash(key))
++        counts['recorded graphics converted to the scene device bits'] += was_converted
++        if w.graphics(blobs, key):
++            counts['recorded graphics'] += 1
++            recorded_graphics_keys.append(key)
+         # The model learns from keys with dynamic vertex input only: without it, the attribute
+         # bytes are the enabled divisors, which no prediction of a dynamic key should take.
++        if args.static:
++            state = static_state(key)
++            if state is None:
++                continue
++            if rec.envs[0].stage == 0 and rec.envs[-1].stage == 4 and len(rec.envs) == 2:
++                vs, fs = shader_info(rec.envs[0], True), shader_info(rec.envs[-1], False)
++                model.add(vs, fs, state)
++                recorded_pairs.add((vs['hash'], fs['hash']))
++            elif any(e.stage == 8 for e in rec.envs) and rec.envs[-1].stage == 4:
++                mesh_env = next(e for e in rec.envs if e.stage == 8)
++                ms, fs = shader_info(mesh_env, True), shader_info(rec.envs[-1], False)
++                ms['read_mask'] = 0
++                mesh_model.add(ms, fs, state)
++            continue
+         if sf.hashes_past_prefix(key[48:48 + sf.STATE_LEN]):
+             continue
+         if rec.envs[0].stage == 0 and rec.envs[-1].stage == 4 and len(rec.envs) == 2:
+@@ -204,6 +279,36 @@ for path in args.train:
+ 
+ pairs = set(tuple(p) for p in json.load(open(args.pairs))) | recorded_pairs
+ print('pairs', len(pairs))
++if args.drop_pairs:
++    dropped = set(tuple(p) for p in json.load(open(args.drop_pairs))) - recorded_pairs
++    counts['pairs dropped (--drop-pairs)'] = len(pairs & dropped)
++    pairs -= dropped
++if args.static:
++    model.S = mesh_model.S = scene_model.S
++    print('scene part', [(hex(x[0]), hex(x[1]), hex(x[2]), n) for x, n in scene_model.S.most_common(3)])
++    # Recorded keys whose device bits are still not the scene part's: the flags of that part and
++    # every bit PipelineCache::KeyFitsDevice compares. They are written as recorded, but a key made
++    # on another device or build fails KeyFitsDevice and is left out of a preparation without a
++    # message, as if prepared before.
++    if scene is not None:
++        scene_raw1, scene_raw2 = scene[0] | scene[1], scene[2]
++        off = provoking = dynamic = 0
++        for key in recorded_graphics_keys:
++            raw1, raw2 = struct.unpack_from('<II', key, 48)
++            r1, r2 = raw1 & SCENE_RAW1, raw2 & SCENE_RAW2
++            if (r1, r2) == (scene_raw1, scene_raw2):
++                continue
++            off += 1
++            provoking += bool(r2 & PROVOKING_VERTEX_LAST and not scene_raw2 & PROVOKING_VERTEX_LAST)
++            dynamic += r1 != scene_raw1
++        counts['recorded graphics off the scene device bits'] = off
++        counts['recorded graphics off the scene device bits: provoking_vertex_last'] = provoking
++        counts['recorded graphics off the scene device bits: dynamic state flags'] = dynamic
++        if off:
++            print('warning: %d recorded graphics keys have device bits other than the scene part '
++                  '(%d with provoking_vertex_last, %d with other dynamic state flags); written as '
++                  'recorded, but Lichii\'s KeyFitsDevice leaves those that do not fit out of a '
++                  'preparation without a message' % (off, provoking, dynamic))
+ 
+ 
+ def oracle_info(h, vertex):
+@@ -226,6 +331,11 @@ for vh, fh in sorted(pairs):
+         continue
+     vs, fs = oracle_info(vh, True), oracle_info(fh, False)
+     added = 0
++    if args.static:
++        for state in model.candidates(vs, fs, args.kt, args.kl, args.kf, args.kd):
++            key = unique_hashes(int(vh, 16), int(fh, 16)) + state + bytes(STATIC_TAIL)
++            counts['predicted graphics'] += w.graphics([oracle[vh], oracle[fh]], key, True)
++        continue
+     # The spare candidates: as CandidateSlack in nx2_precompile_build.h.
+     for state in model.candidates(vs, fs, args.k + max(2, args.k // 2)):
+         # A predicted key holds the 112-byte prefix only: one whose hash covers more (static
+@@ -235,7 +345,7 @@ for vh, fh in sorted(pairs):
+         # Candidates combine fields of several recorded keys: made canonical as draws are.
+         state = sf.canonical(state, vs['read_mask'])
+         key = unique_hashes(int(vh, 16), int(fh, 16)) + state + bytes(STATE_TAIL)
+-        if w.graphics([oracle[vh], oracle[fh]], key):
++        if w.graphics([oracle[vh], oracle[fh]], key, True):
+             added += 1
+             counts['predicted graphics'] += 1
+         if added >= args.k:
+@@ -273,7 +383,8 @@ if args.mesh_combos and args.mesh_envs:
+         ms = dict(hash=mesh_h, fine=rows[0].get('fine', '?'), coarse=rows[0].get('coarse', '?'),
+                   read_mask=0)
+         fs = oracle_info(pixel_h, False)
+-        states = mesh_model.candidates(ms, fs, args.mesh_k)
++        states = (mesh_model.candidates(ms, fs, 1, 1, args.kf, args.kd) if args.static
++                  else mesh_model.candidates(ms, fs, args.mesh_k))
+         for state_hash, tblob, mblob in draws[(task, mesh)]:
+             hs = [0] * 6
+             hs[5] = int(pixel_h, 16)
+@@ -284,10 +395,14 @@ if args.mesh_combos and args.mesh_envs:
+                 hs[1] = mesh ^ state_hash
+                 blobs = [mblob, oracle[pixel_h]]
+             for state in states:
++                if args.static:
++                    key = struct.pack('<6Q', *hs) + state + bytes(STATIC_TAIL)
++                    counts['predicted mesh'] += w.graphics(blobs, key, True)
++                    continue
+                 if sf.hashes_past_prefix(state):
+                     continue
+                 key = struct.pack('<6Q', *hs) + sf.canonical(state, 0) + bytes(STATE_TAIL)
+-                counts['predicted mesh'] += w.graphics(blobs, key)
++                counts['predicted mesh'] += w.graphics(blobs, key, True)
+ 
+ 
+ # Storage pointer states of compute programs. A native compute program's translation leaves out
+@@ -432,6 +547,20 @@ for key, envs in recorded_compute.items():
+     if len(blobs) > 1:
+         counts['compute programs with several pointer states'] += 1
+ 
++# Recorded keys converted to the scene part's device bits that no unconverted recorded key has:
++# those the model predicted too were in the file already (with oracle environments), the rest are
++# pipelines a preparation would otherwise have left out.
++if converted:
++    only_converted = converted - unconverted
++    counts['recorded graphics converted, not otherwise recorded'] = len(only_converted)
++    counts['recorded graphics converted, not otherwise recorded: also predicted'] = len(
++        only_converted & w.predicted_again)
++    counts['recorded graphics recovered by the conversion'] = len(only_converted - w.predicted_again)
++    print('converted %d recorded graphics keys with provoking_vertex_last to the scene device bits: '
++          '%d pipelines not otherwise recorded, %d of them not predicted either (recovered)' % (
++              counts['recorded graphics converted to the scene device bits'], len(only_converted),
++              counts['recorded graphics recovered by the conversion']))
++
+ w.write(args.out)
+ size = os.path.getsize(args.out)
+ summary = dict(counts, environments=len(w.envs), records=len(w.records), bytes=size)
+diff --git a/tools/nx2-precompile/py/state_model_static.py b/tools/nx2-precompile/py/state_model_static.py
+new file mode 100644
+index 0000000000..dc5ff39c55
+--- /dev/null
++++ b/tools/nx2-precompile/py/state_model_static.py
+@@ -0,0 +1,122 @@
++"""Render-state model for keys WITHOUT dynamic vertex input or extended dynamic state (MoltenVK, local).
++
++There the key's hash covers 432 bytes of FixedPipelineState: the 112-byte prefix, then the vertex
++attributes (128), binding divisors (128) and strides (64). A state is five parts, each drawn from the
++most specific history there is:
++  T  topology and vertex flags, point size           by vertex shader
++  L  vertex layout: enabled divisors, attributes, divisors, strides   by vertex shader
++  F  render target part (formats, blend, alpha test, msaa)            by pixel shader
++  D  dynamic_state (cull, depth and stencil: in the key with no extended dynamic state) by pixel shader
++  S  scene part (y negate, swizzles, ...)                             global
++Metal compiles a pipeline's vertex and fragment functions separately and caches each (measured:
++another blend or colour format recompiles the fragment function only, another stride or vertex
++function the vertex function only, another depth format nothing). So the candidates cover each
++part's likely values once, not their product.
++"""
++import collections
++import struct
++
++import statefields as sf
++
++STATE_LEN = 432
++
++
++def u32(b, o):
++    return struct.unpack_from('<I', b, o)[0]
++
++
++def canonical(state: bytes) -> bytes:
++    """The 432 hashed bytes, canonical as CanonicalizeNative leaves a static key: driver and unused
++    blend attachments cleared (the attribute bytes are kept: they are the enabled divisors)."""
++    return sf.canonical(state[:112], None) + state[112:STATE_LEN]
++
++
++def parts(state: bytes):
++    raw1, raw2 = u32(state, 0), u32(state, 4)
++    t = (raw1 & 0x0F0FFFC0, u32(state, 28))
++    l = (state[64:72], state[112:STATE_LEN])
++    f = (raw1 & 0xF0200000, raw2 & 0x000187FE, state[8:16], u32(state, 24), state[80:112])
++    d = state[72:80]
++    s = (raw1 & 0x0000003F, raw1 & 0x00100000, raw2 & 0xFFFE7801, state[32:64])
++    return t, l, f, d, s
++
++
++def assemble(t, l, f, d, s) -> bytes:
++    b = bytearray(STATE_LEN)
++    struct.pack_into('<II', b, 0, t[0] | f[0] | s[0] | s[1], f[1] | s[2])
++    b[8:16] = f[2]
++    struct.pack_into('<II', b, 24, f[3], t[1])
++    b[32:64] = s[3]
++    b[64:72] = l[0]
++    b[72:80] = d
++    b[80:112] = f[4]
++    b[112:STATE_LEN] = l[1]
++    return bytes(b)
++
++
++class Model:
++    W = {'own': 1.0, 'fine': 0.6, 'coarse': 0.25, 'class': 0.25, 'mask': 0.1, 'global': 0.04}
++
++    def __init__(self):
++        self.T = collections.defaultdict(collections.Counter)
++        self.L = collections.defaultdict(collections.Counter)
++        self.F = collections.defaultdict(collections.Counter)
++        self.D = collections.defaultdict(collections.Counter)
++        self.S = collections.Counter()
++
++    @staticmethod
++    def vkeys(vs, with_mask):
++        m = vs['read_mask'] if with_mask else None
++        return [('own', vs['hash']), ('fine', (vs['fine'], m)), ('coarse', (vs['coarse'], m)),
++                ('mask', m) if with_mask else ('global', ''), ('global', '')]
++
++    @staticmethod
++    def fkeys(fs):
++        return [('own', fs['hash']), ('fine', fs['fine']), ('coarse', fs['coarse']),
++                ('class', fs['pclass']), ('global', '')]
++
++    def add(self, vs, fs, state):
++        t, l, f, d, s = parts(state)
++        for k in self.vkeys(vs, False):
++            self.T[k][t] += 1
++        for k in self.vkeys(vs, True):
++            self.L[k][l] += 1
++        for k in self.fkeys(fs):
++            self.F[k][f] += 1
++            self.D[k][d] += 1
++        self.S[s] += 1
++
++    def _blend(self, table, keys, limit):
++        out = collections.Counter()
++        for lvl, key in keys:
++            c = table.get((lvl, key))
++            if not c:
++                continue
++            tot = sum(c.values())
++            for x, n in c.most_common(limit):
++                out[x] += self.W[lvl] * n / tot
++            if lvl == 'own':
++                break
++        return [x for x, _ in out.most_common(limit)]
++
++    def part_candidates(self, vs, fs, kt=2, kl=3, kf=4, kd=2):
++        return (self._blend(self.T, self.vkeys(vs, False), kt), self._blend(self.L, self.vkeys(vs, True), kl),
++                self._blend(self.F, self.fkeys(fs), kf), self._blend(self.D, self.fkeys(fs), kd),
++                [x for x, _ in self.S.most_common(1)])
++
++    def candidates(self, vs, fs, kt=2, kl=3, kf=4, kd=2):
++        """States covering each part's candidates once: the most likely state, then one part varied."""
++        ct, cl, cf, cd, cs = self.part_candidates(vs, fs, kt, kl, kf, kd)
++        if not (ct and cl and cf and cd and cs):
++            return []
++        out = [assemble(ct[0], cl[0], cf[0], cd[0], cs[0])]
++        out += [assemble(ct[0], cl[0], f, cd[0], cs[0]) for f in cf[1:]]
++        out += [assemble(ct[0], l, cf[0], cd[0], cs[0]) for l in cl[1:]]
++        out += [assemble(ct[0], cl[0], cf[0], d, cs[0]) for d in cd[1:]]
++        out += [assemble(t, cl[0], cf[0], cd[0], cs[0]) for t in ct[1:]]
++        seen, uniq = set(), []
++        for st in out:
++            if st not in seen:
++                seen.add(st)
++                uniq.append(st)
++        return uniq

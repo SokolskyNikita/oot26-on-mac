@@ -1,0 +1,13 @@
+[
+ {"label": "seeded", "repeat": 2, "cfg": {"rng_seed_enabled": true, "rng_seed": 12345},
+  "desc": "Check if a fixed RNG seed makes two runs identical (positions and frames compared afterwards)"},
+ {"label": "unseeded", "repeat": 2,
+  "desc": "Check how much two unseeded runs differ, as the reference for the seeded pair"},
+ {"label": "frametimes-csv", "cfg": {"record_frame_times": true},
+  "desc": "Check Lichii's own frame-time CSV against the harness's frame clock"},
+ {"label": "bundle-trace", "server_calls": [
+    {"method": "capture_bundle", "params": {"description": "harness tooling check", "size_limit_mib": 40}, "timeout": 300},
+    {"method": "trace_record", "params": {"presents": 120}, "timeout": 120},
+    {"method": "trace_status", "params": {}}],
+  "desc": "Check the bug-report bundle and a 120-frame GPU trace recording through the debug server"}
+]

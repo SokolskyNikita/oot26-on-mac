@@ -1,0 +1,47 @@
+[
+ {
+  "label": "specks-keep-encoder-off",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, MoltenVK closes compute and blit encoders at barriers again: gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ],
+  "env": {
+   "MVK_P60_NO_KEEP_ENCODER": 1
+  }
+ },
+ {
+  "label": "specks-write-mark-full",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, compute dispatches mark their whole storage binding GPU-written: gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ],
+  "cfg": {
+   "native_compute_write_mark": 1
+  }
+ },
+ {
+  "label": "specks-async-draws-wait",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, draws wait for their pipeline instead of being dropped: gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ],
+  "cfg": {
+   "native_async_draws": 0
+  }
+ }
+]

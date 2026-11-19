@@ -1,0 +1,31 @@
+[
+ {
+  "label": "specks-capture-buffers",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall: frame capture with every draw's bound buffers (the grass programs' shared counter)",
+  "at_end": [
+   {
+    "burst": 12,
+    "name": "before"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   },
+   {
+    "frames": 120
+   },
+   {
+    "burst": 12,
+    "name": "after"
+   }
+  ]
+ }
+]

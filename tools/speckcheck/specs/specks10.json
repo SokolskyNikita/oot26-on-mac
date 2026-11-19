@@ -1,0 +1,17 @@
+[
+ {
+  "label": "specks-msl-dump",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "env": {
+   "MVK_CONFIG_SHADER_DUMP_DIR": "{rd}/msl"
+  },
+  "desc": "White specks: dump this build's Metal shader source (for an edited copy of the ground-grass mesh shader)",
+  "at_end": [
+   {
+    "burst": 6,
+    "name": "before"
+   }
+  ]
+ }
+]

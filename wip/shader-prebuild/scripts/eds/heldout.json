@@ -1,0 +1,38 @@
+{
+ "L0": {
+  "test_keys": 2315,
+  "already_recorded": 1331,
+  "known_shaders_new_state": 496,
+  "new_shaders": 488
+ },
+ "L1": {
+  "test_keys": 1923,
+  "already_recorded": 1095,
+  "known_shaders_new_state": 365,
+  "new_shaders": 463
+ },
+ "L2": {
+  "test_keys": 1918,
+  "already_recorded": 1094,
+  "known_shaders_new_state": 364,
+  "new_shaders": 460
+ },
+ "L3": {
+  "test_keys": 1901,
+  "already_recorded": 1086,
+  "known_shaders_new_state": 356,
+  "new_shaders": 459
+ },
+ "L0_no_provoking": {
+  "test_keys": 2315,
+  "already_recorded": 1554,
+  "known_shaders_new_state": 273,
+  "new_shaders": 488
+ },
+ "L3_no_provoking": {
+  "test_keys": 1901,
+  "already_recorded": 1251,
+  "known_shaders_new_state": 191,
+  "new_shaders": 459
+ }
+}

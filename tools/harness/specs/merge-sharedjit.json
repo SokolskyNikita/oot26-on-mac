@@ -1,0 +1,133 @@
+[
+ {
+  "label": "merge-gold-1",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: gold standard (practice app), Kokiri walk with turns"
+ },
+ {
+  "label": "merge-off-1",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: candidate with the switch off (private caches through the new code)"
+ },
+ {
+  "label": "merge-512-1",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "desc": "Shared JIT merge check: candidate, shared 512 MiB cache"
+ },
+ {
+  "label": "merge-gold-2",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: gold standard (practice app), Kokiri walk with turns"
+ },
+ {
+  "label": "merge-off-2",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: candidate with the switch off (private caches through the new code)"
+ },
+ {
+  "label": "merge-512-2",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "desc": "Shared JIT merge check: candidate, shared 512 MiB cache"
+ },
+ {
+  "label": "merge-gold-3",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: gold standard (practice app), Kokiri walk with turns"
+ },
+ {
+  "label": "merge-off-3",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "desc": "Shared JIT merge check: candidate with the switch off (private caches through the new code)"
+ },
+ {
+  "label": "merge-512-3",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "desc": "Shared JIT merge check: candidate, shared 512 MiB cache"
+ },
+ {
+  "label": "merge-gerudo-gold",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "desc": "Shared JIT merge check: gold, Gerudo Valley walk with turns"
+ },
+ {
+  "label": "merge-gerudo-512",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "desc": "Shared JIT merge check: candidate shared 512 MiB, Gerudo Valley walk with turns"
+ },
+ {
+  "label": "merge-cold-512",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "cold_metal_cache": true,
+  "desc": "Shared JIT merge check: candidate shared 512 MiB, boot from an empty Metal cache"
+ },
+ {
+  "label": "merge-long-512",
+  "app": "${REPO}/build/old-trees/path-60/app-merge-candidate/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 3600,
+  "desc": "Shared JIT merge check: candidate shared 512 MiB, long walk and stand (3600-frame phases)"
+ }
+]

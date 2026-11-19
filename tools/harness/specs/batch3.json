@@ -1,0 +1,79 @@
+[
+ {
+  "label": "base",
+  "desc": "Check frame time at the Kokiri spawn and on the walk with default settings"
+ },
+ {
+  "label": "trace-stutter",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Check what causes the walk hitch with Lichii's stutter trace (hitches over 200 ms explained)"
+ },
+ {
+  "label": "trace-idle",
+  "env": {
+   "EDEN_NX2_BACK_IDLE_TRACE": 1,
+   "EDEN_NX2_PRESENT_FENCE_TRACE": 1,
+   "EDEN_NX2_ACQUIRE_STATS": 1
+  },
+  "desc": "Check where the GPU idles each frame with the back-idle, present-fence and acquire traces"
+ },
+ {
+  "label": "vsync-immediate",
+  "cfg": {
+   "use_vsync": 0
+  },
+  "desc": "Check if vsync Immediate lifts the 120 fps cap and shortens the load, and its frame time"
+ },
+ {
+  "label": "frames-ahead-0",
+  "env": {
+   "EDEN_NX2_FRAMES_AHEAD": 0
+  },
+  "desc": "Check frame time when the game may not run a frame ahead of the GPU (frames-ahead 0)"
+ },
+ {
+  "label": "gpu-clock-normal",
+  "cfg": {
+   "fast_gpu_time": 0
+  },
+  "desc": "Check frame time and picture with the GPU clock at Normal instead of Boost"
+ },
+ {
+  "label": "gpu-clock-overclock",
+  "cfg": {
+   "fast_gpu_time": 2
+  },
+  "desc": "Check frame time and picture with the GPU clock at Overclock instead of Boost"
+ },
+ {
+  "label": "cpu-clock-boost",
+  "cfg": {
+   "fast_cpu_time": 1
+  },
+  "desc": "Check frame time with the CPU clock at Boost instead of Normal"
+ },
+ {
+  "label": "keep-encoder",
+  "env": {
+   "MVK_P60_KEEP_ENCODER": 1
+  },
+  "desc": "Check if keeping Metal encoders open across barriers saves GPU time (MVK_P60_KEEP_ENCODER)"
+ },
+ {
+  "label": "fastmath-always",
+  "env": {
+   "MVK_CONFIG_FAST_MATH_ENABLED": 1
+  },
+  "desc": "Check frame time when every Metal shader is compiled with fast math"
+ },
+ {
+  "label": "fastmath-never",
+  "env": {
+   "MVK_CONFIG_FAST_MATH_ENABLED": 0
+  },
+  "desc": "Check frame time when no Metal shader is compiled with fast math"
+ }
+]

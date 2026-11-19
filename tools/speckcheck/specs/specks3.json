@@ -1,0 +1,48 @@
+[
+ {
+  "label": "specks-invariant",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "env": {
+   "MVK_DIAG_INVARIANT": 1
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, every Metal position marked invariant and invariance preserved (PR 2901 MoltenVK): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ },
+ {
+  "label": "specks-fastmath-0",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "env": {
+   "MVK_CONFIG_FAST_MATH_ENABLED": 0
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, no Metal shader compiled with fast math (PR 2901 MoltenVK): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ },
+ {
+  "label": "specks-invariant-fastmath-0",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "env": {
+   "MVK_DIAG_INVARIANT": 1,
+   "MVK_CONFIG_FAST_MATH_ENABLED": 0
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, positions invariant and no fast math (PR 2901 MoltenVK): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ }
+]

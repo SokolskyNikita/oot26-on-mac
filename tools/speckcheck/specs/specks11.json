@@ -1,0 +1,80 @@
+[
+ {
+  "label": "specks-counter-native",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "env": {
+   "MVK_CONFIG_SHADER_DUMP_DIR": "{rd}/msl"
+  },
+  "desc": "White specks: the ground-grass shader's shared counter read live, grass native (specks expected)",
+  "at_end": [
+   {
+    "burst": 8,
+    "name": "before"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   },
+   {
+    "frames": 240
+   },
+   {
+    "watch_written": "717b82304a8d8db5",
+    "reads": 40,
+    "every_frames": 5,
+    "words": 16,
+    "name": "watch"
+   },
+   {
+    "burst": 8,
+    "name": "after"
+   }
+  ]
+ },
+ {
+  "label": "specks-counter-emulated",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "phase_frames": 600,
+  "env": {
+   "EDEN_NX2_MESH_TG_LIMIT": 22000
+  },
+  "desc": "White specks: the ground-grass shader's shared counter read live, grass emulated (clean expected)",
+  "at_end": [
+   {
+    "burst": 8,
+    "name": "before"
+   },
+   {
+    "call": "capture_frame",
+    "params": {
+     "sampled": false,
+     "buffers": true,
+     "timeout_s": 300
+    },
+    "timeout": 360,
+    "save": "capture"
+   },
+   {
+    "frames": 240
+   },
+   {
+    "watch_written": "717b82304a8d8db5",
+    "reads": 40,
+    "every_frames": 5,
+    "words": 16,
+    "name": "watch"
+   },
+   {
+    "burst": 8,
+    "name": "after"
+   }
+  ]
+ }
+]

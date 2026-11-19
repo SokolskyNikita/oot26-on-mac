@@ -1,0 +1,76 @@
+[
+ {
+  "label": "jit3-warmup",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up: first boot of the new binary, not part of the comparison"
+ },
+ {
+  "label": "jit3-off-r1",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Control: new build, one 128 MiB JIT cache per core"
+ },
+ {
+  "label": "jit3-512-new-r1",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache, fastmem faults drop one block without halting the cores: load time against control and old"
+ },
+ {
+  "label": "jit3-512-old-r1",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit-old/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache, previous build (every fastmem fault halts all cores), same MoltenVK"
+ },
+ {
+  "label": "jit3-off-r2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Control: new build, one 128 MiB JIT cache per core"
+ },
+ {
+  "label": "jit3-512-new-r2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache, fastmem faults drop one block without halting the cores: load time against control and old"
+ },
+ {
+  "label": "jit3-512-old-r2",
+  "app": "${REPO}/.claude/worktrees/jit-cache-mac-backend-231eec/unfinished/2026-11-17_shared-jit-cache-mac-backend/local/app-sharedjit-old/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 512
+  },
+  "phase_frames": 600,
+  "desc": "Shared 512 MiB JIT cache, previous build (every fastmem fault halts all cores), same MoltenVK"
+ }
+]

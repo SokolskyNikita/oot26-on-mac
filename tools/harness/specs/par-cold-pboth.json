@@ -1,0 +1,8 @@
+[
+ {
+  "label": "cold-pboth",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpboth/lichii.app",
+  "env": {},
+  "desc": "Cold Metal cache: boot with upstream PRs 2901 + 2905"
+ }
+]

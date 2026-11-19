@@ -1,0 +1,58 @@
+{
+ "vp L0": {
+  "combinations": 1121,
+  "keys": 2540,
+  "one_state": 675,
+  "extra_states": 1419,
+  "max": 244
+ },
+ "vp L1": {
+  "combinations": 1121,
+  "keys": 2104,
+  "one_state": 793,
+  "extra_states": 983,
+  "max": 209
+ },
+ "vp L2": {
+  "combinations": 1121,
+  "keys": 2099,
+  "one_state": 796,
+  "extra_states": 978,
+  "max": 208
+ },
+ "vp L3": {
+  "combinations": 1121,
+  "keys": 2082,
+  "one_state": 796,
+  "extra_states": 961,
+  "max": 200
+ },
+ "mesh L0": {
+  "combinations": 124,
+  "keys": 499,
+  "one_state": 56,
+  "extra_states": 375,
+  "max": 65
+ },
+ "mesh L1": {
+  "combinations": 124,
+  "keys": 430,
+  "one_state": 81,
+  "extra_states": 306,
+  "max": 62
+ },
+ "mesh L2": {
+  "combinations": 124,
+  "keys": 430,
+  "one_state": 81,
+  "extra_states": 306,
+  "max": 62
+ },
+ "mesh L3": {
+  "combinations": 124,
+  "keys": 427,
+  "one_state": 81,
+  "extra_states": 303,
+  "max": 59
+ }
+}

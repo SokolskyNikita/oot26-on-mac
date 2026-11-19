@@ -1,0 +1,146 @@
+[
+ {
+  "label": "base",
+  "desc": "Check frame time at the Kokiri spawn and on the walk with default settings"
+ },
+ {
+  "label": "async-skip",
+  "cfg": {
+   "native_async_draws": 2
+  },
+  "desc": "Check frame time when draws without a built pipeline are skipped (Switch 2 draws: Skip)"
+ },
+ {
+  "label": "pipeline-wait-2",
+  "cfg": {
+   "native_pipeline_wait_ms": 2
+  },
+  "desc": "Check frame time with the per-frame pipeline wait budget at 2 ms instead of 8"
+ },
+ {
+  "label": "pipeline-wait-16",
+  "cfg": {
+   "native_pipeline_wait_ms": 16
+  },
+  "desc": "Check frame time with the per-frame pipeline wait budget at 16 ms instead of 8"
+ },
+ {
+  "label": "pacing-60",
+  "cfg": {
+   "frame_pacing_mode": 2
+  },
+  "desc": "Check frame time with Frame Pacing Mode fixed at 60 instead of Auto"
+ },
+ {
+  "label": "fence-immediate",
+  "cfg": {
+   "gpu_fence_behavior": 1
+  },
+  "desc": "Check frame time with GPU Fence Behavior Immediate"
+ },
+ {
+  "label": "fence-balanced",
+  "cfg": {
+   "gpu_fence_behavior": 2
+  },
+  "desc": "Check frame time with GPU Fence Behavior Balanced"
+ },
+ {
+  "label": "fence-accurate",
+  "cfg": {
+   "gpu_fence_behavior": 3
+  },
+  "desc": "Check frame time with GPU Fence Behavior Accurate"
+ },
+ {
+  "label": "dma-unsafe",
+  "cfg": {
+   "dma_accuracy": 1
+  },
+  "desc": "Check frame time with DMA accuracy Unsafe"
+ },
+ {
+  "label": "dma-safe",
+  "cfg": {
+   "dma_accuracy": 2
+  },
+  "desc": "Check frame time with DMA accuracy Safe"
+ },
+ {
+  "label": "sync-memory",
+  "cfg": {
+   "sync_memory_operations": true
+  },
+  "desc": "Check frame time with Sync Memory Operations on"
+ },
+ {
+  "label": "precache-always",
+  "cfg": {
+   "precache_shaders": 2
+  },
+  "desc": "Check boot time and frame time with shaders precached before the game starts"
+ },
+ {
+  "label": "no-reactive-flush",
+  "cfg": {
+   "use_reactive_flushing": false
+  },
+  "desc": "Check frame time with reactive flushing off"
+ },
+ {
+  "label": "no-barrier-feedback",
+  "cfg": {
+   "barrier_feedback_loops": false
+  },
+  "desc": "Check frame time with barrier feedback loops off"
+ },
+ {
+  "label": "astc-cpu",
+  "cfg": {
+   "accelerate_astc": 0
+  },
+  "desc": "Check frame time with ASTC textures decoded on the CPU instead of the GPU"
+ },
+ {
+  "label": "aniso-16x",
+  "cfg": {
+   "max_anisotropy": 5
+  },
+  "desc": "Check frame time with anisotropic filtering forced to 16x"
+ },
+ {
+  "label": "vram-aggressive",
+  "cfg": {
+   "vram_usage_mode": 1
+  },
+  "desc": "Check frame time with VRAM usage mode Aggressive"
+ },
+ {
+  "label": "no-async-present",
+  "cfg": {
+   "async_presentation": false
+  },
+  "desc": "Check frame time with asynchronous presentation off"
+ },
+ {
+  "label": "no-async-shaders",
+  "cfg": {
+   "use_asynchronous_shaders": false
+  },
+  "desc": "Check frame time with asynchronous shader building off"
+ },
+ {
+  "label": "no-vertex-dynstate",
+  "cfg": {
+   "vertex_input_dynamic_state": false
+  },
+  "desc": "Check frame time with vertex input dynamic state off"
+ },
+ {
+  "label": "cpu-unsafe",
+  "cfg": {
+   "cpu_accuracy": 2
+  },
+  "desc": "Check frame time with CPU accuracy Unsafe"
+ }
+]

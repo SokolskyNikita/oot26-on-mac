@@ -1,0 +1,92 @@
+[
+ {
+  "label": "proof-gold-warmup",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up of the installed build, discarded"
+ },
+ {
+  "label": "proof-gold-r1",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Installed build (gold)"
+ },
+ {
+  "label": "proof-gold-r2",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Installed build (gold)"
+ },
+ {
+  "label": "proof-gold-r3",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Installed build (gold)"
+ },
+ {
+  "label": "proof-new-cold",
+  "app": "${REPO}/build/proof/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "First boot of the rebuilt app: new MoltenVK library, cold Metal cache, discarded"
+ },
+ {
+  "label": "proof-new-warmup",
+  "app": "${REPO}/build/proof/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up of the rebuilt app, discarded"
+ },
+ {
+  "label": "proof-new-r1",
+  "app": "${REPO}/build/proof/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Rebuilt from oot26-on-mac: fresh clones, patch series, build.sh"
+ },
+ {
+  "label": "proof-new-r2",
+  "app": "${REPO}/build/proof/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Rebuilt from oot26-on-mac: fresh clones, patch series, build.sh"
+ },
+ {
+  "label": "proof-new-r3",
+  "app": "${REPO}/build/proof/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Rebuilt from oot26-on-mac: fresh clones, patch series, build.sh"
+ }
+]

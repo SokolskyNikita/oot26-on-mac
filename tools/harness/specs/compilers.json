@@ -1,0 +1,52 @@
+[
+ {
+  "label": "cc-practice",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Check frame, boot and load times of the practice build (Apple clang, -O3)"
+ },
+ {
+  "label": "cc-practice-stutter",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Check JIT compile time and hitches of the practice build (Apple clang, -O3) (stutter trace)"
+ },
+ {
+  "label": "cc-lto",
+  "app": "${REPO}/build/old-trees/path-60/app-lto/lichii.app",
+  "desc": "Check frame, boot and load times of ThinLTO + -mcpu=apple-m4 (Apple clang)"
+ },
+ {
+  "label": "cc-lto-stutter",
+  "app": "${REPO}/build/old-trees/path-60/app-lto/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Check JIT compile time and hitches of ThinLTO + -mcpu=apple-m4 (Apple clang) (stutter trace)"
+ },
+ {
+  "label": "cc-llvm",
+  "app": "${REPO}/build/old-trees/path-60/app-llvm/lichii.app",
+  "desc": "Check frame, boot and load times of Homebrew upstream LLVM clang (-O3)"
+ },
+ {
+  "label": "cc-llvm-stutter",
+  "app": "${REPO}/build/old-trees/path-60/app-llvm/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Check JIT compile time and hitches of Homebrew upstream LLVM clang (-O3) (stutter trace)"
+ },
+ {
+  "label": "cc-practice-2",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Check frame times of the practice build again (drift check)"
+ }
+]

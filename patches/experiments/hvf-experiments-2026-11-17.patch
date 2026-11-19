@@ -1,0 +1,316 @@
+diff --git a/src/core/arm/hvf/arm_hvf.cpp b/src/core/arm/hvf/arm_hvf.cpp
+index 250fc68f64..ced603b3a8 100644
+--- a/src/core/arm/hvf/arm_hvf.cpp
++++ b/src/core/arm/hvf/arm_hvf.cpp
+@@ -6,8 +6,16 @@
+ #include <atomic>
+ #include <chrono>
+ #include <cstdlib>
++#include <mutex>
++#include <string>
++#include <unordered_map>
+ #include <utility>
++#include <vector>
++#include <cstdio>
++#include <optional>
++#include <span>
+ #include <cstring>
++#include <thread>
+ 
+ #include <Hypervisor/Hypervisor.h>
+ #include <libkern/OSCacheControl.h>
+@@ -15,6 +23,7 @@
+ #include "common/assert.h"
+ #include "common/cpu_features.h"
+ #include "common/logging.h"
++#include <fmt/format.h>
+ #include "common/page_table.h"
+ #include "common/settings.h"
+ #include "core/arm/hvf/arm_hvf.h"
+@@ -58,6 +67,139 @@ constexpr u64 CntfrqEl0 = SystemRegister(3, 3, 14, 0, 0);
+ constexpr u64 CntpctEl0 = SystemRegister(3, 3, 14, 0, 1);
+ constexpr u64 CntvctEl0 = SystemRegister(3, 3, 14, 0, 2);
+ 
++// Experiments (2026-11-17, ocarina emulator/debugsrv): each off unless its variable is set.
++//   EDEN_NX2_HVF_BURST=N       interpret up to N more consecutive loads/stores after a faulting one
++//   EDEN_NX2_HVF_DIRTY_ONLY=1  write back only the registers the interpreter changed
++//   EDEN_NX2_HVF_RAW_COUNTER=1 let EL0 read the host counters directly (wrong rate: upper bound only)
++//   EDEN_NX2_HVF_SITES=1       with EDEN_NX2_HVF_STATS, log the guest PCs with the most interpreted accesses
++bool HvfFlag(const char* name) {
++    const char* v = std::getenv(name);
++    return v != nullptr && v[0] == '1';
++}
++
++// Live switches. EDEN_NX2_HVF_CTL=<file>: a watcher re-reads "BURST=n DIRTY=0|1 RAW=0|1" from it every
++// 100 ms, so one boot can measure several settings.
++struct HvfLive {
++    std::atomic<u32> burst{0}, loop{0};
++    std::atomic<bool> dirty_only{false}, raw_counter{false};
++    std::jthread watcher;
++    HvfLive() {
++        if (const char* v = std::getenv("EDEN_NX2_HVF_LOOP")) {
++            loop = static_cast<u32>(std::strtoul(v, nullptr, 10));
++        }
++        if (const char* v = std::getenv("EDEN_NX2_HVF_BURST")) {
++            burst = static_cast<u32>(std::strtoul(v, nullptr, 10));
++        }
++        dirty_only = HvfFlag("EDEN_NX2_HVF_DIRTY_ONLY");
++        raw_counter = HvfFlag("EDEN_NX2_HVF_RAW_COUNTER");
++        if (const char* path = std::getenv("EDEN_NX2_HVF_CTL")) {
++            watcher = std::jthread([this, file = std::string(path)](std::stop_token stop) {
++                std::string last;
++                while (!stop.stop_requested()) {
++                    std::string text;
++                    if (std::FILE* f = std::fopen(file.c_str(), "r")) {
++                        char buf[256]{};
++                        text.assign(buf, std::fread(buf, 1, sizeof(buf) - 1, f));
++                        std::fclose(f);
++                    }
++                    if (!text.empty() && text != last) {
++                        last = text;
++                        const auto field = [&](const char* key) -> long {
++                            const size_t at = text.find(key);
++                            return at == std::string::npos ? -1 : std::strtol(text.c_str() + at + std::strlen(key), nullptr, 10);
++                        };
++                        if (const long b = field("BURST="); b >= 0) burst = static_cast<u32>(b);
++                        if (const long l = field("LOOP="); l >= 0) loop = static_cast<u32>(l);
++                        if (const long d = field("DIRTY="); d >= 0) dirty_only = d != 0;
++                        if (const long r = field("RAW="); r >= 0) raw_counter = r != 0;
++                        LOG_INFO(Core_ARM, "Hypervisor live switches: burst {} loop {} dirty_only {} raw_counter {}",
++                                 burst.load(), loop.load(), dirty_only.load(), raw_counter.load());
++                    }
++                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
++                }
++            });
++        }
++    }
++};
++HvfLive& Live() {
++    static HvfLive live;
++    return live;
++}
++u32 HvfBurst() {
++    return Live().burst.load(std::memory_order_relaxed);
++}
++
++// EDEN_NX2_HVF_LOOP=N: besides loads and stores, run these here too, so a memset/memcpy loop into
++// GPU-cached memory costs one exit instead of one per store: NOP, ADD/SUB(S) immediate (CMP/CMN),
++// B, B.cond, CBZ/CBNZ, TBZ/TBNZ. Returns the next pc, or nothing for any other instruction.
++bool ConditionHolds(u32 cond, u32 nzcv) {
++    const bool n = nzcv & 8, z = nzcv & 4, c = nzcv & 2, v = nzcv & 1;
++    bool r;
++    switch (cond >> 1) {
++    case 0: r = z; break;
++    case 1: r = c; break;
++    case 2: r = n; break;
++    case 3: r = v; break;
++    case 4: r = c && !z; break;
++    case 5: r = n == v; break;
++    case 6: r = !z && n == v; break;
++    default: r = true; break;
++    }
++    return (cond & 1) && cond != 15 ? !r : r;
++}
++std::optional<u64> RunSimple(u32 ins, std::span<u64, 31> regs, u64& sp, u32& nzcv, u64 pc) {
++    const auto x = [&](u32 r) -> u64 { return r == 31 ? 0 : regs[r]; };
++    const auto sext = [](u64 v, int bits) { return static_cast<s64>(v << (64 - bits)) >> (64 - bits); };
++    if (ins == 0xD503201F) { // NOP
++        return pc + 4;
++    }
++    if ((ins & 0x1F000000) == 0x11000000) { // ADD/SUB (immediate), with or without flags
++        const bool sf = ins >> 31, sub = (ins >> 30) & 1, setf = (ins >> 29) & 1;
++        const u64 imm = static_cast<u64>((ins >> 10) & 0xFFF) << (((ins >> 22) & 1) ? 12 : 0);
++        const u32 rn = (ins >> 5) & 31, rd = ins & 31;
++        if ((ins >> 23) & 1) {
++            return std::nullopt; // tag variants and unallocated
++        }
++        const u64 a = rn == 31 ? sp : regs[rn];
++        const u64 mask = sf ? ~u64{0} : 0xFFFFFFFFULL;
++        const u64 b = sub ? (~imm & mask) : imm;
++        const u64 carry_in = sub ? 1 : 0;
++        const u64 am = a & mask;
++        const unsigned __int128 wide = static_cast<unsigned __int128>(am) + b + carry_in;
++        const u64 result = static_cast<u64>(wide) & mask;
++        if (setf) {
++            const int bits = sf ? 64 : 32;
++            const bool n = (result >> (bits - 1)) & 1, z = result == 0;
++            const bool c = sf ? (wide >> 64) != 0 : ((wide >> 32) & 1) != 0;
++            const bool sa = (am >> (bits - 1)) & 1, sb = (b >> (bits - 1)) & 1;
++            const bool v = sa == sb && sa != n;
++            nzcv = (n << 3) | (z << 2) | (c << 1) | static_cast<u32>(v);
++            if (rd != 31) regs[rd] = result;
++        } else {
++            if (rd == 31) sp = result; else regs[rd] = result;
++        }
++        return pc + 4;
++    }
++    if ((ins & 0xFC000000) == 0x14000000) { // B
++        return pc + (sext(ins & 0x3FFFFFF, 26) << 2);
++    }
++    if ((ins & 0xFF000010) == 0x54000000) { // B.cond
++        return ConditionHolds(ins & 15, nzcv) ? pc + (sext((ins >> 5) & 0x7FFFF, 19) << 2) : pc + 4;
++    }
++    if ((ins & 0x7E000000) == 0x34000000) { // CBZ/CBNZ
++        const bool sf = ins >> 31, nz = (ins >> 24) & 1;
++        const u64 v = x(ins & 31) & (sf ? ~u64{0} : 0xFFFFFFFFULL);
++        return (v == 0) != nz ? pc + (sext((ins >> 5) & 0x7FFFF, 19) << 2) : pc + 4;
++    }
++    if ((ins & 0x7E000000) == 0x36000000) { // TBZ/TBNZ
++        const u32 bit = ((ins >> 31) << 5) | ((ins >> 19) & 31);
++        const bool nz = (ins >> 24) & 1;
++        const bool set = (x(ins & 31) >> bit) & 1;
++        return set == nz ? pc + (sext((ins >> 5) & 0x3FFF, 14) << 2) : pc + 4;
++    }
++    return std::nullopt;
++}
++
+ void Check(hv_return_t ret) {
+     ASSERT_MSG(ret == HV_SUCCESS, "Hypervisor.framework call failed: {:#x}", static_cast<u32>(ret));
+ }
+@@ -180,7 +322,39 @@ bool InterpretAccess(const Hvf::Vcpu& vcpu, Memory::Memory& memory) {
+     }
+     u64 sp = GetSys(vcpu, HV_SYS_REG_SP_EL0);
+     const u64 pc = GetSys(vcpu, HV_SYS_REG_ELR_EL1);
+-    const std::optional<u64> next = MatchAndExecuteOneInstruction(memory, regs, vregs, sp, pc);
++    const bool dirty_only = Live().dirty_only.load(std::memory_order_relaxed);
++    const std::array<u64, 31> regs_in = regs;
++    const std::array<u128, 32> vregs_in = vregs;
++    const u64 sp_in = sp;
++    std::optional<u64> next = MatchAndExecuteOneInstruction(memory, regs, vregs, sp, pc);
++    // Burst: the following instructions, while they are loads or stores the interpreter handles,
++    // run here too (through the emulator's memory, as Dynarmic's slow path would), sparing an exit each.
++    for (u32 i = 0; next && i < HvfBurst(); ++i) {
++        const u64 at = *next;
++        const std::optional<u64> after = MatchAndExecuteOneInstruction(memory, regs, vregs, sp, at);
++        if (!after) {
++            break;
++        }
++        next = after;
++    }
++    // Loop: loads/stores plus simple arithmetic and branches, so a whole fill or copy loop runs here.
++    const u32 loop_cap = Live().loop.load(std::memory_order_relaxed);
++    const u64 spsr_in = loop_cap ? GetSys(vcpu, HV_SYS_REG_SPSR_EL1) : 0;
++    u32 nzcv = static_cast<u32>(spsr_in >> 28) & 15;
++    for (u32 i = 0; next && i < loop_cap; ++i) {
++        const u64 at = *next;
++        std::optional<u64> after = MatchAndExecuteOneInstruction(memory, regs, vregs, sp, at);
++        if (!after) {
++            after = RunSimple(memory.Read32(at), regs, sp, nzcv, at);
++        }
++        if (!after) {
++            break;
++        }
++        next = after;
++    }
++    if (loop_cap && nzcv != ((spsr_in >> 28) & 15)) {
++        SetSys(vcpu, HV_SYS_REG_SPSR_EL1, (spsr_in & ~(u64{15} << 28)) | (u64{nzcv} << 28));
++    }
+     if (!next) {
+         // What the interpreter lacks: each of these falls back to invalidating the GPU's caches.
+         static std::atomic<u32> logged{};
+@@ -191,15 +365,22 @@ bool InterpretAccess(const Hvf::Vcpu& vcpu, Memory::Memory& memory) {
+         return false;
+     }
+     for (size_t i = 0; i < regs.size(); ++i) {
+-        SetReg(vcpu, static_cast<hv_reg_t>(HV_REG_X0 + i), regs[i]);
++        if (!dirty_only || regs[i] != regs_in[i]) {
++            SetReg(vcpu, static_cast<hv_reg_t>(HV_REG_X0 + i), regs[i]);
++        }
+     }
+     for (size_t i = 0; i < vregs.size(); ++i) {
++        if (dirty_only && vregs[i] == vregs_in[i]) {
++            continue;
++        }
+         hv_simd_fp_uchar16_t value;
+         std::memcpy(&value, &vregs[i], sizeof(value));
+         Check(hv_vcpu_set_simd_fp_reg(vcpu.id, static_cast<hv_simd_fp_reg_t>(HV_SIMD_FP_REG_Q0 + i),
+                                       value));
+     }
+-    SetSys(vcpu, HV_SYS_REG_SP_EL0, sp);
++    if (!dirty_only || sp != sp_in) {
++        SetSys(vcpu, HV_SYS_REG_SP_EL0, sp);
++    }
+     SetSys(vcpu, HV_SYS_REG_ELR_EL1, *next);
+     return true;
+ }
+@@ -208,6 +389,37 @@ bool InterpretAccess(const Hvf::Vcpu& vcpu, Memory::Memory& memory) {
+ struct ExitStats {
+     std::atomic<u64> svc, system_register, stale_tlb, read_fault, write_fault, interpreted,
+         invalidated;
++    std::mutex sites_mutex;
++    std::unordered_map<u64, u64> sites; // guest pc -> interpreted GPU-cached stores
++
++    static bool SitesEnabled() {
++        static const bool enabled = Enabled() && HvfFlag("EDEN_NX2_HVF_SITES");
++        return enabled;
++    }
++    void RecordSite(u64 pc) {
++        if (!SitesEnabled()) {
++            return;
++        }
++        std::scoped_lock lock{sites_mutex};
++        ++sites[pc];
++    }
++    void ReportSites() {
++        if (!SitesEnabled()) {
++            return;
++        }
++        std::vector<std::pair<u64, u64>> top;
++        {
++            std::scoped_lock lock{sites_mutex};
++            top.assign(sites.begin(), sites.end());
++            sites.clear();
++        }
++        std::sort(top.begin(), top.end(), [](auto& a, auto& b) { return a.second > b.second; });
++        std::string line;
++        for (size_t i = 0; i < std::min<size_t>(12, top.size()); ++i) {
++            line += fmt::format(" {:#x}:{}/s", top[i].first, top[i].second / 10);
++        }
++        LOG_INFO(Core_ARM, "Hypervisor interpreted-store sites ({} distinct):{}", top.size(), line);
++    }
+     std::atomic<s64> next_report{};
+ 
+     static bool Enabled() {
+@@ -230,6 +442,7 @@ struct ExitStats {
+         if (due == 0) {
+             return; // the first period starts here
+         }
++        ReportSites();
+         const auto rate = [](std::atomic<u64>& value) { return value.exchange(0) / 10; };
+         LOG_INFO(Core_ARM,
+                  "Hypervisor exits per second: {} SVC, {} system register, {} stale TLB, {} read "
+@@ -289,7 +502,7 @@ Hvf::Vcpu& CurrentVcpu(Hvf::VirtualMachine& vm) {
+     // No FP/SIMD traps.
+     SetSys(vcpu, HV_SYS_REG_CPACR_EL1, 3ULL << 20);
+     // EL0 reads of the counters trap: the guest's run at another frequency.
+-    SetSys(vcpu, HV_SYS_REG_CNTKCTL_EL1, 0);
++    SetSys(vcpu, HV_SYS_REG_CNTKCTL_EL1, 0); // the run loop applies the raw-counter switch
+     SetSys(vcpu, HV_SYS_REG_SCTLR_EL1, sctlr);
+     Check(hv_vcpu_set_trap_debug_exceptions(vcpu.id, false));
+     Check(hv_vcpu_set_vtimer_mask(vcpu.id, true));
+@@ -439,6 +652,15 @@ HaltReason ArmHvf::RunThread(Kernel::KThread* thread) {
+             pending_flush_generation = generation;
+             pending_flush = true;
+         }
++        {
++            // EL0PCTEN | EL0VCTEN while the raw-counter experiment is on; applied when it changes.
++            thread_local int applied = -1;
++            const int want = Live().raw_counter.load(std::memory_order_relaxed) ? 1 : 0;
++            if (want != applied) {
++                SetSys(vcpu, HV_SYS_REG_CNTKCTL_EL1, want ? 0x3 : 0);
++                applied = want;
++            }
++        }
+         Check(hv_vcpu_run(vcpu.id));
+         vcpu.in_guest.store(false);
+ 
+@@ -641,6 +863,9 @@ HaltReason ArmHvf::HandleDataAbort(Hvf::Vcpu& vcpu, u64 syndrome) {
+     // path does: the caches learn of the write, and those that can let the page go, so the stores
+     // after it run in the guest. Invalidating the page here instead makes the GPU thread write
+     // its data out first, and waits for the host GPU.
++    if (write && gpu_cached) {
++        g_stats.RecordSite(pc);
++    }
+     if (write && gpu_cached && InterpretAccess(vcpu, m_memory)) {
+         g_stats.Count(g_stats.interpreted);
+         m_fault_repeats = 0;

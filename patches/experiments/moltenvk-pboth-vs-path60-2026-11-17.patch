@@ -1,0 +1,318 @@
+diff -ru -x build* -x .git -x External -x *.log -x include moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-16 15:35:37
++++ moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-17 19:29:00
+@@ -2608,10 +2608,41 @@
+ 													 uint64_t startTime) {
+ 	if (_isExternallySynchronized) {
+ 		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
+-	} else {
++	}
++
++	// Converting SPIR-V to MSL, and compiling that MSL, can take a long time, and this cache is often
++	// shared by all of the threads that the app is using to create pipelines. To allow those threads
++	// to compile different shaders concurrently, the cache lock is held only while the content of
++	// the cache is being accessed, and is not held while a shader is being converted and compiled.
++	MVKShaderLibraryCache* slCache = nullptr;
++	auto findCachedShaderLibrary = [&]() {
+ 		lock_guard<mutex> lock(_shaderCacheLock);
+-		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
++		slCache = getShaderLibraryCache(shaderModule->getKey());
++		MVKShaderLibrary* shLib = slCache->findShaderLibrary(pContext, pShaderFeedback, startTime);
++		if (shLib && pShaderFeedback) { mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
++		return shLib;
++	};
++
++	MVKShaderLibrary* shLib = findCachedShaderLibrary();
++	if (shLib || pipeline->shouldFailOnPipelineCompileRequired()) { return shLib; }
++
++	// Compilations of the same shader module remain serialized. The SPIR-V converter in the shader
++	// module does not support concurrent conversions, and a thread that needs the same shader library
++	// as one that is already being compiled will wait for it here, and then retrieve it from the cache.
++	lock_guard<mutex> compileLock(slCache->_compileLock);
++	shLib = findCachedShaderLibrary();
++	if (shLib) { return shLib; }
++
++	SPIRVToMSLConversionResult conversionResult;
++	if ( !shaderModule->convert(pContext, conversionResult) ) { return nullptr; }
++	shLib = new MVKShaderLibrary(slCache->_owner, conversionResult);
++	{
++		lock_guard<mutex> lock(_shaderCacheLock);
++		slCache->addShaderLibrary(pContext, shLib);
++		markDirty();
+ 	}
++	if (pShaderFeedback) { pShaderFeedback->duration += mvkGetElapsedNanoseconds(startTime); }
++	return shLib;
+ }
+ 
+ MVKShaderLibrary* MVKPipelineCache::getShaderLibraryImpl(SPIRVToMSLConversionConfiguration* pContext,
+@@ -2623,7 +2654,7 @@
+ 	MVKShaderLibraryCache* slCache = getShaderLibraryCache(shaderModule->getKey());
+ 	MVKShaderLibrary* shLib = slCache->getShaderLibrary(pContext, shaderModule, pipeline, &wasAdded, pShaderFeedback, startTime);
+ 	if (wasAdded) { markDirty(); }
+-	else if (pShaderFeedback) { mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
++	else if (shLib && pShaderFeedback) { mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
+ 	return shLib;
+ }
+ 
+diff -ru -x build* -x .git -x External -x *.log -x include moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-16 11:51:43
++++ moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-17 19:29:09
+@@ -24,6 +24,7 @@
+ #include "MVKSmallVector.h"
+ #include <MoltenVKShaderConverter/SPIRVToMSLConverter.h>
+ #include <mutex>
++#include <atomic>
+ 
+ #import <Metal/Metal.h>
+ 
+@@ -119,8 +120,9 @@
+ 					 const mvk::SPIRVToMSLConversionResult& conversionResult);
+ 
+ 	/**
+-	 * When specializationMacroDef is not null, creates a macro-specialized library
+-	 * specializationMacroDef contains (specialization id, value) mappings, should be sorted
++	 * Creates a library from MSL read from a pipeline cache. When specializationMacroDef is null, the MSL is
++	 * compiled on the first call to getMTLFunction(). When it is not null, a macro-specialized library is
++	 * compiled immediately; specializationMacroDef contains sorted (specialization id, value) mappings.
+ 	 */
+ 	MVKShaderLibrary(MVKVulkanAPIDeviceObject* owner,
+ 					 const mvk::SPIRVToMSLConversionResultInfo& resultInfo,
+@@ -151,6 +153,7 @@
+ 						const std::vector<std::pair<uint32_t, MVKShaderMacroValue> >* specializationMacroDef = nullptr);
+ 	void compressMSL(const std::string& msl);
+ 	void decompressMSL(std::string& msl);
++	void ensureCompiled(VkPipelineCreationFeedback* pShaderFeedback);
+ 	MVKCompressor<std::string>& getCompressedMSL() { return _compressedMSL; }
+ 
+ 	MVKVulkanAPIDeviceObject* _owner;
+@@ -158,6 +161,12 @@
+ 	MVKCompressor<std::string> _compressedMSL;
+ 	mvk::SPIRVToMSLConversionResultInfo _shaderConversionResultInfo;
+ 
++	/** When true, the library was read from a pipeline cache and its MSL has not been compiled yet */
++	std::atomic<bool> _compilePending{false};
++	/** When true, the deferred compile of the cached MSL failed and the library must be converted again */
++	std::atomic<bool> _compileFailed{false};
++	mutable std::mutex _compileLock;
++
+ 	/** When true, representing a library created with source, but never specialized */
+ 	bool _maySpecializeWithMacro;
+ 	/** Can only be populated when _maySpecializeWithMacro is true */
+@@ -205,12 +214,16 @@
+ 	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 									   const mvk::SPIRVToMSLConversionResult& conversionResult);
+ 	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
++									   MVKShaderLibrary* shLib);
++	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 									   const mvk::SPIRVToMSLConversionResultInfo& resultInfo,
+ 									   const MVKCompressor<std::string> compressedMSL);
+ 	void merge(MVKShaderLibraryCache* other);
+ 
+ 	MVKVulkanAPIDeviceObject* _owner;
+ 	MVKSmallVector<std::pair<mvk::SPIRVToMSLConversionConfiguration, MVKShaderLibrary*>> _shaderLibraries;
++	std::mutex _compileLock;
++	std::vector<MVKShaderLibrary*> _retiredLibraries;
+ };
+ 
+ 
+diff -ru -x build* -x .git -x External -x *.log -x include moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm	2026-11-16 14:07:17
++++ moltenvk-pboth/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm	2026-11-17 19:32:46
+@@ -121,11 +121,9 @@
+ 												VkPipelineCreationFeedback* pShaderFeedback,
+ 												MVKShaderModule* shaderModule) {
+ 
+-	if ( !_mtlLibrary ) { return MVKMTLFunctionNull; }
+-	{ std::lock_guard<std::mutex> lk(mvkDiagLock); mvkDiagLastLibOverridden = mvkDiagLibs.count((void*)_mtlLibrary) != 0; }
++	id<MTLLibrary> lib = nil;
++	bool usesMacroVariant = false;
+ 
+-	id<MTLLibrary> lib = _mtlLibrary;
+-
+ 	// If specialization happens on constants mapped to macro, find or compile a library variant
+ 	// with proper macro definition instead of the "generic" library
+ 	if (pSpecializationInfo && _maySpecializeWithMacro) {
+@@ -145,6 +143,7 @@
+ 		}
+ 
+ 		if (!spec_list.empty()) {
++			usesMacroVariant = true;
+ 			// Sort the specialization list before it is used as a key to index the variants
+ 			std::sort(spec_list.begin(), spec_list.end());
+ 			auto entry = _specializationVariants.find(spec_list);
+@@ -158,7 +157,15 @@
+ 		}
+ 	}
+ 
++	if ( !usesMacroVariant ) {
++		ensureCompiled(pShaderFeedback);
++		lib = _mtlLibrary;
++	}
++	if ( !lib ) { return MVKMTLFunctionNull; }
++	// (path-60 diag, moved below the deferred compile: the library exists only now)
++	{ std::lock_guard<std::mutex> lk(mvkDiagLock); mvkDiagLastLibOverridden = mvkDiagLibs.count((void*)lib) != 0; }
+ 
++
+ 	@synchronized (getMTLDevice()) {
+ 		@autoreleasepool {
+ 			NSString* mtlFuncName = @(_shaderConversionResultInfo.entryPoint.mtlFunctionName.c_str());
+@@ -267,13 +274,32 @@
+ 	_owner(owner),
+ 	_maySpecializeWithMacro(specializationMacroDef == nullptr) {
+ 
++	_mtlLibrary = nil;
+ 	_shaderConversionResultInfo = resultInfo;
+ 	_compressedMSL = compressedMSL;
++	if ( !specializationMacroDef ) {
++		_compilePending.store(true, std::memory_order_release);
++		return;
++	}
+ 	string msl;
+ 	decompressMSL(msl);
+ 	compileLibrary(msl, specializationMacroDef);
+ }
+ 
++// Compiles the MSL of a library read from a pipeline cache the first time one of its functions is needed.
++void MVKShaderLibrary::ensureCompiled(VkPipelineCreationFeedback* pShaderFeedback) {
++	if ( !_compilePending.load(std::memory_order_acquire) ) { return; }
++	lock_guard<mutex> lock(_compileLock);
++	if ( !_compilePending.load(std::memory_order_relaxed) ) { return; }
++	uint64_t startTime = mvkGetTimestamp();
++	string msl;
++	decompressMSL(msl);
++	compileLibrary(msl);
++	if (pShaderFeedback) { pShaderFeedback->duration += mvkGetElapsedNanoseconds(startTime); }
++	if ( !_mtlLibrary ) { _compileFailed.store(true, std::memory_order_release); }
++	_compilePending.store(false, std::memory_order_release);
++}
++
+ void MVKShaderLibrary::compileLibrary(const string& msl,
+ 									  const vector<pair<uint32_t, MVKShaderMacroValue> >* specializationMacroDef) {
+ 	MVKShaderLibraryCompiler* slc = new MVKShaderLibraryCompiler(_owner);
+@@ -362,12 +388,19 @@
+ 	_maySpecializeWithMacro(other._maySpecializeWithMacro),
+ 	_specializationVariants(other._specializationVariants) {
+ 
++	lock_guard<mutex> lock(other._compileLock);
++	_compilePending.store(other._compilePending.load(std::memory_order_acquire), std::memory_order_relaxed);
++	_compileFailed.store(other._compileFailed.load(std::memory_order_acquire), std::memory_order_relaxed);
+ 	_mtlLibrary = [other._mtlLibrary retain];
+ 	_shaderConversionResultInfo = other._shaderConversionResultInfo;
+ 	_compressedMSL = other._compressedMSL;
+ }
+ 
+ MVKShaderLibrary& MVKShaderLibrary::operator=(const MVKShaderLibrary& other) {
++	if (this == &other) { return *this; }
++	scoped_lock lock(_compileLock, other._compileLock);
++	_compilePending.store(other._compilePending.load(std::memory_order_acquire), std::memory_order_relaxed);
++	_compileFailed.store(other._compileFailed.load(std::memory_order_acquire), std::memory_order_relaxed);
+ 	if (_mtlLibrary != other._mtlLibrary) {
+ 		[_mtlLibrary release];
+ 		_mtlLibrary = [other._mtlLibrary retain];
+@@ -411,11 +444,23 @@
+ 														  bool* pWasAdded, VkPipelineCreationFeedback* pShaderFeedback,
+ 														  uint64_t startTime) {
+ 	bool wasAdded = false;
++	bool failOnCompile = pipeline->shouldFailOnPipelineCompileRequired();
++	MVKShaderLibrary* retired = nullptr;
+ 	MVKShaderLibrary* shLib = findShaderLibrary(pShaderConfig, pShaderFeedback, startTime);
+-	if ( !shLib && !pipeline->shouldFailOnPipelineCompileRequired() ) {
++	if (shLib && failOnCompile && shLib->_compilePending.load(std::memory_order_acquire)) { shLib = nullptr; }
++	if (shLib && shLib->_compileFailed.load(std::memory_order_acquire)) { retired = shLib; shLib = nullptr; }
++	if ( !shLib && !failOnCompile ) {
+ 		SPIRVToMSLConversionResult conversionResult;
+ 		if (shaderModule->convert(pShaderConfig, conversionResult)) {
+-			shLib = addShaderLibrary(pShaderConfig, conversionResult);
++			if (retired) {
++				shLib = new MVKShaderLibrary(_owner, conversionResult);
++				for (auto& slPair : _shaderLibraries) {
++					if (slPair.second == retired) { slPair.second = shLib; break; }
++				}
++				_retiredLibraries.push_back(retired);
++			} else {
++				shLib = addShaderLibrary(pShaderConfig, conversionResult);
++			}
+ 			if (pShaderFeedback) {
+ 				pShaderFeedback->duration += mvkGetElapsedNanoseconds(startTime);
+ 			}
+@@ -449,7 +494,12 @@
+ // Adds and returns a new shader library configured from the specified conversion configuration.
+ MVKShaderLibrary* MVKShaderLibraryCache::addShaderLibrary(const SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 														  const SPIRVToMSLConversionResult& conversionResult) {
+-	MVKShaderLibrary* shLib = new MVKShaderLibrary(_owner, conversionResult);
++	return addShaderLibrary(pShaderConfig, new MVKShaderLibrary(_owner, conversionResult));
++}
++
++// Adds and returns a shader library that has already been created from the specified conversion configuration.
++MVKShaderLibrary* MVKShaderLibraryCache::addShaderLibrary(const SPIRVToMSLConversionConfiguration* pShaderConfig,
++														  MVKShaderLibrary* shLib) {
+ 	_shaderLibraries.emplace_back(*pShaderConfig, shLib);
+ 	return shLib;
+ }
+@@ -476,6 +526,7 @@
+ 
+ MVKShaderLibraryCache::~MVKShaderLibraryCache() {
+ 	for (auto& slPair : _shaderLibraries) { slPair.second->destroy(); }
++	for (auto* lib : _retiredLibraries) { lib->destroy(); }
+ }
+ 
+ 
+@@ -487,8 +538,9 @@
+ 											   MVKPipeline* pipeline,
+ 											   VkPipelineCreationFeedback* pShaderFeedback) {
+ 	MVKShaderLibrary* mvkLib = _directMSLLibrary;
++	MVKPipelineCache* pipelineCache = nullptr;	// PR 2901: also used to retry a deferred compile that failed
+ 	if ( !mvkLib ) {
+-		MVKPipelineCache* pipelineCache = pipeline->getPipelineCache();
++		pipelineCache = pipeline->getPipelineCache();
+ 		auto getLib = [&]() {
+ 			uint64_t startTime = pShaderFeedback ? mvkGetTimestamp() : getPerformanceTimestamp();
+ 			if (pipelineCache) { return pipelineCache->getShaderLibrary(pShaderConfig, this, pipeline, pShaderFeedback, startTime); }
+@@ -511,7 +563,15 @@
+ 		pShaderConfig->markAllInterfaceVarsAndResourcesUsed();
+ 	}
+ 
+-	return mvkLib ? mvkLib->getMTLFunction(pSpecializationInfo, pShaderFeedback, this) : MVKMTLFunctionNull;
++	if ( !mvkLib ) { return MVKMTLFunctionNull; }
++	MVKMTLFunction mtlFunc = mvkLib->getMTLFunction(pSpecializationInfo, pShaderFeedback, this);
++	if ( !mtlFunc.getMTLFunction() && pipelineCache && mvkLib->_compileFailed.load(std::memory_order_acquire) ) {
++		uint64_t startTime = pShaderFeedback ? mvkGetTimestamp() : getPerformanceTimestamp();
++		if (pShaderFeedback) { mvkDisableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
++		mvkLib = pipelineCache->getShaderLibrary(pShaderConfig, this, pipeline, pShaderFeedback, startTime);
++		if (mvkLib) { mtlFunc = mvkLib->getMTLFunction(pSpecializationInfo, pShaderFeedback, this); }
++	}
++	return mtlFunc;
+ }
+ 
+ bool MVKShaderModule::convert(SPIRVToMSLConversionConfiguration* pShaderConfig,
+diff -ru -x build* -x .git -x External -x *.log -x include moltenvk/MoltenVK/MoltenVK/Utility/MVKBaseObject.h moltenvk-pboth/MoltenVK/MoltenVK/Utility/MVKBaseObject.h
+--- moltenvk/MoltenVK/MoltenVK/Utility/MVKBaseObject.h	2026-11-16 11:51:43
++++ moltenvk-pboth/MoltenVK/MoltenVK/Utility/MVKBaseObject.h	2026-11-17 19:29:00
+@@ -196,11 +196,15 @@
+ public:
+ 
+ 	/** Returns a indication of the success of the configuration of this instance. */
+-	VkResult getConfigurationResult() { return _configurationResult; }
++	VkResult getConfigurationResult() { return _configurationResult.load(); }
+ 
+-	/** If the existing configuration result is VK_SUCCESS, it is set to the specified value. */
++	/**
++	 * If the existing configuration result is VK_SUCCESS, it is set to the specified value.
++	 * This can be called from several threads, such as by shader compiles deferred until first use.
++	 */
+ 	void setConfigurationResult(VkResult vkResult) {
+-		if (_configurationResult == VK_SUCCESS) { _configurationResult = vkResult; }
++		VkResult expected = VK_SUCCESS;
++		_configurationResult.compare_exchange_strong(expected, vkResult);
+ 	}
+ 
+ 	/** Returns whether the configuration was successful. */
+@@ -210,7 +214,7 @@
+ 	void clearConfigurationResult() { _configurationResult = VK_SUCCESS; }
+ 
+ protected:
+-	VkResult _configurationResult = VK_SUCCESS;
++	std::atomic<VkResult> _configurationResult{VK_SUCCESS};
+ };
+ 
+ 

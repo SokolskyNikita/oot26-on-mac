@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Thu, 19 Nov 2026 04:30:00 -0800
+Subject: [PATCH] cmake: MVK_PIPELINE_CACHE_REV sets the pipeline cache
+ revision explicitly
+
+pipelineCacheUUID starts with MoltenVK's git commit, so any rebuild from a new commit makes applications discard
+their stored pipeline cache and translate every shader again (334 s for Ocarina of Time 2026 in Lichii, against
+about 100 s for a cold Metal cache with the pipeline file kept). With this option the build sets those four bytes,
+and a change that cannot alter generated MSL keeps the cache.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/CMakeLists.txt | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/MoltenVK/CMakeLists.txt b/MoltenVK/CMakeLists.txt
+index 1296ce61..880c1149 100644
+--- a/MoltenVK/CMakeLists.txt
++++ b/MoltenVK/CMakeLists.txt
+@@ -32,6 +32,18 @@ if(GIT_FOUND)
+ 		ERROR_QUIET
+ 		OUTPUT_STRIP_TRAILING_WHITESPACE
+ 	)
++	# The revision is used for one thing: the first four bytes of pipelineCacheUUID, which decide whether an
++	# application's stored pipeline cache (MoltenVK's generated MSL) is still accepted. MVK_PIPELINE_CACHE_REV
++	# sets those bytes explicitly (8 hex digits), so a build whose changes cannot alter generated MSL keeps the
++	# caches of the build before it. Whoever sets it must change it when shader translation changes.
++	set(MVK_PIPELINE_CACHE_REV "" CACHE STRING "8 hex digits stamped into pipelineCacheUUID instead of the git commit")
++	if(MVK_PIPELINE_CACHE_REV)
++		string(LENGTH "${MVK_PIPELINE_CACHE_REV}" MVK_PIPELINE_CACHE_REV_LENGTH)
++		if(NOT MVK_PIPELINE_CACHE_REV MATCHES "^[0-9a-fA-F]+$" OR NOT MVK_PIPELINE_CACHE_REV_LENGTH EQUAL 8)
++			message(FATAL_ERROR "MVK_PIPELINE_CACHE_REV must be 8 hex digits")
++		endif()
++		set(MVK_GIT_REV "${MVK_PIPELINE_CACHE_REV}")
++	endif()
+ 	configure_file(
+ 		"${CMAKE_CURRENT_SOURCE_DIR}/../Templates/cmake/mvkGitRevDerived.h.in"
+ 		"${CMAKE_CURRENT_BINARY_DIR}/mvkGitRevDerived.h"
+-- 
+2.54.0 (Apple Git-157)
+

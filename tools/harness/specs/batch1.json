@@ -1,0 +1,8 @@
+[
+ {"label": "base", "repeat": 2},
+ {"label": "server-off", "server": false},
+ {"label": "poll30", "poll_hz": 30},
+ {"label": "cpu-accurate", "cfg": {"cpu_accuracy": 1}},
+ {"label": "docked", "cfg": {"use_docked_mode": 1}},
+ {"label": "hvf", "cfg": {"cpu_backend": 2}}
+]

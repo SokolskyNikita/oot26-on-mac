@@ -1,0 +1,24 @@
+# Emulator settings the pinned build is run and measured with: KEY=VALUE as in ~/.config/lichii/qt-config.ini.
+# apply-settings.py checks or applies them. Why each one: README.md here; how each was measured:
+# ../research/emulator-options/README.md.
+
+# Changed from Lichii's defaults
+gpu_accuracy=0
+post_shader_enabled=false
+scaling_filter=1
+anti_aliasing=0
+oot_anti_aliasing=1
+use_asynchronous_shaders=true
+native_async_draws=1
+async_presentation=true
+nvdec_emulation=2
+build_all_cached_shaders=true
+
+# Lichii's defaults, pinned here because other values measured slower or broke the picture
+resolution_setup=3
+use_docked_mode=0
+cpu_backend=0
+cpu_accuracy=0
+use_multi_core=true
+memory_layout_mode=0
+use_gdbstub=false

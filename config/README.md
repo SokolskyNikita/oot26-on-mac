@@ -8,7 +8,8 @@ number in this repository was measured with.
 | File | What `build.sh app` does with it |
 | --- | --- |
 | `nx2_switches.append.txt` | Appended to Lichii's own `dist/nx2_switches.txt` to make the app's `Contents/MacOS/nx2_switches.txt`. One line: `EDEN_NX2_SHARED_JIT_CACHE=512`. |
-| `launch-env.txt` | `NAME=VALUE` lines written into the app's `Info.plist` (`LSEnvironment`), which apply to launches through Finder, the Dock or `open`. Nothing is set. |
+| `settings.txt`, `apply-settings.py` | Not used by the build. The emulator settings below as `KEY=VALUE`, and a script that checks them against `~/.config/lichii/qt-config.ini` (`--check`) or applies them. |
+| `launch-env.txt` | `NAME=VALUE` lines written into the app's `Info.plist` (`LSEnvironment`), which apply to launches through Finder, the Dock or `open`: the bilinear stand-in for the game's upscaling network and the App Nap opt-out. The harness starts the binary directly, so its numbers are with the game's own network unless a run sets the switches itself. |
 
 Active switches in the assembled app: `EDEN_NX2_SPLIT=2` and `EDEN_NX2_FENCE_BATCH=1` (Lichii's own defaults) and
 `EDEN_NX2_SHARED_JIT_CACHE=512`.

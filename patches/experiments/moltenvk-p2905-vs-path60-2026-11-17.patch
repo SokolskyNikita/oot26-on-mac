@@ -1,0 +1,83 @@
+diff -ru -x build* -x .git -x External -x *.log moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-16 15:35:37
++++ moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm	2026-11-17 19:29:00
+@@ -2608,10 +2608,41 @@
+ 													 uint64_t startTime) {
+ 	if (_isExternallySynchronized) {
+ 		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
+-	} else {
++	}
++
++	// Converting SPIR-V to MSL, and compiling that MSL, can take a long time, and this cache is often
++	// shared by all of the threads that the app is using to create pipelines. To allow those threads
++	// to compile different shaders concurrently, the cache lock is held only while the content of
++	// the cache is being accessed, and is not held while a shader is being converted and compiled.
++	MVKShaderLibraryCache* slCache = nullptr;
++	auto findCachedShaderLibrary = [&]() {
+ 		lock_guard<mutex> lock(_shaderCacheLock);
+-		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
++		slCache = getShaderLibraryCache(shaderModule->getKey());
++		MVKShaderLibrary* shLib = slCache->findShaderLibrary(pContext, pShaderFeedback, startTime);
++		if (shLib && pShaderFeedback) { mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT); }
++		return shLib;
++	};
++
++	MVKShaderLibrary* shLib = findCachedShaderLibrary();
++	if (shLib || pipeline->shouldFailOnPipelineCompileRequired()) { return shLib; }
++
++	// Compilations of the same shader module remain serialized. The SPIR-V converter in the shader
++	// module does not support concurrent conversions, and a thread that needs the same shader library
++	// as one that is already being compiled will wait for it here, and then retrieve it from the cache.
++	lock_guard<mutex> compileLock(slCache->_compileLock);
++	shLib = findCachedShaderLibrary();
++	if (shLib) { return shLib; }
++
++	SPIRVToMSLConversionResult conversionResult;
++	if ( !shaderModule->convert(pContext, conversionResult) ) { return nullptr; }
++	shLib = new MVKShaderLibrary(slCache->_owner, conversionResult);
++	{
++		lock_guard<mutex> lock(_shaderCacheLock);
++		slCache->addShaderLibrary(pContext, shLib);
++		markDirty();
+ 	}
++	if (pShaderFeedback) { pShaderFeedback->duration += mvkGetElapsedNanoseconds(startTime); }
++	return shLib;
+ }
+ 
+ MVKShaderLibrary* MVKPipelineCache::getShaderLibraryImpl(SPIRVToMSLConversionConfiguration* pContext,
+diff -ru -x build* -x .git -x External -x *.log moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-16 11:51:43
++++ moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h	2026-11-17 19:29:00
+@@ -205,12 +205,15 @@
+ 	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 									   const mvk::SPIRVToMSLConversionResult& conversionResult);
+ 	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
++									   MVKShaderLibrary* shLib);
++	MVKShaderLibrary* addShaderLibrary(const mvk::SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 									   const mvk::SPIRVToMSLConversionResultInfo& resultInfo,
+ 									   const MVKCompressor<std::string> compressedMSL);
+ 	void merge(MVKShaderLibraryCache* other);
+ 
+ 	MVKVulkanAPIDeviceObject* _owner;
+ 	MVKSmallVector<std::pair<mvk::SPIRVToMSLConversionConfiguration, MVKShaderLibrary*>> _shaderLibraries;
++	std::mutex _compileLock;
+ };
+ 
+ 
+diff -ru -x build* -x .git -x External -x *.log moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+--- moltenvk/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm	2026-11-16 14:07:17
++++ moltenvk-p2905/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm	2026-11-17 19:29:00
+@@ -449,7 +449,12 @@
+ // Adds and returns a new shader library configured from the specified conversion configuration.
+ MVKShaderLibrary* MVKShaderLibraryCache::addShaderLibrary(const SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 														  const SPIRVToMSLConversionResult& conversionResult) {
+-	MVKShaderLibrary* shLib = new MVKShaderLibrary(_owner, conversionResult);
++	return addShaderLibrary(pShaderConfig, new MVKShaderLibrary(_owner, conversionResult));
++}
++
++// Adds and returns a shader library that has already been created from the specified conversion configuration.
++MVKShaderLibrary* MVKShaderLibraryCache::addShaderLibrary(const SPIRVToMSLConversionConfiguration* pShaderConfig,
++														  MVKShaderLibrary* shLib) {
+ 	_shaderLibraries.emplace_back(*pShaderConfig, shLib);
+ 	return shLib;
+ }

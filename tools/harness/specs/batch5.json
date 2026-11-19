@@ -1,0 +1,76 @@
+[
+ {
+  "label": "base",
+  "desc": "Check frame time at the Kokiri spawn and on the walk with default settings"
+ },
+ {
+  "label": "split-0",
+  "cfg": {},
+  "env": {
+   "EDEN_NX2_SPLIT": 0
+  },
+  "desc": "Check frame time without the GPU thread split (EDEN_NX2_SPLIT=0; practice default 2)"
+ },
+ {
+  "label": "split-1",
+  "cfg": {},
+  "env": {
+   "EDEN_NX2_SPLIT": 1
+  },
+  "desc": "Check frame time with GPU thread split mode 1 instead of 2"
+ },
+ {
+  "label": "fence-batch-0",
+  "cfg": {},
+  "env": {
+   "EDEN_NX2_FENCE_BATCH": 0
+  },
+  "desc": "Check frame time without batched GPU fence syncpoints (EDEN_NX2_FENCE_BATCH=0)"
+ },
+ {
+  "label": "mme-jit-0",
+  "cfg": {},
+  "env": {
+   "EDEN_NX2_MME_JIT": 0
+  },
+  "desc": "Check frame time with the GPU macro JIT off (EDEN_NX2_MME_JIT=0)"
+ },
+ {
+  "label": "nx2-no-reactive",
+  "cfg": {},
+  "env": {
+   "EDEN_NX2_NO_REACTIVE": 1
+  },
+  "desc": "Check frame time with Switch 2 reactive-flushing read traps dropped"
+ },
+ {
+  "label": "vsync-mailbox",
+  "cfg": {
+   "use_vsync": 1
+  },
+  "env": {},
+  "desc": "Check frame time with vsync Mailbox instead of Fifo"
+ },
+ {
+  "label": "res-075",
+  "cfg": {
+   "resolution_setup": 2
+  },
+  "env": {},
+  "desc": "Check frame time at 0.75x internal resolution instead of 1x"
+ },
+ {
+  "label": "cpu-safe-math",
+  "cfg": {
+   "cpuopt_unsafe_host_mmu": false,
+   "cpuopt_unsafe_unfuse_fma": false,
+   "cpuopt_unsafe_reduce_fp_error": false,
+   "cpuopt_unsafe_ignore_standard_fpcr": false,
+   "cpuopt_unsafe_inaccurate_nan": false,
+   "cpuopt_unsafe_fastmem_check": false,
+   "cpuopt_unsafe_ignore_global_monitor": false
+  },
+  "env": {},
+  "desc": "Check frame time with every unsafe CPU JIT shortcut off (cpuopt_unsafe_*)"
+ }
+]

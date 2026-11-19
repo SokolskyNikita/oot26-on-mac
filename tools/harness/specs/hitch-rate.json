@@ -1,0 +1,101 @@
+[
+ {
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "label": "move3-cold-pown",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpown/lichii.app",
+  "desc": "Gerudo Valley, run, turn round with the right stick at walls, cold Metal cache, our parallel load",
+  "cold_metal_cache": true
+ },
+ {
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "label": "move3-cold-p2901",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "desc": "Gerudo Valley, run, turn round with the right stick at walls, cold Metal cache, PR 2901: stutter while moving?",
+  "cold_metal_cache": true
+ },
+ {
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "label": "move3-warm-practice",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Gerudo Valley, run, turn round with the right stick at walls, warm cache, practice build"
+ },
+ {
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  },
+  "label": "move3-warm-p2901",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "desc": "Gerudo Valley, run, turn round with the right stick at walls, warm cache, PR 2901"
+ },
+ {
+  "label": "warm2-practice",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "desc": "Warm cache: the practice build (same-session reference) (second boot: the first boot of a new MoltenVK build is cold)"
+ },
+ {
+  "label": "warm2-pown",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpown/lichii.app",
+  "desc": "Warm cache: MoltenVK with our parallel pipeline-cache load (must not be slower) (second boot: the first boot of a new MoltenVK build is cold)"
+ },
+ {
+  "label": "warm2-p2901",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
+  "desc": "Warm cache: MoltenVK with PR 2901 (must not be slower) (second boot: the first boot of a new MoltenVK build is cold)"
+ },
+ {
+  "label": "warm2-p2905",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkp2905/lichii.app",
+  "desc": "Warm cache: MoltenVK with PR 2905 (must not be slower) (second boot: the first boot of a new MoltenVK build is cold)"
+ },
+ {
+  "label": "warm2-pboth",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpboth/lichii.app",
+  "desc": "Warm cache: MoltenVK with PRs 2901 + 2905 (must not be slower) (second boot: the first boot of a new MoltenVK build is cold)"
+ },
+ {
+  "label": "windowed-2",
+  "desc": "Second pair: frame time in a window (reference for fullscreen)"
+ },
+ {
+  "label": "fullscreen-2",
+  "args": [
+   "-f"
+  ],
+  "desc": "Second pair: frame time in fullscreen (-f)"
+ },
+ {
+  "label": "hitch-base",
+  "repeat": 5,
+  "desc": "Walk-hitch rate: default build, 5 runs, stutter trace (each slow frame's cause: JIT, pipeline builds, waits)",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 50
+  }
+ }
+]

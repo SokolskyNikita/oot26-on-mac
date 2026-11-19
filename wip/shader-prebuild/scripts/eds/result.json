@@ -1,0 +1,87 @@
+{
+ "files": {
+  "cache1.fork-v54.bin": {
+   "version": 54,
+   "vp": {
+    "L0": 2579,
+    "L1": 2096,
+    "L2": 2093,
+    "L3": 2081
+   },
+   "mesh": {
+    "L0": 494,
+    "L1": 434,
+    "L2": 434,
+    "L3": 430
+   }
+  },
+  "cache2.fork-v54.bin": {
+   "version": 54,
+   "vp": {
+    "L0": 3030,
+    "L1": 2451,
+    "L2": 2448,
+    "L3": 2432
+   },
+   "mesh": {
+    "L0": 678,
+    "L1": 583,
+    "L2": 583,
+    "L3": 578
+   }
+  },
+  "cache3.fork-v54.bin": {
+   "version": 54,
+   "vp": {
+    "L0": 2315,
+    "L1": 1923,
+    "L2": 1918,
+    "L3": 1901
+   },
+   "mesh": {
+    "L0": 177,
+    "L1": 145,
+    "L2": 145,
+    "L3": 145
+   }
+  }
+ },
+ "record_stats": {
+  "graphics_records": 9347,
+  "rasterization_disabled_static": 0
+ },
+ "union_keys": {
+  "vp": {
+   "L0": 4014,
+   "L1": 3279,
+   "L2": 3272,
+   "L3": 3247
+  },
+  "mesh": {
+   "L0": 776,
+   "L1": 667,
+   "L2": 667,
+   "L3": 662
+  }
+ },
+ "union_metal": {
+  "vp": {
+   "vtx_static": 1189,
+   "vtx_dyn": 1189,
+   "frag_static": 939,
+   "frag_dyn": 939,
+   "whole_static": 2082,
+   "whole_eds1": 2082,
+   "whole_eds2": 2082
+  },
+  "mesh": {
+   "vtx_static": 357,
+   "vtx_dyn": 357,
+   "frag_static": 93,
+   "frag_dyn": 93,
+   "whole_static": 427,
+   "whole_eds1": 427,
+   "whole_eds2": 427
+  }
+ }
+}

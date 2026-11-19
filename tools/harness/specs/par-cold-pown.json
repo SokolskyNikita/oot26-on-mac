@@ -1,0 +1,8 @@
+[
+ {
+  "label": "cold-pown",
+  "app": "${REPO}/build/old-trees/path-60/app-mvkpown/lichii.app",
+  "env": {},
+  "desc": "Cold Metal cache: boot with our parallel pipeline-cache load"
+ }
+]

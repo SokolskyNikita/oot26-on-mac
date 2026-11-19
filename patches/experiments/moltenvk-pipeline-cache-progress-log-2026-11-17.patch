@@ -1,0 +1,34 @@
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index b64293a1..439d3a3c 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -2523,6 +2523,7 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+     if ( !mvkAreAllFlagsEnabled(pSS->stage, VK_SHADER_STAGE_COMPUTE_BIT) ) { return MVKMTLFunctionNull; }
+ 
+ 	_module = getOrCreateShaderModule(_device, pSS, _ownsModule);
++	if (_module) { _fpHash = _module->getKey().codeHash; }
+ 
+ 	warnIfUnsupportedRobustnessEnabled(this, pSS);
+ 
+@@ -2800,6 +2801,10 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+ 		reader(pcUUID);			// Pipeline cache UUID
+ 		if ( !mvkAreEqual(pcUUID, dvcProps.pipelineCacheUUID, VK_UUID_SIZE) ) { return; }
+ 
++		// path-60: "[mvk-diag] pipeline cache load N libraries, P%" every 200 libraries (P = share of the file read), so a
++		// cold Metal cache's long one-at-a-time compile shows progress.
++		size_t p60Loaded = 0;
++		const uint64_t p60Start = mvkGetTimestamp();
+ 		bool done = false;
+ 		while ( !done ) {
+ 			reader(cacheEntryType);
+@@ -2823,6 +2828,10 @@ static void setDepthClipConfig(SPIRVToMSLConversionConfiguration& shaderConfig,
+ 					MVKShaderLibraryCache* slCache = getShaderLibraryCache(smKey);
+ 					addPerformanceInterval(getPerformanceStats().pipelineCache.readPipelineCache, startTime);
+ 					slCache->addShaderLibrary(&shaderConversionConfig, resultInfo, compressedMSL);
++					if (++p60Loaded % 200 == 0) {
++						fprintf(stderr, "[mvk-diag] pipeline cache load %zu libraries, %d%% (%.1f s)\n", p60Loaded,
++								(int)((double)inStream.tellg() * 100.0 / (double)byteCount), mvkGetElapsedMilliseconds(p60Start) / 1000.0);
++					}
+ 
+ 					break;
+ 				}

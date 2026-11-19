@@ -1,0 +1,47 @@
+[
+ {
+  "label": "specks-tg-limit-22500",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_MESH_TG_LIMIT": 22500
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, only mesh programs under 22,500 B native (adds turf4 alone): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ },
+ {
+  "label": "specks-tg-limit-23000",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_MESH_TG_LIMIT": 23000
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, only mesh programs under 23,000 B native (adds the four 22,756 B programs): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ },
+ {
+  "label": "specks-tg-limit-25000",
+  "app": "${REPO}/build/old-trees/path-60/app-practice/lichii.app",
+  "env": {
+   "EDEN_NX2_MESH_TG_LIMIT": 25000
+  },
+  "phase_frames": 600,
+  "desc": "White specks at the cave wall, only mesh programs under 25,000 B native (adds the two 24,292 B programs): gone?",
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "before"
+   }
+  ]
+ }
+]
