@@ -2,10 +2,9 @@
 
 **Question:** does current Lichii plus every change of the pinned series work, and how does it perform?
 
-**State (2026-11-19):** the source half is done. The series is ported to the current `nx2` head, the `lichii` target
-compiles and links, and the patches are in [`patches/lichii-next/`](../../patches/lichii-next/). **It has not been
-run**: nothing here says whether it boots, draws correctly or how fast it is. The next step is the measurement, in a
-private data directory (see [Running it without touching the installed build's caches](#running-it-without-touching-the-installed-builds-caches)).
+**State (2026-11-19):** the series is ported to the current `nx2` head, the `lichii` target compiles and links, the
+patches are in [`patches/lichii-next/`](../../patches/lichii-next/), and the build boots, draws correctly and measures
+the same as the pinned build in Kokiri Forest (next section). It is not the pinned build: nothing has been installed.
 
 | | |
 | --- | --- |
@@ -14,6 +13,34 @@ private data directory (see [Running it without touching the installed build's c
 | Branch | `gold-next` in `build/next/lichii` (git-ignored clone), 7 commits, head `a1ee50a6ef9deade0080808e348b5012801ed707`, tree `e55524033edfdaa8b2a2fcdd0210830b0ff93e8e` |
 | Patches | `patches/lichii-next/0001`–`0007`, made with `git format-patch --binary --zero-commit -N d2ca32974d..gold-next`. Applied to the base the way `build.sh` applies a series (author as committer, `--committer-date-is-author-date`) they give the same commit and tree ids (checked). |
 | MoltenVK | Not touched. The port keeps the pinned library. |
+
+
+## Measured against the pinned build (2026-11-19)
+
+Run ab-20261119-051617 (pinned build) and run ab-20261119-052038 (this port), local run data, not tracked. Specs
+`tools/harness/specs/lichii-next-pinned.json` and `lichii-next-new.json`. Apple M4 Pro, Kokiri Forest, 600-frame
+phases, one warm-up discarded, three runs each. The port ran in a private data root (`build/next/data`, with a cloned
+copy of the shader cache) under its own bundle id, with the pinned MoltenVK library.
+
+| | Pinned build (`8c0558a3d3` + series) | Port (`d2ca32974d` + series) |
+| --- | --- | --- |
+| Walk, median frame | 19.0 / 19.4 / 19.4 ms | 19.1 / 18.7 / 18.6 ms |
+| Walk, 95th percentile | 25.3 / 25.6 / 25.7 ms | 26.2 / 24.2 / 25.3 ms |
+| Standing after the walk, median | 16.6 / 16.6 / 16.7 ms | 16.4 / 16.5 / 16.6 ms |
+| Boot | 14.5 / 16.5 / 18.6 s | 16.5 / 14.5 / 16.5 s |
+| Boot to in-game | 35.8 / 38.3 / 39.8 s | 38.6 / 35.9 / 39.5 s |
+| Memory | 20.0 GiB | 19.0–20.0 GiB |
+| Picture | clean (clipped 3.2%) | clean (clipped 3.0%; looked at) |
+
+- **It works and it is no slower.** The differences are inside run-to-run noise; the 202 upstream commits bring no
+  measurable frame-time change at this spot with these settings.
+- **First boot in the private root:** 102.3 s to the title, 127.0 s to in-game. The copied pipeline file was
+  accepted (same MoltenVK cache id); the time is Lichii re-stamping its records and Metal compiling into an empty
+  cache of its own.
+- **The installed build's folders were not touched:** sizes, times and checksums of its shader caches, config,
+  master, saves and mods were identical before and after the port's five runs.
+- Not tested: any other area, the Hypervisor backend, the bilinear stand-in and `P60_RUN_AHEAD` (ported as text
+  only), a session longer than one walk.
 
 ## What happened to each patch
 
