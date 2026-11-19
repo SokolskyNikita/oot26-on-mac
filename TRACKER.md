@@ -9,7 +9,9 @@ pinned build does not hold 60 fps: walking medians are 18.7–23 ms across the r
 
 Last full review: 2026-11-19. The most recent runs of the pinned build as `build.sh` makes it (2026-11-19, three
 runs, 600-frame phases): walking 19.5 / 18.9 / 19.6 ms, standing after the walk 16.6 / 16.5 / 16.5 ms, boot to
-in-game 39.4 / 38.0 / 39.3 s, pictures clean. Hardware: Apple M4 Pro (Mac16,8), macOS 27.0.1. Test spot, unless a row says
+in-game 39.4 / 38.0 / 39.3 s, pictures clean. The same build stood at 18.5–18.9 ms in the runs of
+2026-11-18. What changed between the two days is the practice tool (sloperinaGZ 0.0.7 to 0.0.9) and how busy the
+machine was; which of the two accounts for the 2 ms is not established. Hardware: Apple M4 Pro (Mac16,8), macOS 27.0.1. Test spot, unless a row says
 otherwise: standing at the Kokiri Forest spawn point, 1x resolution, handheld mode, GPU accuracy Low, asynchronous
 shaders on, post-processing off.
 

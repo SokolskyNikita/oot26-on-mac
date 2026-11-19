@@ -25,6 +25,8 @@ stock compare the pinned build with the same build minus one change, which is ho
 The most recent runs (2026-11-19, the build `./build.sh` produces, three runs): walking 19.5 / 18.9 / 19.6 ms,
 standing after the walk 16.6 / 16.5 / 16.5 ms, boot to in-game 39.4 / 38.0 / 39.3 s.
 
+![The pinned build in Kokiri Forest](media/pinned-build.png)
+
 ![Standing frame time from stock Lichii build 228 to the pinned build](media/frame-time-steps.png)
 
 ![Frame times on the test walk without and with the shared JIT code cache](media/walk-frame-times.png)

@@ -84,7 +84,7 @@ def main(data, out):
     ax.text(16.7, -0.7, "16.7 ms = 60 fps", color=S.LINE60, fontsize=8.2, va="bottom", ha="center", clip_on=False)
 
     S.titles(fig, "Standing frame time, stock Lichii build 228 to the pinned build",
-             S.CONDITIONS + ". Steps in the order they went in. No step reaches 16.7 ms.")
+             S.CONDITIONS + ". Steps in the order they went in.\nStanding reaches 16.7 ms only in the last re-measurement; walking does not.")
 
     handles = [Patch(facecolor=S.GREY, label="stock release"),
                Patch(facecolor=S.ORANGE, label="other people's upstream pull requests"),
@@ -98,8 +98,8 @@ def main(data, out):
                handlelength=1.6, columnspacing=1.4)
     fig.text(0.012, 0.062,
              "The two harnesses give 1–2 ms different figures for the same build, so the two blocks are not one series. "
-             "The diamond is the same batch\nwithout the step. The last step's figures are the standing phase after the walk "
-             "(stand2). Sources per bar: media/data/frame-time-steps.csv.",
+             "The diamond is the same batch\nwithout the step. The last two rows are the standing phase after the walk "
+             "(stand2);\nthe last row is the same build a day later. Sources per bar: media/data/frame-time-steps.csv.",
              fontsize=7.6, color=S.TEXT2, va="top")
     fig.savefig(out, dpi=S.DPI)
 
