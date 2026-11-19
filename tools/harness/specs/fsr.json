@@ -1,0 +1,86 @@
+[
+ {
+  "label": "fsr-warmup",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up, discarded"
+ },
+ {
+  "label": "fsr-on-warmup",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_DLSS_REPLACEMENT": "fsr"
+  },
+  "phase_frames": 600,
+  "desc": "FSR warm-up (its pipelines get built), discarded"
+ },
+ {
+  "label": "fsr-off-r1",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build, the game's own upscaling network"
+ },
+ {
+  "label": "fsr-on-r1",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_DLSS_REPLACEMENT": "fsr"
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build with EDEN_NX2_DLSS_REPLACEMENT=fsr (FSR 3.1 in place of the upscaling network)"
+ },
+ {
+  "label": "fsr-off-r2",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build, the game's own upscaling network"
+ },
+ {
+  "label": "fsr-on-r2",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_DLSS_REPLACEMENT": "fsr"
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build with EDEN_NX2_DLSS_REPLACEMENT=fsr (FSR 3.1 in place of the upscaling network)"
+ },
+ {
+  "label": "fsr-off-r3",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build, the game's own upscaling network"
+ },
+ {
+  "label": "fsr-on-r3",
+  "app": "${REPO}/build/app/lichii.app",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_DLSS_REPLACEMENT": "fsr"
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build with EDEN_NX2_DLSS_REPLACEMENT=fsr (FSR 3.1 in place of the upscaling network)"
+ }
+]

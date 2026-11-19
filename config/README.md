@@ -34,12 +34,12 @@ with the game closed. No keys or firmware are installed in this setup.
 | Mode | handheld (`use_docked_mode=0`) | docked is about 5 ms a frame slower |
 | Post-processing | off | the game is GPU-bound |
 | `gpu_accuracy` | 0 (Low) | same |
-| `use_asynchronous_shaders` | true | |
+| `use_asynchronous_shaders` | true | Lichii's default since PR #2105 |
 | `scaling_filter` | 1 (Bilinear) | |
 | `anti_aliasing` | 0 | |
 | `oot_anti_aliasing` | 1 (No sharpening) | |
 | `cpu_accuracy` | 0 (Auto) | 1 (Accurate) before debugger work: fewer load crashes under lldb, no frame cost |
-| `native_async_draws` | 1 (Bounded) | Lichii's recommended table |
+| `native_async_draws` | 1 (Bounded) | Lichii's default since PR #2105. While a pipeline is still building, Bounded may skip the draw or (since PR #2104) the compute dispatch that needs it; 0 (Wait) never skips |
 | `async_presentation` | true | same |
 | `nvdec_emulation` | 2 (Gpu) | same |
 | `build_all_cached_shaders` | true | same |

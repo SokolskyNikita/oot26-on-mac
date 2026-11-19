@@ -8,13 +8,14 @@ post_shader_enabled=false
 scaling_filter=1
 anti_aliasing=0
 oot_anti_aliasing=1
-use_asynchronous_shaders=true
-native_async_draws=1
 async_presentation=true
 nvdec_emulation=2
 build_all_cached_shaders=true
 
 # Lichii's defaults, pinned here because other values measured slower or broke the picture
+# (the first two became defaults in Lichii PR #2105, which is in the pinned base)
+use_asynchronous_shaders=true
+native_async_draws=1
 resolution_setup=3
 use_docked_mode=0
 cpu_backend=0
