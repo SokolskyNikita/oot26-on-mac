@@ -1,0 +1,49 @@
+[
+ {
+  "app": "${REPO}/build/p99probe/app/lichii.app",
+  "phase_frames": 120,
+  "stand_frames": 120,
+  "leash_m": 9,
+  "label": "probe-warmup",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Walk p99 test app: first boot in its private data root with an empty Metal shader cache, discarded",
+  "home": "${REPO}/build/p99probe/home"
+ },
+ {
+  "app": "${REPO}/build/p99probe/app/lichii.app",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "probe-encoders",
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "MVK_FRAMEPROF": "{rd}/frameprof.txt",
+   "MVK_FRAMEPROF_DUMP_MS": 6
+  },
+  "desc": "Walk p99 cause 2, test app: per-encoder timing of every GPU command buffer that runs 6 ms or longer; 1,800-frame walk within 9 m of the Kokiri spawn",
+  "home": "${REPO}/build/p99probe/home"
+ },
+ {
+  "app": "${REPO}/build/p99probe/app/lichii.app",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "probe-threads",
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "EDEN_NX2_GUEST_THREAD_STATS": 1,
+   "EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS": 28
+  },
+  "desc": "Walk p99 cause 3, test app: what each guest thread did in every frame of 28 ms or longer; 1,800-frame walk within 9 m of the Kokiri spawn",
+  "home": "${REPO}/build/p99probe/home"
+ }
+]

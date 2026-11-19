@@ -1,0 +1,36 @@
+[
+ {
+  "app": "${REPO}/build/p99probe/app/lichii.app",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "quiet-encoders",
+  "repeat": 3,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "MVK_FRAMEPROF": "{rd}/frameprof.txt",
+   "MVK_FRAMEPROF_DUMP_MS": 6
+  },
+  "desc": "Walk p99 cause 2 on a quiet machine (other apps closed), test app: do GPU command buffers still stall between passes; 1,800-frame walk within 9 m of the Kokiri spawn",
+  "home": "${REPO}/build/p99probe/home"
+ },
+ {
+  "app": "${REPO}/build/p99probe/app/lichii.app",
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "quiet-threads",
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "EDEN_NX2_GUEST_THREAD_STATS": 1,
+   "EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS": 28
+  },
+  "desc": "Walk p99 cause 3 on a quiet machine (other apps closed), test app: what each guest thread did in every frame of 28 ms or longer; 1,800-frame walk within 9 m of the Kokiri spawn",
+  "home": "${REPO}/build/p99probe/home"
+ }
+]

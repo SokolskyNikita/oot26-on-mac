@@ -1,0 +1,15 @@
+[
+ {
+  "label": "shardhunt",
+  "repeat": 20,
+  "phase_frames": 600,
+  "stand_frames": 300,
+  "leash_m": 9,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt"
+  },
+  "desc": "Canopy shards hunt: twenty boots of the pinned build, each watched ten times a second for a white canopy, with a bug bundle and GPU trace taken if one comes up bad; 600-frame walk within 9 m of the Kokiri spawn"
+ }
+]

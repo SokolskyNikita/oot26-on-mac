@@ -1,0 +1,16 @@
+MoltenVK frame profiler: MVK_FRAMEPROF_DUMP_MS=<ms> also writes the per-encoder E records of every command
+buffer whose GPU interval is at least that long (the pinned profiler writes them for every 150th frame only).
+Against the pinned MoltenVK tree (versions.lock).
+
+--- a/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
++++ b/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
+@@ -283,7 +283,8 @@
+ 		for (uint32_t i = 0; i < r->used; i++) { if (ok(ts[i]) && ts[i] < first) { first = ts[i]; } }
+ 	}
+ 	std::string detail;
+-	bool dump = (r->frame % 150) == 0;
++	static const double dumpSec = [] { const char* v = getenv("MVK_FRAMEPROF_DUMP_MS"); return v ? atof(v) / 1e3 : 0.0; }();
++	bool dump = (r->frame % 150) == 0 || (dumpSec > 0 && gpuEnd - gpuStart >= dumpSec);
+ 	char sig[96], line[256];
+ 	for (uint32_t i = 0; i < r->nenc; i++) {
+ 		const Enc& e = r->enc[i];

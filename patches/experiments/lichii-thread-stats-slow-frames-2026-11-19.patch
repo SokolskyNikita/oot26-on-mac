@@ -1,0 +1,66 @@
+Lichii guest thread statistics: EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS=<ms> (with EDEN_NX2_GUEST_THREAD_STATS=1) makes each
+report window one present-to-present interval and logs only windows at least that long.
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/core/hle/kernel/nx2_thread_stats.cpp
++++ b/src/core/hle/kernel/nx2_thread_stats.cpp
+@@ -21,6 +21,12 @@
+ namespace {
+ 
+ constexpr u64 ReportSeconds = 10;
++// Test build: EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS=<ms> makes each window one present-to-present interval
++// and logs only windows at least that long.
++const double g_slow_ms = [] {
++    const char* value = std::getenv("EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS");
++    return value ? std::strtod(value, nullptr) : 0.0;
++}();
+ constexpr size_t ReportThreads = 8;
+ 
+ // A thread's totals: guest counter ticks, except the counts and HeldNs.
+@@ -185,9 +191,15 @@
+     std::sort(rows.begin(), rows.end(),
+               [](const Row& a, const Row& b) { return a.delta[OnCore] > b.delta[OnCore]; });
+ 
+-    LOG_INFO(Kernel, "Guest threads over {:.1f} s, {} presents, {} threads ran; ms per frame:",
+-             seconds, presents, rows.size());
++    const bool quiet = g_slow_ms > 0 && seconds * 1e3 < g_slow_ms;
++    if (!quiet) {
++        LOG_INFO(Kernel, "Guest threads over {:.4f} s, {} presents, {} threads ran; ms per frame:",
++                 seconds, presents, rows.size());
++    }
+     for (size_t i = 0; i < rows.size(); ++i) {
++        if (quiet) {
++            break;
++        }
+         const auto& d = rows[i].delta;
+         if (i >= ReportThreads && d[Presents] == 0) {
+             continue;
+@@ -228,7 +240,7 @@
+         for (size_t exit = 0; exit < Exits; ++exit) {
+             exits += d[ExitCounts + exit];
+         }
+-        if (exits == 0) {
++        if (exits == 0 || quiet) {
+             continue;
+         }
+         const auto exits_by = [&](Exit exit) {
+@@ -261,7 +273,8 @@
+     g_window_ticks = now;
+     g_window_ns = SteadyNs();
+     g_window_presents = g_presents.load(std::memory_order_relaxed);
+-    g_next_report.store(now + ReportSeconds * Common::g_wall_clock.GetGuestCNTFRQ(),
++    g_next_report.store(g_slow_ms > 0 ? ~u64{0}
++                                      : now + ReportSeconds * Common::g_wall_clock.GetGuestCNTFRQ(),
+                         std::memory_order_relaxed);
+ }
+ 
+@@ -350,6 +363,9 @@
+ 
+ void OnPresent(KThread* client) {
+     g_presents.fetch_add(1, std::memory_order_relaxed);
++    if (g_slow_ms > 0) {
++        g_next_report.store(1, std::memory_order_relaxed);
++    }
+     if (Counters* c = Get(client)) {
+         AddShared(c->totals[Presents], 1);
+     }

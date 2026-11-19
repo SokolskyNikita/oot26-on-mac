@@ -1,0 +1,55 @@
+[
+ {
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "fu-synconly",
+  "repeat": 2,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt"
+  },
+  "desc": "Walk p99 cause 2 control: sync trace without the GPU profiler, do the long GPU waits still happen; 1,800-frame walk within 9 m of the Kokiri spawn"
+ },
+ {
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 4,
+  "label": "fu-chunk120",
+  "bounce_chunk": 120,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt"
+  },
+  "desc": "Walk p99 cause 3: harness calls every 120 frames instead of 30, do late frame hand-overs get rarer; 1,800-frame walk near the Kokiri spawn"
+ },
+ {
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "fu-prof-tc",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "MVK_FRAMEPROF": "{rd}/frameprof.txt",
+   "EDEN_NX2_TC_TRACE": 1
+  },
+  "desc": "Walk p99 cause 2: GPU profiler with the texture cache trace, do image creates and deletes line up with stalled command buffers; 1,800-frame walk within 9 m of the Kokiri spawn"
+ },
+ {
+  "phase_frames": 1800,
+  "stand_frames": 600,
+  "leash_m": 9,
+  "label": "fu-fsread",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "P60_SYNC_TRACE": "{rd}/sync.txt",
+   "EDEN_NX2_FS_READ_TRACE": 1
+  },
+  "desc": "Walk p99 cause 3: guest file reads during late frame hand-overs; 1,800-frame walk within 9 m of the Kokiri spawn"
+ }
+]
