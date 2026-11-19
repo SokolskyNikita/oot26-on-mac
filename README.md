@@ -98,6 +98,7 @@ To run the game you also need your dump added as a game folder in Lichii and the
 | `research/` | finished write-ups, one folder per topic; start with [research/mac-performance](research/mac-performance/README.md) |
 | `wip/` | unfinished threads |
 | `tools/` | the measurement harness, the Vulkan-to-Metal state check, and the other measurement scripts |
+| [OOT-GLITCHES.md](OOT-GLITCHES.md) | the glitches known in the remake: what each does, who found it, which versions it works on |
 | `media/` | charts and before/after pictures, with the scripts and data that make them |
 | `build/`, `runs/` | source clones, build output and run data; not tracked |
 
