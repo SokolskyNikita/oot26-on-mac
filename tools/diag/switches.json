@@ -3713,6 +3713,9 @@
   "DYNARMIC_FASTMEM_PATCH": "experiment patch: fastmem faults patched to a fast stub (behaviour)",
   "EDEN_NX2_FASTMEM_NO_RECOMPILE": "experiment patch: recompile on fastmem fault off (behaviour)",
   "EDEN_NX2_GPU_THREAD_PRIO": "experiment patch: GPU thread priority (behaviour)",
-  "EDEN_NX2_GPUWAIT_SPIN_US": "experiment patch: spin before a host GPU wait (behaviour)"
+  "EDEN_NX2_GPUWAIT_SPIN_US": "experiment patch: spin before a host GPU wait (behaviour)",
+  "EDEN_NX2_QUERY_WAIT_REPORTS": "experiment patch: a macro read waits only for its own query reports (behaviour)",
+  "EDEN_NX2_FENCE_LAZY_US": "experiment patch: report fences are not submitted at once (behaviour)",
+  "EDEN_NX2_SYNC_PAYLOAD_RELEASE": "experiment patch: fence-flagged payload releases are not delayed at low accuracy (behaviour)"
  }
 }

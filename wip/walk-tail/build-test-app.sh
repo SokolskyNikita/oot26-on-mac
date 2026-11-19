@@ -10,7 +10,10 @@
 #   EDEN_NX2_FASTMEM_NO_RECOMPILE=1              lichii-fastmem-no-recompile-2026-11-19
 #   EDEN_NX2_GPU_THREAD_PRIO=1                   lichii-gpu-thread-priority-2026-11-19
 #   EDEN_NX2_GPUWAIT_SPIN_US=<us>                lichii-gpuwait-spin-2026-11-19
+#   EDEN_NX2_SYNC_PAYLOAD_RELEASE=1              lichii-sync-payload-release-2026-11-19
 #   (none: the sync trace's gpuwait event)       lichii-gpuwait-caller-stamp-2026-11-19
+# Not built, because they change the same lines as the one above: lichii-query-wait-own-reports-2026-11-19
+# (EDEN_NX2_QUERY_WAIT_REPORTS) and lichii-fence-lazy-submit-2026-11-19 (EDEN_NX2_FENCE_LAZY_US), which goes with it.
 #
 # Output: build/p99probe/app/lichii.app with its own bundle id (its Metal shader cache is its own; the pipeline
 # cache id is the pinned one). Work files: build/p99probe/work/. Run it in a private data root:
@@ -24,10 +27,10 @@ LSRC=$(cd "$REPO/build/src/lichii" && pwd -P); LBLD=$LSRC/build/release
 MSRC=$(cd "$REPO/build/src/moltenvk" && pwd -P); MBLD=$MSRC/build
 PINNED=$REPO/build/app/lichii.app
 OUT=$REPO/build/p99probe; WORK=$OUT/work
-LICHII_PATCHES="lichii-thread-stats-slow-frames-2026-11-19 dynarmic-fastmem-patch-to-stub-2026-11-19 lichii-fastmem-no-recompile-2026-11-19 lichii-gpu-thread-priority-2026-11-19 lichii-gpuwait-spin-2026-11-19 lichii-gpuwait-caller-stamp-2026-11-19"
+LICHII_PATCHES="lichii-thread-stats-slow-frames-2026-11-19 dynarmic-fastmem-patch-to-stub-2026-11-19 lichii-fastmem-no-recompile-2026-11-19 lichii-gpu-thread-priority-2026-11-19 lichii-gpuwait-spin-2026-11-19 lichii-gpuwait-caller-stamp-2026-11-19 lichii-sync-payload-release-2026-11-19"
 MVK_PATCHES="moltenvk-frameprof-dump-long-buffers-2026-11-19"
-# A patched header is only seen by the files that are compiled again: these are the callers of Scheduler::Wait.
-HEADER_USERS="src/video_core/renderer_vulkan/nx2_list_slots.cpp src/video_core/renderer_vulkan/vk_blit_screen.cpp src/video_core/renderer_vulkan/vk_buffer_cache.cpp src/video_core/renderer_vulkan/vk_descriptor_buffer.cpp src/video_core/renderer_vulkan/vk_fence_manager.cpp src/video_core/renderer_vulkan/vk_scheduler.cpp src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp src/video_core/renderer_vulkan/vk_swapchain.cpp"
+# A patched header is only seen by the files that are compiled again: these are the callers of Scheduler::Wait and the file that instantiates the query cache.
+HEADER_USERS="src/video_core/renderer_vulkan/vk_query_cache.cpp src/video_core/renderer_vulkan/nx2_list_slots.cpp src/video_core/renderer_vulkan/vk_blit_screen.cpp src/video_core/renderer_vulkan/vk_buffer_cache.cpp src/video_core/renderer_vulkan/vk_descriptor_buffer.cpp src/video_core/renderer_vulkan/vk_fence_manager.cpp src/video_core/renderer_vulkan/vk_scheduler.cpp src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp src/video_core/renderer_vulkan/vk_swapchain.cpp"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 [ -f "$LBLD/compile_commands.json" ] || { log "no $LBLD/compile_commands.json: run ./build.sh first"; exit 1; }
 [ -x "$PINNED/Contents/MacOS/lichii" ] || { log "no pinned app $PINNED: run ./build.sh"; exit 1; }
@@ -141,10 +144,11 @@ cp "$WORK/libMoltenVK.dylib" "$app/Contents/Frameworks/libMoltenVK.dylib"
 codesign --force --sign - "$app/Contents/Frameworks/libMoltenVK.dylib" 2>> "$WORK/codesign.log"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier io.github.zortos293.lichii.p99probe' "$app/Contents/Info.plist"
 found=0
-for sw in MVK_FRAMEPROF_DUMP_MS EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS DYNARMIC_FASTMEM_PATCH EDEN_NX2_FASTMEM_NO_RECOMPILE EDEN_NX2_GPU_THREAD_PRIO EDEN_NX2_GPUWAIT_SPIN_US; do
-  if strings -a "$app/Contents/MacOS/lichii" "$app/Contents/Frameworks/libMoltenVK.dylib" | grep -qx "$sw"; then found=$((found + 1)); else log "switch $sw is not in the app"; fi
+SWITCHES=0
+for sw in MVK_FRAMEPROF_DUMP_MS EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS DYNARMIC_FASTMEM_PATCH EDEN_NX2_FASTMEM_NO_RECOMPILE EDEN_NX2_GPU_THREAD_PRIO EDEN_NX2_GPUWAIT_SPIN_US EDEN_NX2_SYNC_PAYLOAD_RELEASE; do
+  if strings -a "$app/Contents/MacOS/lichii" "$app/Contents/Frameworks/libMoltenVK.dylib" | grep -qx "$sw"; then found=$((found + 1)); fi; SWITCHES=$((SWITCHES + 1)); if ! strings -a "$app/Contents/MacOS/lichii" "$app/Contents/Frameworks/libMoltenVK.dylib" | grep -qx "$sw"; then log "switch $sw is not in the app"; fi
 done
-log "assembled $app: $found of 6 switches present"
+log "assembled $app: $found of $SWITCHES switches present"
 log "  lichii      $(shasum "$app/Contents/MacOS/lichii" | cut -c1-12) (pinned $(shasum "$PINNED/Contents/MacOS/lichii" | cut -c1-12))"
 log "  libMoltenVK $(shasum "$app/Contents/Frameworks/libMoltenVK.dylib" | cut -c1-12) (pinned $(shasum "$PINNED/Contents/Frameworks/libMoltenVK.dylib" | cut -c1-12))"
-[ "$found" = 6 ]
+[ "$found" = "$SWITCHES" ]

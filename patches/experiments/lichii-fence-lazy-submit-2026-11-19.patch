@@ -1,0 +1,50 @@
+diff --git a/src/video_core/fence_manager.h b/src/video_core/fence_manager.h
+--- a/src/video_core/fence_manager.h
++++ b/src/video_core/fence_manager.h
+@@ -149,7 +149,13 @@
+                 cv.notify_all();
+             }
+         }
+-        if (delay_fence) {
++        // Experiment: EDEN_NX2_FENCE_LAZY_US=<us> leaves a report fence's deferred submission to the
++        // scheduler's window, the back's idle hook or a reader, instead of submitting it at once.
++        static const bool lazy_fences = [] {
++            const char* value = std::getenv("EDEN_NX2_FENCE_LAZY_US");
++            return value != nullptr && std::atoll(value) > 0;
++        }();
++        if (delay_fence && !lazy_fences) {
+             SubmitDeferredWork();
+         }
+         rasterizer.InvalidateGPUCache();
+diff --git a/src/video_core/renderer_vulkan/vk_fence_manager.cpp b/src/video_core/renderer_vulkan/vk_fence_manager.cpp
+--- a/src/video_core/renderer_vulkan/vk_fence_manager.cpp
++++ b/src/video_core/renderer_vulkan/vk_fence_manager.cpp
+@@ -1,5 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
++#include <chrono>
++#include <cstdlib>
++#include <thread>
+ #include <memory>
+ 
+ #include "common/logging.h"
+@@ -43,6 +46,19 @@
+     // A deferred fence flush (Scheduler::DeferFlush) may not be submitted yet. Only the
+     // split's back may submit; other threads (the fencing thread) ask it to and wait. If the back
+     // has stopped, nothing else uses the scheduler and Wait below submits it.
++    // Experiment: EDEN_NX2_FENCE_LAZY_US=<us> gives the back that long to submit the fence with its
++    // next submission before this thread asks for one.
++    static const s64 lazy_us = [] {
++        const char* value = std::getenv("EDEN_NX2_FENCE_LAZY_US");
++        return value != nullptr ? static_cast<s64>(std::atoll(value)) : s64{0};
++    }();
++    if (lazy_us > 0 && VideoCommon::GpuSplit::Get().Active() &&
++        !VideoCommon::GpuSplit::OnBackThread()) {
++        const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds{lazy_us};
++        while (!scheduler.IsSubmitted(wait_tick) && std::chrono::steady_clock::now() < deadline) {
++            std::this_thread::sleep_for(std::chrono::microseconds{50});
++        }
++    }
+     if (!scheduler.IsSubmitted(wait_tick) && VideoCommon::GpuSplit::Get().Active() &&
+         !VideoCommon::GpuSplit::OnBackThread() && scheduler.WaitSubmitted(wait_tick)) {
+         scheduler.GetMasterSemaphore().Wait(wait_tick);

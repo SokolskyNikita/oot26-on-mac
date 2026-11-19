@@ -1,0 +1,138 @@
+diff --git a/src/video_core/nx2.h b/src/video_core/nx2.h
+--- a/src/video_core/nx2.h
++++ b/src/video_core/nx2.h
+@@ -98,6 +98,60 @@
+     return (g_nx2_command_list_pages[page / 64].load(std::memory_order_relaxed) >> (page % 64)) & 1;
+ }
+ 
++// Experiment (after Lichii PR 559): query results written when their host work completes (counter
++// reports), counted per 16-byte slot hash when issued and when the operation has run. Equal counts
++// mean the words in memory are final, so a read can wait for its own reports only.
++inline constexpr u64 Nx2AsyncReportSlots = u64{1} << 16;
++inline std::array<std::atomic<u32>, Nx2AsyncReportSlots> g_nx2_async_reports_issued{};
++inline std::array<std::atomic<u32>, Nx2AsyncReportSlots> g_nx2_async_reports_completed{};
++inline std::atomic<u32> g_nx2_async_reports_generation{};
++inline std::atomic<u32> g_nx2_async_reports_waiters{};
++
++[[nodiscard]] inline bool Nx2AsyncReportsSettled(u64 device_address, u64 size) {
++    if (size == 0) {
++        return true;
++    }
++    for (u64 slot = device_address >> 4; slot <= (device_address + size - 1) >> 4; ++slot) {
++        const u64 index = slot % Nx2AsyncReportSlots;
++        if (g_nx2_async_reports_completed[index].load(std::memory_order_acquire) !=
++            g_nx2_async_reports_issued[index].load(std::memory_order_acquire)) {
++            return false;
++        }
++    }
++    return true;
++}
++
++inline void Nx2IssueAsyncReport(u64 device_address) {
++    g_nx2_async_reports_issued[(device_address >> 4) % Nx2AsyncReportSlots].fetch_add(
++        1, std::memory_order_release);
++}
++
++inline void Nx2CompleteAsyncReport(u64 device_address) {
++    g_nx2_async_reports_completed[(device_address >> 4) % Nx2AsyncReportSlots].fetch_add(
++        1, std::memory_order_release);
++    g_nx2_async_reports_generation.fetch_add(1, std::memory_order_seq_cst);
++    if (g_nx2_async_reports_waiters.load(std::memory_order_seq_cst) != 0) {
++        g_nx2_async_reports_generation.notify_all();
++    }
++}
++
++/// Blocks until every report issued so far to the range is in memory. Only for the thread that
++/// issues reports; the fences carrying them must already be submitted.
++inline void Nx2WaitAsyncReportsSettled(u64 device_address, u64 size) {
++    if (Nx2AsyncReportsSettled(device_address, size)) {
++        return;
++    }
++    g_nx2_async_reports_waiters.fetch_add(1, std::memory_order_seq_cst);
++    for (;;) {
++        const u32 generation = g_nx2_async_reports_generation.load(std::memory_order_seq_cst);
++        if (Nx2AsyncReportsSettled(device_address, size)) {
++            break;
++        }
++        g_nx2_async_reports_generation.wait(generation, std::memory_order_seq_cst);
++    }
++    g_nx2_async_reports_waiters.fetch_sub(1, std::memory_order_relaxed);
++}
++
+ /// A new emulation session starts: no page has been written by its GPU yet.
+ inline void Nx2ClearGpuWrittenPages() {
+     for (auto& word : g_nx2_gpu_written_pages) {
+diff --git a/src/video_core/query_cache/query_cache.h b/src/video_core/query_cache/query_cache.h
+--- a/src/video_core/query_cache/query_cache.h
++++ b/src/video_core/query_cache/query_cache.h
+@@ -330,6 +330,8 @@
+             if (op.noted) {
+                 impl->rasterizer.FinishReport(op_cpu_addr, op_report_size);
+             }
++            // Experiment: the report's words are final on every way out (written or discarded).
++            Tegra::Nx2CompleteAsyncReport(op_cpu_addr);
+         };
+         if (True(query_base->flags & QueryFlagBits::IsInvalidated)) {
+             if (const u64 trace = QueryTrace::Sample(QueryTrace::Event::Discard)) {
+@@ -397,6 +399,7 @@
+                   "the report operation must fit MSVC's std::function storage");
+     std::function<void()> operation(operation_body);
+     if (is_fence) {
++        Tegra::Nx2IssueAsyncReport(cpu_addr);
+         VideoCore::g_signaling_query_report_fence = true;
+         impl->rasterizer.SignalFence(std::move(operation));
+         VideoCore::g_signaling_query_report_fence = false;
+@@ -431,6 +434,7 @@
+             streamer->Free(new_query_id);
+             return;
+         }
++        Tegra::Nx2IssueAsyncReport(cpu_addr);
+         impl->rasterizer.SyncOperation(std::move(operation));
+     }
+     auto [cont_addr, base] = gen_caching_indexing(cpu_addr);
+diff --git a/src/video_core/renderer_vulkan/vk_rasterizer.cpp b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -3232,6 +3232,34 @@
+     if (addr == 0 || size == 0 || !query_cache.SemiFlushRegion(addr, size)) {
+         return;
+     }
++    // Experiment: EDEN_NX2_QUERY_WAIT_REPORTS=1 waits only for the reports in the range (Lichii PR
++    // 559), not for an operation queued behind every earlier fence. Either way the wait is timed
++    // and the totals logged every 1,024 waits.
++    static const bool wait_reports = [] {
++        const char* value = std::getenv("EDEN_NX2_QUERY_WAIT_REPORTS");
++        return value && value[0] == '1';
++    }();
++    static std::atomic<u64> wait_count{};
++    static std::atomic<u64> wait_ns{};
++    const auto wait_start = std::chrono::steady_clock::now();
++    const auto wait_done = [&] {
++        const u64 ns = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
++                                            std::chrono::steady_clock::now() - wait_start)
++                                            .count());
++        const u64 total = wait_ns.fetch_add(ns, std::memory_order_relaxed) + ns;
++        const u64 count = wait_count.fetch_add(1, std::memory_order_relaxed) + 1;
++        if (count % 1024 == 0) {
++            LOG_INFO(Render_Vulkan, "Nx2QueryWait mode={} waits={} total_ms={:.1f}",
++                     wait_reports ? "reports" : "queue", count, static_cast<double>(total) / 1e6);
++        }
++    };
++    if (wait_reports) {
++        fence_manager.SignalFence([] {});
++        scheduler.FlushDeferred();
++        Tegra::Nx2WaitAsyncReportsSettled(addr, size);
++        wait_done();
++        return;
++    }
+     // Below High GPU accuracy a fence runs its own callback at once, so wait for an operation
+     // queued behind the pending report writes instead. On the split's back the fence's
+     // submission may be deferred, and the fencing thread would wait for this thread to submit it.
+@@ -3247,6 +3275,7 @@
+     scheduler.FlushDeferred();
+     std::unique_lock lock{wait_mutex};
+     wait_cv.wait(lock, [&written] { return written; });
++    wait_done();
+ }
+ 
+ void RasterizerVulkan::FlushAndInvalidateRegion(DAddr addr, u64 size,
