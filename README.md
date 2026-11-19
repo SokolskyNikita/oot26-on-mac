@@ -22,8 +22,8 @@ stock compare the pinned build with the same build minus one change, which is ho
 | Cold boot (empty Metal shader cache) | 455–483 s | about 100 s | without MoltenVK #2901 | [emulator-options](research/emulator-options/README.md) |
 | White specks on the Kokiri cave wall | 27 of 30 frames | 0 of 30 | without the cull-mode fix | [mesh-white-specks](research/mesh-white-specks/README.md) |
 
-The most recent runs (2026-11-19, the build `./build.sh` produces, three runs): walking 19.5 / 18.9 / 19.6 ms,
-standing after the walk 16.6 / 16.5 / 16.5 ms, boot to in-game 39.4 / 38.0 / 39.3 s.
+The most recent runs (2026-11-19, the build `./build.sh` produces, three runs): walking 18.7 / 18.8 / 18.9 ms,
+standing after the walk 16.6 / 16.5 / 16.6 ms, boot to in-game 38.4 / 39.4 / 40.4 s.
 
 ![The pinned build in Kokiri Forest](media/pinned-build.png)
 
@@ -45,12 +45,12 @@ What this is not, yet:
 
 ## What the pinned build is made of
 
-Lichii `nx2` at `8c0558a3d3` and MoltenVK `main` at `5189f8de86ec`, each with a patch series from `patches/`.
+Lichii `nx2` at `d2ca32974d` (2026-11-19) and MoltenVK `main` at `5189f8de86ec`, each with a patch series from `patches/`.
 The pins are in [versions.lock](versions.lock).
 
 | Part | Other people's open pull requests, merged in | Changes made here |
 | --- | --- | --- |
-| Lichii | [#1970](https://github.com/zortos293/Lichii/pull/1970) native Metal mesh shaders and Hypervisor backend (HyperCed), [#2022](https://github.com/zortos293/Lichii/pull/2022) (RomainROCH), [#1902](https://github.com/zortos293/Lichii/pull/1902) (Terobyte) | size-based rule for which mesh shaders fall back to emulation; NaN guard; shuffle-free multiply for the game's upscaling network (output identical); CPU widening of 8-bit indices; list-indirect draws; shared JIT code cache on arm64, a port of [#2101](https://github.com/zortos293/Lichii/pull/2101) |
+| Lichii | [#1970](https://github.com/zortos293/Lichii/pull/1970) native Metal mesh shaders and Hypervisor backend (HyperCed), [#1902](https://github.com/zortos293/Lichii/pull/1902) (Terobyte) | size-based rule for which mesh shaders fall back to emulation; NaN guard; shuffle-free multiply for the game's upscaling network (output identical); CPU widening of 8-bit indices; list-indirect draws; shared JIT code cache on arm64, a port of [#2101](https://github.com/zortos293/Lichii/pull/2101) |
 | MoltenVK | [#2842](https://github.com/KhronosGroup/MoltenVK/pull/2842) and [#2843](https://github.com/KhronosGroup/MoltenVK/pull/2843) mesh shaders (dttdrv), [#2897](https://github.com/KhronosGroup/MoltenVK/pull/2897) (paulpan05), [#2901](https://github.com/KhronosGroup/MoltenVK/pull/2901) compile shaders on first use (frankea) | `maxPushDescriptors` 16; subgroup stages for mesh and task shaders; mesh position fix; keeping the Metal render encoder across barriers; cull mode applied to mesh draws; a frame profiler |
 | SPIRV-Cross | pinned at `98cbb7c0`, which has [#2721](https://github.com/KhronosGroup/SPIRV-Cross/pull/2721) (tksuoran) and [#2686](https://github.com/KhronosGroup/SPIRV-Cross/pull/2686) (dttdrv) | |
 

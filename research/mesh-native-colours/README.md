@@ -2,7 +2,7 @@
 
 **Where this stands.** Both faults found here are fixed in the pinned build: the subgroup stages in
 `patches/moltenvk/0004-mesh-subgroup-stages-for-mesh-and-task-shaders-diagn.patch` and the NaN guard in
-`patches/lichii/0005-native-mesh-NaN-guard-for-unwritten-vertices.patch`. What this page leaves open (white shards,
+`patches/lichii/0004-native-mesh-NaN-guard-for-unwritten-vertices.patch`. What this page leaves open (white shards,
 missing ground grass) was found later to be the mesh position output: SPIRV-Cross skips the Y flip and the depth
 fixup for a standalone mesh position (issue #2717), fixed by a text rewrite in
 `patches/moltenvk/0005-Merge-MoltenVK-PR-2897-paulpan05-batch-indirect-coun.patch`
@@ -228,7 +228,7 @@ equally in the all-emulated control.
    Then a driver like today's MoltenVK gets a correct picture by emulation instead of a broken native one.
 3. **Lichii: the NaN-position guard for native mesh shaders too.** In `EmitMeshPrologue` (`emit_spirv_mesh.cpp`),
    move the "every vertex position starts as NaN" block out of `if (as_compute)`, as in
-   fix 2 above (now `patches/lichii/0005-…`). It costs 4 stores per vertex. It showed no visible effect
+   fix 2 above (now `patches/lichii/0004-…`). It costs 4 stores per vertex. It showed no visible effect
    here, but it removes a real difference from the emulated path, which Lichii added for stray triangles.
 4. **Found later:** what remained (white shards, haze, missing ground grass) is not in the mesh programs' code after 1
    and 3. It is the mesh position output (see the top of this page). The leads this page listed were: the native task

@@ -13,7 +13,7 @@ Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
  2 files changed, 141 insertions(+), 35 deletions(-)
 
 diff --git a/src/video_core/renderer_vulkan/mesh_fallback_limits.h b/src/video_core/renderer_vulkan/mesh_fallback_limits.h
-index 42e4107dd68..cd1de34b3a2 100644
+index 42e4107dd6..cd1de34b3a 100644
 --- a/src/video_core/renderer_vulkan/mesh_fallback_limits.h
 +++ b/src/video_core/renderer_vulkan/mesh_fallback_limits.h
 @@ -3,9 +3,11 @@
@@ -130,7 +130,7 @@ index 42e4107dd68..cd1de34b3a2 100644
  // output, task payload, offsets and indirect arguments (task + mesh). Check
  // against the final descriptor set limit without overflowing guest + auxiliary.
 diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
-index 7d770c1351c..662bc8400cb 100644
+index d06cefcc29..30d6ddca9f 100644
 --- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
 +++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
 @@ -439,6 +439,17 @@ std::vector<u32> EmitStageSpirv(const Device& device, const Shader::Profile& pro
@@ -151,7 +151,7 @@ index 7d770c1351c..662bc8400cb 100644
  
      // Text log + .spv dump. Text log is gated by gpu_log_level != Off; .spv dump
      // is independent and gated only by gpu_log_shader_dumps.
-@@ -2774,9 +2785,17 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
+@@ -2837,9 +2848,17 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
      // Experiment: EDEN_NX2_MESH_NATIVE_ALWAYS=1 hands every mesh pipeline to the driver.
      static const bool native_always{std::getenv("EDEN_NX2_MESH_NATIVE_ALWAYS") != nullptr};
      if (!native_always && !mesh_unsupported && device.IsExtMeshShaderSupported()) {
@@ -172,7 +172,7 @@ index 7d770c1351c..662bc8400cb 100644
          const auto& limits{device.GetMeshShaderProperties()};
          for (size_t index = 1; index < Maxwell::MaxShaderProgram && !mesh_unsupported; ++index) {
              const Shader::IR::Program& program{programs[index]};
-@@ -2790,40 +2809,31 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
+@@ -2853,40 +2872,31 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                      lock_size == 0
                          ? program.shared_memory_size
                          : ((u64{program.shared_memory_size} + 3) & ~u64{3}) + lock_size};

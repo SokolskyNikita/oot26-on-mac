@@ -18,7 +18,7 @@ Measured on an Apple M4 Pro (Mac16,8) under macOS 27.0.1, on 2026-11-16, at the 
 with the verify harness ([`tools/verify`](../../tools/verify/README.md)). "All-in-one" is the first combined build
 (Lichii patches 0001–0005, MoltenVK patches 0001–0005 under [`patches/`](../../patches/)). Run labels such as
 `p60-a1` or `f-bil-0` name local run folders, which are not tracked. Each number is marked **measured** (with its
-run label) or **inferred**. The code is `patches/lichii/0006-…` and `patches/moltenvk/0007-…` (see "The patches");
+run label) or **inferred**. The code is `patches/lichii/0005-…` and `patches/moltenvk/0007-…` (see "The patches");
 the scripts are in [`tools/perf`](../../tools/perf/README.md). `P60_*` and `MVK_P60_*` are the environment switches
 these patches add.
 
@@ -70,7 +70,7 @@ the route).
 | App Nap opt-out | `MVK_P60_NO_APPNAP=1` | Measurement only, see "Measurement hazards" | | needed for clean runs with a hidden window; off unless set |
 | Sync trace | `P60_SYNC_TRACE=<file>` | Diagnostics only | | off unless set |
 
-Files: `patches/lichii/0006-path-60-frame-time-fixes-and-their-switches.patch` (15 files),
+Files: `patches/lichii/0005-path-60-frame-time-fixes-and-their-switches.patch` (15 files),
 `patches/moltenvk/0007-path-60-keep-the-render-encoder-across-barriers-and-.patch`, and
 `patches/moltenvk/0008-path-60-keep-encoder-on-by-default-MVK_P60_NO_KEEP_E.patch`.
 

@@ -6,7 +6,7 @@ The cache is in the pinned build, switched on by `EDEN_NX2_SHARED_JIT_CACHE=512`
 
 | File | What |
 | --- | --- |
-| `patches/lichii/0008-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
+| `patches/lichii/0007-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
 | `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same port in the PR-2101 tree (`zortos293/Lichii` `72ff982a3`), with all tests (`jit_shared_cache_tests`, the dynarmic block-table and replay tests) |
 | `jit_totals.py RUN_DIR…` | Whole-load JIT counters from a run's log: blocks, compile time, lock waits by kind, faults, discarded translations, lookup hits |
 | `frame_split.py RUN_DIR` | Per-frame core-time split (JIT run, compiling, lock wait, faults, guest code) from an every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`) |

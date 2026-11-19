@@ -4,12 +4,13 @@ Date: Thu, 19 Nov 2026 03:45:04 -0800
 Subject: [PATCH] Merge Lichii PR #1970 (HyperCed): Better MacOS Support with
  Hypervisor
 
-Squash of the pull request at head 1f76c9ff56 (its head when the all-in-one build was made, 2026-11-16), merged
-onto nx2 8c0558a3d3 with the merge conflicts resolved.
+Squash of the pull request at head b697762630 (2026-11-17; the PR's own changes are those of 1f76c9ff56, the head
+the pinned build carries, plus two merges of nx2), merged onto nx2 d2ca32974d with the merge conflicts resolved
+(two include lists).
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
 ---
- .gitignore                                    |   4 +-
+ .gitignore                                    |   2 +
  AGENTS.md                                     |   1 +
  CMakeLists.txt                                |   6 +
  cpmfile.json                                  |   6 +-
@@ -64,7 +65,7 @@ Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
  tools/nx2/macos_sample.py                     | 154 ++++
  tools/nx2/test_macos_sample.py                |  40 +
  tools/package-macos.sh                        | 168 ++++
- 55 files changed, 2950 insertions(+), 155 deletions(-)
+ 55 files changed, 2950 insertions(+), 153 deletions(-)
  create mode 100644 dist/eglantine.entitlements
  create mode 100644 docs/nx2/hypervisor.md
  create mode 100644 src/core/arm/hvf/arm_hvf.cpp
@@ -76,22 +77,22 @@ Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
  create mode 100755 tools/package-macos.sh
 
 diff --git a/.gitignore b/.gitignore
-index 7fbef81c809..1b02bb17238 100644
+index 7fbef81c80..9440195781 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -68,5 +68,5 @@ vulkansdk*.exe
+@@ -68,5 +68,7 @@ vulkansdk*.exe
  # Build-time generated external sources
  externals/generated
  
--# Python bytecode
--__pycache__/
 +# Claude Code local settings
 +.claude/settings.local.json
+ # Python bytecode
+ __pycache__/
 diff --git a/AGENTS.md b/AGENTS.md
-index 2809e6b5aa3..1dfc8b943a9 100644
+index 8946a23e18..41de2e9132 100644
 --- a/AGENTS.md
 +++ b/AGENTS.md
-@@ -103,6 +103,7 @@ Use these before guessing. All are off unless the variable is set; pass them as
+@@ -105,6 +105,7 @@ Use these before guessing. All are off unless the variable is set; pass them as
  | Video playback | `EDEN_NX2_VDEC_TRACE=1`, `EDEN_NX2_VDEC_DUMP=<dir>` | Decoder submit, decode and composite trace; decoded frames. |
  | Performance and frame pacing | `EDEN_NX2_GPU_PROFILE=1`, `EDEN_DKB_FRAME_TRACE=1` | GPU thread, back thread and Vulkan worker time per second by zone, GPU waits by the zone they happen in, waits for the back by site, and spin mutex contention; per-present interval, CPU and fence timing. Once a second the frame trace also times one frame on the host GPU: `DKB gpu_frame` (busy ms), the slowest submissions, and `DKB gpu_pass` for its 16 most expensive render passes, each with the draws, dispatches and shaders recorded since the pass before. On MoltenVK, use `gpu_pass`: Apple GPUs only take timestamps at the end of a pass, so `gpu_work` and `gpu_site` read 0 there. The profile also logs `Async read-back per second` every 10 s: guest reads of GPU-written memory, their waits, and macro DMA reads that waited for the split's back or drained it. |
  | HostTiming CPU or timer lateness (late guest timers, audio or vsync jitter) | `EDEN_NX2_HOSTTIMING_STATS=1`, or live with the debug server's `host_timing {"stats": true}` | One `HostTiming wait` line per second: waits, waits woken by newly scheduled events, OS sleep and precise (hardware) wait time (ms/s), the current margin before one-shot events, how late OS sleeps ended, how late events fired and how late the one-shot ones among them (guest timers) fired (p50/p99/max µs), and the thread's CPU %. |
@@ -100,7 +101,7 @@ index 2809e6b5aa3..1dfc8b943a9 100644
  | Front waits on command lists after an acquire a queued release met (how much is the release's own work) | `EDEN_NX2_ACQUIRE_STATS=1` (also on with `EDEN_NX2_GPU_PROFILE=1` or `EDEN_NX2_GUEST_THREAD_STATS=1`) | In `Front waits for the back in 10 s by site`, `list writers` (lists on pages no GPU work wrote) and `list copy writers` (GPU-written lists) add `N after a queued release met an acquire: B ms before the back ran it, A ms after`. B is the work the release orders before the list, which the wait needs; A is the writers sent after the release, the most a sync narrowed to the release could save. While the stats count, such a wait first targets the release, so the back stores its position there. |
  | Guest cores' idle CPU or wake-up latency (time in PhysicalCore::Idle) | `EDEN_NX2_IDLE_STATS=1` | One `Guest core N idle` line per core every 10 s: idle periods, how many the poll caught, the average time polled, how many blocked and how long those took to wake after the interrupt (p50/p99 µs), and the current poll. |
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a388417d190..2f6c51a72e0 100644
+index a388417d19..2f6c51a72e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -339,6 +339,12 @@ if (ARCHITECTURE_arm64 AND (ANDROID OR LINUX))
@@ -117,7 +118,7 @@ index a388417d190..2f6c51a72e0 100644
      add_compile_definitions(LICHII_ROOM)
  endif()
 diff --git a/cpmfile.json b/cpmfile.json
-index 8a9f46179f6..209450f5ec6 100644
+index ecc02e517e..c2a9e51fde 100644
 --- a/cpmfile.json
 +++ b/cpmfile.json
 @@ -172,9 +172,9 @@
@@ -135,7 +136,7 @@ index 8a9f46179f6..209450f5ec6 100644
          "hash": "6cc1e86261f8fac21cc17a33da3b6b3c3cd5c116755651642af3c9e99bb3538fd42c1bd50397a77c8fb6821bc62d90e6b91bcdde77a78f58f2416c62fc53b97d",
 diff --git a/dist/eglantine.entitlements b/dist/eglantine.entitlements
 new file mode 100644
-index 00000000000..154f3308ef2
+index 0000000000..154f3308ef
 --- /dev/null
 +++ b/dist/eglantine.entitlements
 @@ -0,0 +1,8 @@
@@ -149,7 +150,7 @@ index 00000000000..154f3308ef2
 +</plist>
 diff --git a/docs/nx2/hypervisor.md b/docs/nx2/hypervisor.md
 new file mode 100644
-index 00000000000..4610a0ee526
+index 0000000000..4610a0ee52
 --- /dev/null
 +++ b/docs/nx2/hypervisor.md
 @@ -0,0 +1,38 @@
@@ -192,7 +193,7 @@ index 00000000000..4610a0ee526
 +  is skipped.
 +- No single-stepping, and no watchpoints.
 diff --git a/src/common/cpu_features.cpp b/src/common/cpu_features.cpp
-index e820906764e..e0472585114 100644
+index e820906764..e047258511 100644
 --- a/src/common/cpu_features.cpp
 +++ b/src/common/cpu_features.cpp
 @@ -310,7 +310,9 @@ bool WallClock::IsNative() const {
@@ -216,7 +217,7 @@ index e820906764e..e0472585114 100644
  #else
      return WallClock(true, 1);
 diff --git a/src/common/cpu_features.h b/src/common/cpu_features.h
-index 98ee51b86e2..ea7488d59aa 100644
+index 98ee51b86e..ea7488d59a 100644
 --- a/src/common/cpu_features.h
 +++ b/src/common/cpu_features.h
 @@ -115,7 +115,7 @@ public:
@@ -229,7 +230,7 @@ index 98ee51b86e2..ea7488d59aa 100644
      [[nodiscard]] inline FactorType GetGuestCNTFRQFactor() const {
          return guest_cntfrq_factor;
 diff --git a/src/common/memory_detect.cpp b/src/common/memory_detect.cpp
-index 9436ebcf8b2..4f378e80faf 100644
+index 9436ebcf8b..4f378e80fa 100644
 --- a/src/common/memory_detect.cpp
 +++ b/src/common/memory_detect.cpp
 @@ -18,6 +18,10 @@
@@ -272,7 +273,7 @@ index 9436ebcf8b2..4f378e80faf 100644
  #endif
      return std::nullopt;
 diff --git a/src/common/memory_detect.h b/src/common/memory_detect.h
-index 260b54a8db6..d7c5931c71e 100644
+index 260b54a8db..d7c5931c71 100644
 --- a/src/common/memory_detect.h
 +++ b/src/common/memory_detect.h
 @@ -59,8 +59,9 @@ struct ProcessMemoryUsage {
@@ -288,7 +289,7 @@ index 260b54a8db6..d7c5931c71e 100644
  /// Physical memory the host can hand out now without paging anything out (0 when unknown).
  [[nodiscard]] u64 GetAvailablePhysicalMemory();
 diff --git a/src/common/settings.h b/src/common/settings.h
-index 24930e3771f..6d390f41927 100644
+index 03586f0e89..f983125596 100644
 --- a/src/common/settings.h
 +++ b/src/common/settings.h
 @@ -264,7 +264,9 @@ struct Values {
@@ -303,7 +304,7 @@ index 24930e3771f..6d390f41927 100644
  #else
                                                      CpuBackend::Dynarmic,
 diff --git a/src/common/settings_enums.h b/src/common/settings_enums.h
-index 8136707beae..e47b0172b01 100644
+index 8136707bea..e47b0172b0 100644
 --- a/src/common/settings_enums.h
 +++ b/src/common/settings_enums.h
 @@ -138,7 +138,7 @@ ENUM(GpuAccuracy, Low, High);
@@ -316,10 +317,10 @@ index 8136707beae..e47b0172b01 100644
  ENUM(CpuClock, Normal, Boost, Overclock)
  ENUM(NativeAsyncDraws, Wait, Bounded, Skip);
 diff --git a/src/core/CMakeLists.txt b/src/core/CMakeLists.txt
-index 8e1aeb0cca2..2b98b809210 100644
+index 5385781ae9..6ec8c16901 100644
 --- a/src/core/CMakeLists.txt
 +++ b/src/core/CMakeLists.txt
-@@ -1313,6 +1313,22 @@ if (HAS_NCE)
+@@ -1318,6 +1318,22 @@ if (HAS_NCE)
      target_link_libraries(core PRIVATE merry::oaknut)
  endif()
  
@@ -344,7 +345,7 @@ index 8e1aeb0cca2..2b98b809210 100644
          arm/dynarmic/arm_dynarmic.h
 diff --git a/src/core/arm/hvf/arm_hvf.cpp b/src/core/arm/hvf/arm_hvf.cpp
 new file mode 100644
-index 00000000000..250fc68f640
+index 0000000000..250fc68f64
 --- /dev/null
 +++ b/src/core/arm/hvf/arm_hvf.cpp
 @@ -0,0 +1,808 @@
@@ -1158,7 +1159,7 @@ index 00000000000..250fc68f640
 +} // namespace Core
 diff --git a/src/core/arm/hvf/arm_hvf.h b/src/core/arm/hvf/arm_hvf.h
 new file mode 100644
-index 00000000000..23dfc9f9146
+index 0000000000..23dfc9f914
 --- /dev/null
 +++ b/src/core/arm/hvf/arm_hvf.h
 @@ -0,0 +1,98 @@
@@ -1262,7 +1263,7 @@ index 00000000000..23dfc9f9146
 +} // namespace Core
 diff --git a/src/core/arm/hvf/hvf_vm.cpp b/src/core/arm/hvf/hvf_vm.cpp
 new file mode 100644
-index 00000000000..3bc780fda67
+index 0000000000..3bc780fda6
 --- /dev/null
 +++ b/src/core/arm/hvf/hvf_vm.cpp
 @@ -0,0 +1,307 @@
@@ -1575,7 +1576,7 @@ index 00000000000..3bc780fda67
 +} // namespace Core::Hvf
 diff --git a/src/core/arm/hvf/hvf_vm.h b/src/core/arm/hvf/hvf_vm.h
 new file mode 100644
-index 00000000000..a611f5418c1
+index 0000000000..a611f5418c
 --- /dev/null
 +++ b/src/core/arm/hvf/hvf_vm.h
 @@ -0,0 +1,142 @@
@@ -1722,7 +1723,7 @@ index 00000000000..a611f5418c1
 +
 +} // namespace Core::Hvf
 diff --git a/src/core/arm/nce/interpreter_visitor.cpp b/src/core/arm/nce/interpreter_visitor.cpp
-index 7b396ae0715..6be19bcf3af 100644
+index 7b396ae071..6be19bcf3a 100644
 --- a/src/core/arm/nce/interpreter_visitor.cpp
 +++ b/src/core/arm/nce/interpreter_visitor.cpp
 @@ -767,12 +767,20 @@ bool InterpreterVisitor::LDR_reg_fpsimd(Imm<2> size, Imm<1> opc_1, Reg Rm, Imm<3
@@ -1747,7 +1748,7 @@ index 7b396ae0715..6be19bcf3af 100644
      u32 instruction = memory.Read32(pc);
      bool was_executed = false;
 diff --git a/src/core/arm/nce/interpreter_visitor.h b/src/core/arm/nce/interpreter_visitor.h
-index c21590ea438..61cbe12b9da 100644
+index c21590ea43..61cbe12b9d 100644
 --- a/src/core/arm/nce/interpreter_visitor.h
 +++ b/src/core/arm/nce/interpreter_visitor.h
 @@ -104,7 +104,16 @@ private:
@@ -1768,7 +1769,7 @@ index c21590ea438..61cbe12b9da 100644
  
  } // namespace Core
 diff --git a/src/core/hle/kernel/k_process.cpp b/src/core/hle/kernel/k_process.cpp
-index 96cc370dfa0..0bf9c76b143 100644
+index 96cc370dfa..0bf9c76b14 100644
 --- a/src/core/hle/kernel/k_process.cpp
 +++ b/src/core/hle/kernel/k_process.cpp
 @@ -22,6 +22,9 @@
@@ -1795,7 +1796,7 @@ index 96cc370dfa0..0bf9c76b143 100644
          if (this->Is64Bit()) {
          for (size_t i = 0; i < Core::Hardware::NUM_CPU_CORES; i++) {
 diff --git a/src/core/hle/kernel/physical_core.cpp b/src/core/hle/kernel/physical_core.cpp
-index 7c5420e5d02..322cbedaff4 100644
+index 7c5420e5d0..322cbedaff 100644
 --- a/src/core/hle/kernel/physical_core.cpp
 +++ b/src/core/hle/kernel/physical_core.cpp
 @@ -148,7 +148,11 @@ void PhysicalCore::RunThread(KernelCore& kernel, Kernel::KThread* thread) {
@@ -1812,7 +1813,7 @@ index 7c5420e5d02..322cbedaff4 100644
              thread->RequestSuspend(kernel, SuspendType::Debug);
              return;
 diff --git a/src/core/memory.cpp b/src/core/memory.cpp
-index 91db7805057..ad17324aa9e 100644
+index 91db780505..ad17324aa9 100644
 --- a/src/core/memory.cpp
 +++ b/src/core/memory.cpp
 @@ -9,8 +9,9 @@
@@ -2085,7 +2086,7 @@ index 91db7805057..ad17324aa9e 100644
      [[maybe_unused]] bool mapped = true;
      [[maybe_unused]] bool rasterizer = false;
 diff --git a/src/core/memory.h b/src/core/memory.h
-index c37b9ef50f1..f978c55d8f6 100644
+index c37b9ef50f..f978c55d8f 100644
 --- a/src/core/memory.h
 +++ b/src/core/memory.h
 @@ -36,6 +36,10 @@ namespace Tegra {
@@ -2127,10 +2128,10 @@ index c37b9ef50f1..f978c55d8f6 100644
  
  private:
 diff --git a/src/lichii/CMakeLists.txt b/src/lichii/CMakeLists.txt
-index b6e5b2d576c..30d297654b0 100644
+index ba72fbccea..1b443226fb 100644
 --- a/src/lichii/CMakeLists.txt
 +++ b/src/lichii/CMakeLists.txt
-@@ -507,3 +507,15 @@ if (TARGET nxformat::static_nozstd)
+@@ -512,3 +512,15 @@ if (TARGET nxformat::static_nozstd)
      target_compile_definitions(lichii PRIVATE LICHII_NX_TOOLS)
  endif()
  create_target_directory_groups(lichii)
@@ -2147,7 +2148,7 @@ index b6e5b2d576c..30d297654b0 100644
 +        COMMAND ${CMAKE_COMMAND} -E copy "${_signed}" "$<TARGET_FILE:lichii>")
 +endif()
 diff --git a/src/lichii/configuration/configure_cpu.cpp b/src/lichii/configuration/configure_cpu.cpp
-index e1049357e42..045c80ba51b 100644
+index e1049357e4..045c80ba51 100644
 --- a/src/lichii/configuration/configure_cpu.cpp
 +++ b/src/lichii/configuration/configure_cpu.cpp
 @@ -33,7 +33,7 @@ ConfigureCpu::ConfigureCpu(const Core::System& system_,
@@ -2169,7 +2170,7 @@ index e1049357e42..045c80ba51b 100644
      ui->unsafe_group->setVisible(accuracy == (u32)Settings::CpuAccuracy::Unsafe &&
                                   backend == (u32)Settings::CpuBackend::Dynarmic);
 diff --git a/src/lichii_cmd/CMakeLists.txt b/src/lichii_cmd/CMakeLists.txt
-index ddbaa5f8a29..e4cec0b876d 100644
+index ddbaa5f8a2..e4cec0b876 100644
 --- a/src/lichii_cmd/CMakeLists.txt
 +++ b/src/lichii_cmd/CMakeLists.txt
 @@ -71,6 +71,13 @@ endif()
@@ -2187,10 +2188,10 @@ index ddbaa5f8a29..e4cec0b876d 100644
  if (NOT MSVC)
      target_compile_options(lichii-cmd PRIVATE
 diff --git a/src/qt_common/config/shared_translation.cpp b/src/qt_common/config/shared_translation.cpp
-index ea46f4a3bb3..1ee8603067c 100644
+index cbfc5d50e4..28db397183 100644
 --- a/src/qt_common/config/shared_translation.cpp
 +++ b/src/qt_common/config/shared_translation.cpp
-@@ -660,7 +660,11 @@ std::unique_ptr<ComboboxTranslationMap> ComboboxEnumeration(QObject* parent) {
+@@ -669,7 +669,11 @@ std::unique_ptr<ComboboxTranslationMap> ComboboxEnumeration(QObject* parent) {
      translations->insert({Settings::EnumMetadata<Settings::CpuBackend>::Index(),
                            {
                                PAIR(CpuBackend, Dynarmic, tr("Dynarmic")),
@@ -2203,7 +2204,7 @@ index ea46f4a3bb3..1ee8603067c 100644
      translations->insert({Settings::EnumMetadata<Settings::FullscreenMode>::Index(),
                            {
 diff --git a/src/shader_recompiler/backend/spirv/emit_spirv.cpp b/src/shader_recompiler/backend/spirv/emit_spirv.cpp
-index 2592bc9362a..bdfed221e1c 100644
+index 2592bc9362..bdfed221e1 100644
 --- a/src/shader_recompiler/backend/spirv/emit_spirv.cpp
 +++ b/src/shader_recompiler/backend/spirv/emit_spirv.cpp
 @@ -533,7 +533,9 @@ void SetupCapabilities(const Profile& profile, const Info& info, EmitContext& ct
@@ -2218,7 +2219,7 @@ index 2592bc9362a..bdfed221e1c 100644
      }
      if (info.uses_typeless_image_reads && profile.support_typeless_image_loads) {
 diff --git a/src/shader_recompiler/backend/spirv/emit_spirv_atomic.cpp b/src/shader_recompiler/backend/spirv/emit_spirv_atomic.cpp
-index 3b70835fd36..a77eb7510d8 100644
+index 3b70835fd3..a77eb7510d 100644
 --- a/src/shader_recompiler/backend/spirv/emit_spirv_atomic.cpp
 +++ b/src/shader_recompiler/backend/spirv/emit_spirv_atomic.cpp
 @@ -157,7 +157,18 @@ Id EmitSharedAtomicExchange32(EmitContext& ctx, Id offset, Id value) {
@@ -2284,7 +2285,7 @@ index 3b70835fd36..a77eb7510d8 100644
  
  Id EmitSharedAtomicExchange32x2(EmitContext& ctx, Id offset, Id value) {
 diff --git a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
-index 61427c77868..eed0475f17c 100644
+index 90dc714a2e..8aa0cf435a 100644
 --- a/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
 +++ b/src/shader_recompiler/backend/spirv/spirv_emit_context.cpp
 @@ -650,8 +650,11 @@ void EmitContext::DefineLocalMemory(const IR::Program& program) {
@@ -2316,7 +2317,7 @@ index 61427c77868..eed0475f17c 100644
      const auto make_function{[&](u32 mask, u32 size) {
          const Id loop_header{OpLabel()};
 diff --git a/src/shader_recompiler/backend/spirv/spirv_emit_context.h b/src/shader_recompiler/backend/spirv/spirv_emit_context.h
-index e95ef1d31cb..78ff50ac3e7 100644
+index e95ef1d31c..78ff50ac3e 100644
 --- a/src/shader_recompiler/backend/spirv/spirv_emit_context.h
 +++ b/src/shader_recompiler/backend/spirv/spirv_emit_context.h
 @@ -356,6 +356,7 @@ public:
@@ -2328,7 +2329,7 @@ index e95ef1d31cb..78ff50ac3e7 100644
      Id shared_memory_u32_type{};
  
 diff --git a/src/shader_recompiler/ir_opt/collect_shader_info_pass.cpp b/src/shader_recompiler/ir_opt/collect_shader_info_pass.cpp
-index fb788e6d6f5..56af19b1c94 100644
+index fb788e6d6f..56af19b1c9 100644
 --- a/src/shader_recompiler/ir_opt/collect_shader_info_pass.cpp
 +++ b/src/shader_recompiler/ir_opt/collect_shader_info_pass.cpp
 @@ -698,6 +698,7 @@ void VisitUsages(Info& info, IR::Inst& inst) {
@@ -2340,7 +2341,7 @@ index fb788e6d6f5..56af19b1c94 100644
      case IR::Opcode::GlobalAtomicInc32:
      case IR::Opcode::StorageAtomicInc32:
 diff --git a/src/shader_recompiler/shader_info.h b/src/shader_recompiler/shader_info.h
-index 702bd7185bf..46a8128d537 100644
+index 702bd7185b..46a8128d53 100644
 --- a/src/shader_recompiler/shader_info.h
 +++ b/src/shader_recompiler/shader_info.h
 @@ -359,6 +359,7 @@ struct Info {
@@ -2352,7 +2353,7 @@ index 702bd7185bf..46a8128d537 100644
      bool uses_global_decrement{};
      bool uses_atomic_f32_add{};
 diff --git a/src/tests/video_core/host_memory_limit.cpp b/src/tests/video_core/host_memory_limit.cpp
-index be6ccc40341..df42ca548a8 100644
+index be6ccc4034..df42ca548a 100644
 --- a/src/tests/video_core/host_memory_limit.cpp
 +++ b/src/tests/video_core/host_memory_limit.cpp
 @@ -52,11 +52,15 @@ TEST_CASE("The host memory bound does not wrap", "[video_core][texture_cache][ho
@@ -2374,7 +2375,7 @@ index be6ccc40341..df42ca548a8 100644
      REQUIRE_FALSE(room.has_value());
  #endif
 diff --git a/src/tests/video_core/mesh_fallback.cpp b/src/tests/video_core/mesh_fallback.cpp
-index 952f7e49745..10ca565b21f 100644
+index 952f7e4974..10ca565b21 100644
 --- a/src/tests/video_core/mesh_fallback.cpp
 +++ b/src/tests/video_core/mesh_fallback.cpp
 @@ -65,6 +65,19 @@ bool HasCapability(const std::vector<u32>& code, spv::Capability capability) {
@@ -2496,7 +2497,7 @@ index 952f7e49745..10ca565b21f 100644
  // A triangle mesh with a per-primitive generic (Generic1X), Layer and PrimitiveId.
  MeshInfo PerPrimitiveMesh() {
 diff --git a/src/video_core/renderer_opengl/gl_texture_cache.cpp b/src/video_core/renderer_opengl/gl_texture_cache.cpp
-index 359a97e067f..bacfe9e7c2a 100644
+index 359a97e067..bacfe9e7c2 100644
 --- a/src/video_core/renderer_opengl/gl_texture_cache.cpp
 +++ b/src/video_core/renderer_opengl/gl_texture_cache.cpp
 @@ -575,7 +575,8 @@ u64 TextureCacheRuntime::GetDeviceMemoryUsage() const {
@@ -2510,7 +2511,7 @@ index 359a97e067f..bacfe9e7c2a 100644
      const GLuint src_name = src_image.Handle();
      const GLenum dst_target = ImageTarget(dst_image.info);
 diff --git a/src/video_core/renderer_opengl/gl_texture_cache.h b/src/video_core/renderer_opengl/gl_texture_cache.h
-index 7d26818180f..d5154189b67 100644
+index 7d26818180..d5154189b6 100644
 --- a/src/video_core/renderer_opengl/gl_texture_cache.h
 +++ b/src/video_core/renderer_opengl/gl_texture_cache.h
 @@ -6,6 +6,7 @@
@@ -2533,7 +2534,7 @@ index 7d26818180f..d5154189b67 100644
      void CopyImageMSAA(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);
  
 diff --git a/src/video_core/renderer_vulkan/mesh_fallback_limits.h b/src/video_core/renderer_vulkan/mesh_fallback_limits.h
-index cbb41cadedd..42e4107dd68 100644
+index cbb41caded..42e4107dd6 100644
 --- a/src/video_core/renderer_vulkan/mesh_fallback_limits.h
 +++ b/src/video_core/renderer_vulkan/mesh_fallback_limits.h
 @@ -2,10 +2,82 @@
@@ -2620,7 +2621,7 @@ index cbb41cadedd..42e4107dd68 100644
  // output, task payload, offsets and indirect arguments (task + mesh). Check
  // against the final descriptor set limit without overflowing guest + auxiliary.
 diff --git a/src/video_core/renderer_vulkan/vk_buffer_cache.cpp b/src/video_core/renderer_vulkan/vk_buffer_cache.cpp
-index c8749c953f8..830b4aacc99 100644
+index d20e713532..d962af9d43 100644
 --- a/src/video_core/renderer_vulkan/vk_buffer_cache.cpp
 +++ b/src/video_core/renderer_vulkan/vk_buffer_cache.cpp
 @@ -167,9 +167,21 @@ Buffer::Buffer(BufferCacheRuntime& runtime, DAddr cpu_addr_, u64 size_bytes_,
@@ -2647,10 +2648,10 @@ index c8749c953f8..830b4aacc99 100644
  
  VkBufferView Buffer::View(u32 offset, u32 size, VideoCore::Surface::PixelFormat format) {
 diff --git a/src/video_core/renderer_vulkan/vk_buffer_cache.h b/src/video_core/renderer_vulkan/vk_buffer_cache.h
-index 283e8a5eaae..b25eabc2f1f 100644
+index 6375901b92..a8c16763aa 100644
 --- a/src/video_core/renderer_vulkan/vk_buffer_cache.h
 +++ b/src/video_core/renderer_vulkan/vk_buffer_cache.h
-@@ -60,9 +60,8 @@ public:
+@@ -61,9 +61,8 @@ public:
          return buffer.Location();
      }
  
@@ -2663,7 +2664,7 @@ index 283e8a5eaae..b25eabc2f1f 100644
      void MarkUsage(u64 offset, u64 size) noexcept;
  
 diff --git a/src/video_core/renderer_vulkan/vk_master_semaphore.h b/src/video_core/renderer_vulkan/vk_master_semaphore.h
-index 9f58bb7e0ab..411ebc1a478 100644
+index 9f58bb7e0a..411ebc1a47 100644
 --- a/src/video_core/renderer_vulkan/vk_master_semaphore.h
 +++ b/src/video_core/renderer_vulkan/vk_master_semaphore.h
 @@ -27,6 +27,10 @@ public:
@@ -2678,10 +2679,10 @@ index 9f58bb7e0ab..411ebc1a478 100644
      [[nodiscard]] u64 CurrentTick() const noexcept {
          return current_tick.load(std::memory_order_acquire);
 diff --git a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
-index 85d001e16fb..7d770c1351c 100644
+index 2665f1ec76..d06cefcc29 100644
 --- a/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
 +++ b/src/video_core/renderer_vulkan/vk_pipeline_cache.cpp
-@@ -2771,6 +2771,62 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
+@@ -2834,6 +2834,62 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
              layer_source_program = &programs[index];
          }
      }
@@ -2744,7 +2745,7 @@ index 85d001e16fb..7d770c1351c 100644
      {
          // Fit the set before mesh fallback chooses its auxiliary buffer bindings: cutting arrays
          // can merge descriptors, so both their element counts and their binding counts can change.
-@@ -2817,6 +2873,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
+@@ -2880,6 +2936,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
          if (!eligible) {
              return nullptr;
          }
@@ -2765,7 +2766,7 @@ index 85d001e16fb..7d770c1351c 100644
          // Per-primitive outputs reach the pixel program flat through the vertex shader. A vertex
          // shader writes Layer and ViewportIndex only with VK_EXT_shader_viewport_index_layer, and
          // PrimitiveId goes through a generic location nothing else uses.
-@@ -3553,13 +3623,37 @@ ComputePipelineCacheEntry PipelineCache::CreateComputePipeline(
+@@ -3622,13 +3692,37 @@ ComputePipelineCacheEntry PipelineCache::CreateComputePipeline(
          driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
          driver_id == VK_DRIVER_ID_ARM_PROPRIETARY || driver_id == VK_DRIVER_ID_MOLTENVK;
      const u32 max_shared_memory = device.GetMaxComputeSharedMemorySize();
@@ -2806,7 +2807,7 @@ index 85d001e16fb..7d770c1351c 100644
      std::unique_ptr<ComputePipeline> pipeline;
      const u64 ir_bytes = emit_pools ? IrBytes(std::span(&program, 1)) : 0;
 diff --git a/src/video_core/renderer_vulkan/vk_scheduler.cpp b/src/video_core/renderer_vulkan/vk_scheduler.cpp
-index 270da5905b3..92a56bd255a 100644
+index 270da5905b..92a56bd255 100644
 --- a/src/video_core/renderer_vulkan/vk_scheduler.cpp
 +++ b/src/video_core/renderer_vulkan/vk_scheduler.cpp
 @@ -670,6 +670,15 @@ void Scheduler::AllocateWorkerCommandBuffer() {
@@ -2826,7 +2827,7 @@ index 270da5905b3..92a56bd255a 100644
          TraceGpuSubmission();
      }
 diff --git a/src/video_core/renderer_vulkan/vk_texture_cache.cpp b/src/video_core/renderer_vulkan/vk_texture_cache.cpp
-index 115e1b0f190..70e75dd5ed0 100644
+index c8a2e3c94c..2d2ea258f4 100644
 --- a/src/video_core/renderer_vulkan/vk_texture_cache.cpp
 +++ b/src/video_core/renderer_vulkan/vk_texture_cache.cpp
 @@ -267,7 +267,19 @@ constexpr VkBorderColor ConvertBorderColor(const std::array<float, 4>& color) {
@@ -2938,7 +2939,7 @@ index 115e1b0f190..70e75dd5ed0 100644
      if (original_image.IsUnbacked()) {
          flags |= VideoCommon::ImageFlagBits::Unbacked;
          const ImageInfo host_info = TrimmedHostInfo(runtime_.device, info, host_level_offset);
-@@ -3839,9 +3897,14 @@ bool Image::InitSparseTiles() {
+@@ -3872,9 +3930,14 @@ bool Image::InitSparseTiles() {
      s.requirements = device.GetLogical().GetImageMemoryRequirements(handle);
      const VkExtent3D granularity = it->formatProperties.imageGranularity;
      const u32 bytes = VideoCore::Surface::BytesPerBlock(info.format);
@@ -2955,7 +2956,7 @@ index 115e1b0f190..70e75dd5ed0 100644
          return false;
      }
      s.allocator = &runtime->memory_allocator;
-@@ -3852,13 +3915,20 @@ bool Image::InitSparseTiles() {
+@@ -3885,13 +3948,20 @@ bool Image::InitSparseTiles() {
      s.tile_width = granularity.width;
      s.tile_height = granularity.height;
      s.tail_level = (std::min)(it->imageMipTailFirstLod, s.levels);
@@ -2983,7 +2984,7 @@ index 115e1b0f190..70e75dd5ed0 100644
      }
      if (SparseTilesModeOf(device) == SparseTilesMode::Aliased && !BindZeroBlock()) {
          LOG_WARNING(Render_Vulkan, "Sparse tiled image {:#x}: no zeroed block to share", gpu_addr);
-@@ -3867,8 +3937,10 @@ bool Image::InitSparseTiles() {
+@@ -3900,8 +3970,10 @@ bool Image::InitSparseTiles() {
          s.bound_bytes = 0;
          return false;
      }
@@ -2996,7 +2997,7 @@ index 115e1b0f190..70e75dd5ed0 100644
               s.zero_block != VK_NULL_HANDLE ? ", empty blocks share a zeroed one" : "");
      return true;
  }
-@@ -4050,6 +4122,131 @@ bool Image::BackTilesWhole() {
+@@ -4083,6 +4155,131 @@ bool Image::BackTilesWhole() {
      return true;
  }
  
@@ -3128,7 +3129,7 @@ index 115e1b0f190..70e75dd5ed0 100644
  bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
      SparseLayerMemory& s = sparse_layers;
      if (s.allocator == nullptr) {
-@@ -4065,7 +4262,7 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
+@@ -4098,7 +4295,7 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
      std::vector<VkSparseImageMemoryBind> image_binds;
      std::vector<VkSparseMemoryBind> opaque_binds;
      std::vector<VmaAllocation*> fresh; // Blocks given memory by this call
@@ -3137,7 +3138,7 @@ index 115e1b0f190..70e75dd5ed0 100644
      // A failed bind leaves the blocks as they were, so the next call tries them again.
      const auto roll_back = [&] {
          for (VmaAllocation* const allocation : fresh) {
-@@ -4073,17 +4270,49 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
+@@ -4106,17 +4303,49 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
              *allocation = VK_NULL_HANDLE;
              s.bound_bytes -= tile;
          }
@@ -3192,7 +3193,7 @@ index 115e1b0f190..70e75dd5ed0 100644
              continue;
          }
          const u32 width = (std::max)(s.width >> level, 1U);
-@@ -4093,7 +4322,8 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
+@@ -4126,7 +4355,8 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
               ++ty) {
              for (u32 tx = rect.x / s.tile_width; tx <= (rect.x + rect.width - 1) / s.tile_width;
                   ++tx) {
@@ -3202,7 +3203,7 @@ index 115e1b0f190..70e75dd5ed0 100644
                  if (allocation != VK_NULL_HANDLE) {
                      continue;
                  }
-@@ -4114,7 +4344,7 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
+@@ -4147,7 +4377,7 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
                      .subresource{
                          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                          .mipLevel = level,
@@ -3211,7 +3212,7 @@ index 115e1b0f190..70e75dd5ed0 100644
                      },
                      .offset{static_cast<s32>(x), static_cast<s32>(y), 0},
                      .extent{(std::min)(s.tile_width, width - x), (std::min)(s.tile_height, height - y),
-@@ -4126,32 +4356,6 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
+@@ -4159,32 +4389,6 @@ bool Image::BindTiles(std::span<const VideoCommon::LevelRect> rects) {
              }
          }
      }
@@ -3245,7 +3246,7 @@ index 115e1b0f190..70e75dd5ed0 100644
          return true;
      }
 diff --git a/src/video_core/renderer_vulkan/vk_texture_cache.h b/src/video_core/renderer_vulkan/vk_texture_cache.h
-index e5d0fd3f074..f5d99be3de5 100644
+index 26db816e42..1cc2d8209e 100644
 --- a/src/video_core/renderer_vulkan/vk_texture_cache.h
 +++ b/src/video_core/renderer_vulkan/vk_texture_cache.h
 @@ -6,6 +6,7 @@
@@ -3256,7 +3257,7 @@ index e5d0fd3f074..f5d99be3de5 100644
  #include <deque>
  #include <memory>
  #include <optional>
-@@ -169,7 +170,9 @@ public:
+@@ -187,7 +188,9 @@ public:
      [[nodiscard]] std::optional<VideoCore::GameDlssProbe> ProbeGameDlssOutput(
          ImageView& input, ImageView& output, std::optional<std::array<u32, 2>> input_region);
  
@@ -3267,7 +3268,7 @@ index e5d0fd3f074..f5d99be3de5 100644
  
      void CopyImageMSAA(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);
  
-@@ -572,6 +575,14 @@ public:
+@@ -596,6 +599,14 @@ public:
      /// levels in it) device memory where they have none yet. False if that failed.
      bool BindTiles(std::span<const VideoCommon::LevelRect> rects);
  
@@ -3282,7 +3283,7 @@ index e5d0fd3f074..f5d99be3de5 100644
      /// SparseTiles images: the host sparse block, in texels, and the first level of the mip tail.
      u32 SparseTileWidth() const noexcept {
          return sparse_layers.tile_width;
-@@ -642,6 +653,8 @@ private:
+@@ -666,6 +677,8 @@ private:
              tail_level = other.tail_level;
              zero_block = std::exchange(other.zero_block, VK_NULL_HANDLE);
              tail_memory = std::exchange(other.tail_memory, VK_NULL_HANDLE);
@@ -3291,7 +3292,7 @@ index e5d0fd3f074..f5d99be3de5 100644
              bound_bytes = other.bound_bytes;
              warned = other.warned;
              return *this;
-@@ -661,6 +674,10 @@ private:
+@@ -685,6 +698,10 @@ private:
                      allocator->FreeSparseMemory(allocation);
                  }
              }
@@ -3302,7 +3303,7 @@ index e5d0fd3f074..f5d99be3de5 100644
              allocator->FreeSparseMemory(tail_memory);
              allocator->FreeSparseMemory(zero_block);
              zero_block = VK_NULL_HANDLE;
-@@ -679,8 +696,11 @@ private:
+@@ -703,8 +720,11 @@ private:
          u32 tile_height{};
          VkDeviceSize layer_bytes{}; ///< One layer's levels before the mip tail, and its own tail
          std::vector<VmaAllocation> layer_memory; ///< Per layer, null until bound
@@ -3316,10 +3317,10 @@ index e5d0fd3f074..f5d99be3de5 100644
          /// SparseTiles: the zeroed block every block without memory of its own is bound to, where
          /// the driver can't sample unbound memory
 diff --git a/src/video_core/texture_cache/texture_cache.h b/src/video_core/texture_cache/texture_cache.h
-index e6d1b370d94..598d077e854 100644
+index 7ca6702aee..36213311f2 100644
 --- a/src/video_core/texture_cache/texture_cache.h
 +++ b/src/video_core/texture_cache/texture_cache.h
-@@ -10,11 +10,14 @@
+@@ -11,6 +11,8 @@
  #include <cstdlib>
  #include <limits>
  #include <map>
@@ -3328,13 +3329,15 @@ index e6d1b370d94..598d077e854 100644
  #include <vector>
  #include <tuple>
  #include <optional>
- #include <bit>
+@@ -18,6 +20,7 @@
+ #include <chrono>
  #include <string>
+ #include <type_traits>
 +#include <unordered_map>
  #include <utility>
  #include "common/container/unordered_map.h"
  #include <boost/container/small_vector.hpp>
-@@ -34,6 +37,7 @@
+@@ -39,6 +42,7 @@
  #include "video_core/nx2_profile.h"
  #include "video_core/render_trace.h"
  #include "video_core/texture_cache/conversion.h"
@@ -3342,7 +3345,7 @@ index e6d1b370d94..598d077e854 100644
  #include "video_core/texture_cache/eviction_age.h"
  #include "video_core/texture_cache/host_memory_limit.h"
  #include "video_core/texture_cache/host_mip_limits.h"
-@@ -51,6 +55,65 @@ namespace VideoCommon {
+@@ -56,6 +60,65 @@ namespace VideoCommon {
      return enabled;
  }
  
@@ -3408,7 +3411,7 @@ index e6d1b370d94..598d077e854 100644
  /// EDEN_NX2_TC_TRACE=1: log every image the cache creates, uploads and deletes.
  [[nodiscard]] inline bool TextureCacheTrace() {
      static const bool enabled = [] {
-@@ -596,11 +659,16 @@ void TextureCache<P>::TickFrame() {
+@@ -1413,11 +1476,16 @@ void TextureCache<P>::TickFrame() {
                      critical_memory = budget - (std::min)(reserved, budget / 2);
                      // The device's budget is not all the room there is: see HostCriticalMemory.
                      // The usage is the driver's, which still counts images waiting to be freed.
@@ -3430,7 +3433,7 @@ index e6d1b370d94..598d077e854 100644
                      critical_memory = (std::min)(critical_memory, host_critical);
                      retention_budget = RetentionBudget(retention_budget, budget);
                      const u64 room_margin =
-@@ -676,7 +744,7 @@ void TextureCache<P>::TickFrame() {
+@@ -1493,7 +1561,7 @@ void TextureCache<P>::TickFrame() {
                                   retention_limit >> 20, retention_budget >> 20);
                          if (commit_room) {
                              LOG_INFO(HW_GPU, "Host memory: {} MiB of commit left, {}",
@@ -3439,7 +3442,7 @@ index e6d1b370d94..598d077e854 100644
                                       critical_memory == host_critical
                                           ? "which bounds the thresholds"
                                           : "the device budget bounds the thresholds");
-@@ -1301,10 +1369,86 @@ bool TextureCache<P>::RescaleRenderTargets() {
+@@ -2143,10 +2211,86 @@ bool TextureCache<P>::RescaleRenderTargets() {
          set_rating(tmp_color_images[index]);
      }
      set_rating(tmp_depth_image);
@@ -3526,7 +3529,7 @@ index e6d1b370d94..598d077e854 100644
  template <class P>
  void TextureCache<P>::UpdateRenderTargets(bool is_clear) {
      using namespace VideoCommon::Dirty;
-@@ -2593,21 +2737,76 @@ void TextureCache<P>::RefreshSparseTiles(Image& image) {
+@@ -3619,21 +3763,76 @@ void TextureCache<P>::RefreshSparseTiles(Image& image) {
          const std::vector<LevelRect> rects =
              SparseTileRects(image.info, ranges, image.SparseTileWidth(), image.SparseTileHeight(),
                              image.SparseTailLevel());
@@ -3609,7 +3612,7 @@ index e6d1b370d94..598d077e854 100644
  template <class P>
  bool TextureCache<P>::BindSparseTiles(Image& image, std::span<const LevelRect> rects) {
      if constexpr (requires { &Image::BindTiles; }) {
-@@ -4603,6 +4802,9 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
+@@ -5606,6 +5805,9 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
      });
      const auto& resolution = Settings::values.resolution_info;
      for (const AliasedImage* const aliased : aliased_images) {
@@ -3619,7 +3622,7 @@ index e6d1b370d94..598d077e854 100644
          if (!resolution.active || !any_rescaled) {
              CopyImage(image_id, aliased->id, aliased->copies);
              continue;
-@@ -4688,7 +4890,8 @@ void TextureCache<P>::PrepareImageView(ImageViewId image_view_id, bool is_modifi
+@@ -5701,7 +5903,8 @@ void TextureCache<P>::PrepareImageView(ImageViewId image_view_id, bool is_modifi
  }
  
  template <class P>
@@ -3629,7 +3632,7 @@ index e6d1b370d94..598d077e854 100644
      Image& dst = slot_images[dst_id];
      Image& src = slot_images[src_id];
      if (True(dst.flags & ImageFlagBits::UnwrittenSparse) ||
-@@ -4726,7 +4929,7 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
+@@ -5739,7 +5942,7 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
                  return runtime.EmulateCopyImage(dst, src, copies);
              }
          }
@@ -3639,19 +3642,19 @@ index e6d1b370d94..598d077e854 100644
      UNIMPLEMENTED_IF(dst.info.type != ImageType::e2D);
      UNIMPLEMENTED_IF(src.info.type != ImageType::e2D);
 diff --git a/src/video_core/texture_cache/texture_cache_base.h b/src/video_core/texture_cache/texture_cache_base.h
-index 4aca9b3e658..d785f18f144 100644
+index aa31df9ea2..052f2abf8a 100644
 --- a/src/video_core/texture_cache/texture_cache_base.h
 +++ b/src/video_core/texture_cache/texture_cache_base.h
-@@ -5,6 +5,8 @@
- 
+@@ -6,6 +6,8 @@
  #pragma once
  
+ #include <algorithm>
 +#include <source_location>
 +
  #include <atomic>
  #include <chrono>
  #include <deque>
-@@ -251,6 +253,7 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
+@@ -256,6 +258,7 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
  
      /// Image::BindTiles, counting what it binds in total_used_memory.
      bool BindSparseTiles(Image& image, std::span<const LevelRect> rects);
@@ -3659,7 +3662,7 @@ index 4aca9b3e658..d785f18f144 100644
  
      /// Image::BackTilesWhole, counting what it binds in total_used_memory.
      bool BackSparseTilesWhole(Image& image);
-@@ -364,6 +367,8 @@ public:
+@@ -376,6 +379,8 @@ public:
      /// Updates the Render Targets if they can be rescaled
      /// @retval True if the Render Targets have been rescaled.
      bool RescaleRenderTargets();
@@ -3668,7 +3671,7 @@ index 4aca9b3e658..d785f18f144 100644
  
      /// Update bound render targets and upload memory if necessary
      /// @param is_clear True when the render targets are being used for clears
-@@ -628,7 +633,8 @@ private:
+@@ -650,7 +655,8 @@ private:
      void PrepareImageView(ImageViewId image_view_id, bool is_modification, bool invalidate);
  
      /// Execute copies from one image to the other, even if they are incompatible
@@ -3679,7 +3682,7 @@ index 4aca9b3e658..d785f18f144 100644
      /// Bind an image view as render target, downloading resources preemtively if needed
      void BindRenderTarget(ImageViewId* old_id, ImageViewId new_id);
 diff --git a/src/video_core/texture_cache/types.h b/src/video_core/texture_cache/types.h
-index f3ddf5364ec..3be7be12ee6 100644
+index f3ddf5364e..3be7be12ee 100644
 --- a/src/video_core/texture_cache/types.h
 +++ b/src/video_core/texture_cache/types.h
 @@ -131,13 +131,14 @@ struct ImageCopy {
@@ -3699,10 +3702,10 @@ index f3ddf5364ec..3be7be12ee6 100644
  
  struct BufferImageCopy {
 diff --git a/src/video_core/texture_cache/util.cpp b/src/video_core/texture_cache/util.cpp
-index 001bf0218e0..2c8e753f5af 100644
+index c1c9b5719c..620fae5c58 100644
 --- a/src/video_core/texture_cache/util.cpp
 +++ b/src/video_core/texture_cache/util.cpp
-@@ -938,15 +938,18 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(
+@@ -1006,15 +1006,18 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(
  }
  
  namespace {
@@ -3727,7 +3730,7 @@ index 001bf0218e0..2c8e753f5af 100644
      u32 block_bytes;
      u32 blocks_per_row;
  };
-@@ -966,8 +969,10 @@ std::vector<BlockLinearLevel> BlockLinearLevels(const ImageInfo& info) {
+@@ -1034,8 +1037,10 @@ std::vector<BlockLinearLevel> BlockLinearLevels(const ImageInfo& info) {
          const u32 stride = Common::AlignUpLog2(num_tiles.width, stride_alignment) << bpp_log2;
          levels.push_back({
              .offset = offset,
@@ -3740,7 +3743,7 @@ index 001bf0218e0..2c8e753f5af 100644
              .block_height = block.height,
              .block_texels = GOB_SIZE_X >> bpp_log2,
              .block_rows = GOB_SIZE_Y << block.height,
-@@ -987,13 +992,18 @@ struct RectBlocks {
+@@ -1055,13 +1060,18 @@ struct RectBlocks {
      u32 num_blocks;
  };
  
@@ -3764,7 +3767,7 @@ index 001bf0218e0..2c8e753f5af 100644
                                   level.blocks_per_row - first_block),
      };
  }
-@@ -1004,22 +1014,43 @@ u32 BlockRowTexelRows(const BlockLinearLevel& level, u32 row) {
+@@ -1072,22 +1082,43 @@ u32 BlockRowTexelRows(const BlockLinearLevel& level, u32 row) {
  } // Anonymous namespace
  
  std::vector<LevelRect> SparseTileRects(const ImageInfo& info,
@@ -3813,7 +3816,7 @@ index 001bf0218e0..2c8e753f5af 100644
              }
              continue;
          }
-@@ -1062,28 +1093,32 @@ std::vector<LevelRect> SparseTileRects(const ImageInfo& info,
+@@ -1130,28 +1161,32 @@ std::vector<LevelRect> SparseTileRects(const ImageInfo& info,
                  while (tx < tiles_x && touched[size_t{ty} * tiles_x + tx]) {
                      ++tx;
                  }
@@ -3851,7 +3854,7 @@ index 001bf0218e0..2c8e753f5af 100644
          for (u32 row = blocks.first_row; row <= blocks.last_row; ++row) {
              bytes += (size_t{blocks.num_blocks * level.block_texels} << bpp_log2) *
                       BlockRowTexelRows(level, row);
-@@ -1098,19 +1133,21 @@ std::vector<BufferImageCopy> UnswizzleImageRects(Tegra::MemoryManager& gpu_memor
+@@ -1166,19 +1201,21 @@ std::vector<BufferImageCopy> UnswizzleImageRects(Tegra::MemoryManager& gpu_memor
                                                   std::span<u8> output) {
      const std::vector<BlockLinearLevel> levels = BlockLinearLevels(info);
      const u32 bpp_log2 = BytesPerBlockLog2(info.format);
@@ -3875,7 +3878,7 @@ index 001bf0218e0..2c8e753f5af 100644
                                        u64{row} * level.blocks_per_row * level.block_bytes +
                                        u64{blocks.first_block} * level.block_bytes;
              swizzled.assign(row_bytes, 0);
-@@ -1118,22 +1155,29 @@ std::vector<BufferImageCopy> UnswizzleImageRects(Tegra::MemoryManager& gpu_memor
+@@ -1186,22 +1223,29 @@ std::vector<BufferImageCopy> UnswizzleImageRects(Tegra::MemoryManager& gpu_memor
              UnswizzleTexture(output.subspan(output_offset, bytes), swizzled, 1U << bpp_log2, width,
                               texel_rows, 1, level.block_height, 0, 0,
                               gpu_memory.UsesNativeTiling());
@@ -3913,10 +3916,10 @@ index 001bf0218e0..2c8e753f5af 100644
              output_offset += bytes;
          }
 diff --git a/src/video_core/texture_cache/util.h b/src/video_core/texture_cache/util.h
-index 10b2849e5f2..5df66dc8a29 100644
+index ecf1c126a2..20064e2060 100644
 --- a/src/video_core/texture_cache/util.h
 +++ b/src/video_core/texture_cache/util.h
-@@ -111,9 +111,10 @@ void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan&
+@@ -115,9 +115,10 @@ void PrefaultGuestMemory(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, si
      std::span<const u8> input, std::span<u8> output,
      Tegra::Texture::UnswizzleWorker* worker = nullptr);
  
@@ -3930,7 +3933,7 @@ index 10b2849e5f2..5df66dc8a29 100644
  [[nodiscard]] std::vector<LevelRect> SparseTileRects(const ImageInfo& info,
                                                       std::span<const std::pair<u64, u64>> ranges,
                                                       u32 tile_width, u32 tile_height,
-@@ -122,8 +123,8 @@ void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan&
+@@ -126,8 +127,8 @@ void PrefaultGuestMemory(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, si
  /// Bytes UnswizzleImageRects writes for `rects`.
  [[nodiscard]] size_t UnswizzledRectsBytes(const ImageInfo& info, std::span<const LevelRect> rects);
  
@@ -3942,10 +3945,10 @@ index 10b2849e5f2..5df66dc8a29 100644
                                                                 GPUVAddr gpu_addr,
                                                                 const ImageInfo& info,
 diff --git a/src/video_core/vulkan_common/vulkan_device.cpp b/src/video_core/vulkan_common/vulkan_device.cpp
-index 29baa1e75a1..3cba3ed0001 100644
+index d0d582efad..2ef8947390 100644
 --- a/src/video_core/vulkan_common/vulkan_device.cpp
 +++ b/src/video_core/vulkan_common/vulkan_device.cpp
-@@ -1676,6 +1676,10 @@ bool Device::GetSuitability(bool requires_swapchain) {
+@@ -1791,6 +1791,10 @@ bool Device::GetSuitability(bool requires_swapchain) {
              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
          SetNext(next, properties.subgroup_size_control);
      }
@@ -3957,10 +3960,10 @@ index 29baa1e75a1..3cba3ed0001 100644
          properties.transform_feedback.sType =
              VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_PROPERTIES_EXT;
 diff --git a/src/video_core/vulkan_common/vulkan_device.h b/src/video_core/vulkan_common/vulkan_device.h
-index 2714d6dd61e..aa63bcf966f 100644
+index 2ca89c8ddc..413e80424d 100644
 --- a/src/video_core/vulkan_common/vulkan_device.h
 +++ b/src/video_core/vulkan_common/vulkan_device.h
-@@ -767,6 +767,11 @@ FN_MAX_LIMIT_LIST
+@@ -785,6 +785,11 @@ FN_MAX_LIMIT_LIST
                 features.mesh_shader.meshShader;
      }
  
@@ -3972,7 +3975,7 @@ index 2714d6dd61e..aa63bcf966f 100644
      /// Returns true if the device supports VK_KHR_image_format_list.
      bool IsKhrImageFormatListSupported() const {
          return extensions.image_format_list || instance_version >= VK_API_VERSION_1_2;
-@@ -1430,6 +1435,7 @@ private:
+@@ -1460,6 +1465,7 @@ private:
          VkPhysicalDeviceCustomBorderColorPropertiesEXT custom_border_color{};
          VkPhysicalDeviceCooperativeMatrixPropertiesKHR cooperative_matrix{};
          VkPhysicalDeviceShaderIntegerDotProductProperties integer_dot_product{};
@@ -3982,7 +3985,7 @@ index 2714d6dd61e..aa63bcf966f 100644
      };
 diff --git a/tools/nx2/macos_sample.py b/tools/nx2/macos_sample.py
 new file mode 100644
-index 00000000000..5ead1c90e38
+index 0000000000..5ead1c90e3
 --- /dev/null
 +++ b/tools/nx2/macos_sample.py
 @@ -0,0 +1,154 @@
@@ -4142,7 +4145,7 @@ index 00000000000..5ead1c90e38
 +    main()
 diff --git a/tools/nx2/test_macos_sample.py b/tools/nx2/test_macos_sample.py
 new file mode 100644
-index 00000000000..dc73b26dd41
+index 0000000000..dc73b26dd4
 --- /dev/null
 +++ b/tools/nx2/test_macos_sample.py
 @@ -0,0 +1,40 @@
@@ -4188,7 +4191,7 @@ index 00000000000..dc73b26dd41
 +    unittest.main()
 diff --git a/tools/package-macos.sh b/tools/package-macos.sh
 new file mode 100755
-index 00000000000..4a38286f502
+index 0000000000..4a38286f50
 --- /dev/null
 +++ b/tools/package-macos.sh
 @@ -0,0 +1,168 @@

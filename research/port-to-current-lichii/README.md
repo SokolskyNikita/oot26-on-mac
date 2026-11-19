@@ -1,10 +1,17 @@
-# The pinned patch series on current Lichii (`gold-next`)
+# The patch series on current Lichii: the port that became the pinned build
 
 **Question:** does current Lichii plus every change of the pinned series work, and how does it perform?
 
-**State (2026-11-19):** the series is ported to the current `nx2` head, the `lichii` target compiles and links, the
-patches are in [`patches/lichii-next/`](../../patches/lichii-next/), and the build boots, draws correctly and measures
-the same as the pinned build in Kokiri Forest (next section). It is not the pinned build: nothing has been installed.
+**Answer (2026-11-19):** yes, and the same. The series was ported from `nx2` `8c0558a3d3` (8 patches) to `nx2`
+`d2ca32974d` (7 patches; PR #2022 is in the base), measured equal to the build pinned before it in Kokiri Forest and
+Gerudo Valley with clean pictures, and made the pinned build the same day: the patches are
+[`patches/lichii/`](../../patches/lichii/) and the ids are in [versions.lock](../../versions.lock).
+
+**Names on this page.** It is the record of the comparison, so "pinned build" means the build pinned before the
+move (`8c0558a3d3` + 8 patches, kept as fork branch `oot26-on-mac`), `gold-next` is the branch that is now `gold`
+in `build/src/lichii`, `patches/lichii-next/` is now `patches/lichii/`, and `build/next/` (the port's clone, app
+and private data root) and the `lichii-next-*` harness specs were removed after the move. Each run's `result.json`
+holds the spec it ran.
 
 | | |
 | --- | --- |
@@ -41,6 +48,29 @@ copy of the shader cache) under its own bundle id, with the pinned MoltenVK libr
   master, saves and mods were identical before and after the port's five runs.
 - Not tested: any other area, the Hypervisor backend, the bilinear stand-in and `P60_RUN_AHEAD` (ported as text
   only), a session longer than one walk.
+
+## Second area: Gerudo Valley (2026-11-19)
+
+Run ab-20261119-053735 (local run data, not tracked): both builds in turn, two measured runs each, the port in its
+private data root.
+
+| | Build pinned before | Port |
+| --- | --- | --- |
+| Walk, median frame | 16.4 / 16.4 ms | 16.5 / 16.5 ms |
+| Standing, median | about 16.6 ms | about 16.6 ms |
+| Picture | clean | clean (looked at side by side) |
+
+The pictures of the two builds differ no more than two runs of one build do: in Kokiri Forest 5.0–5.4 of 255 mean
+difference between builds against 5.2–5.7 between two runs of the old one. In Gerudo Valley Link ends a walk at a
+different spot and facing each run, so the camera never lines up closely enough for a pixel comparison there.
+
+## After the move (2026-11-19)
+
+Run ab-20261119-054806 (local run data, not tracked), spec `tools/harness/specs/pinned-validate.json`: the app
+`build.sh` makes from the moved pin, on the real folders. Walk 18.7 / 18.8 / 18.9 ms, standing 16.6 / 16.5 / 16.6 ms,
+boot to in-game 38.4 / 39.4 / 40.4 s, pictures clean (looked at). Its first boot on the real folders took 17.6 s to
+the title and 39.6 s to in-game: the stored shader caches were accepted, unlike the 102 s first boot in the empty
+private root.
 
 ## What happened to each patch
 

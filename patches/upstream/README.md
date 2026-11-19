@@ -14,5 +14,5 @@ request from here.
 | `04c-lichii-list-indirect-moltenvk-limit-nx2-d2ca3297.patch` | List-indirect draws enabled on MoltenVK | Lichii `nx2` `d2ca32974d` |
 | `05-moltenvk-keep-encoder-across-barriers-main-5189f8de.patch` | The Metal render encoder kept open across barriers, without the profiler and App Nap hooks | MoltenVK `main` `5189f8de` |
 
-The three `04` patches are parts of `patches/lichii/0006-…` with the `P60_*` switches removed; `05` is
+The three `04` patches are parts of `patches/lichii/0005-…` with the `P60_*` switches removed; `05` is
 `patches/moltenvk/0007-…` and `0008-…` together.

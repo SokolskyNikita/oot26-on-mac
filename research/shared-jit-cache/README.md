@@ -11,8 +11,8 @@ Forest, 1x, handheld. Run folders named `ab-<date>-<time>` are local run data an
 
 | Where | What |
 | --- | --- |
-| `patches/lichii/0008-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
-| `patches/lichii/0007-core-JIT-invalidation-entry-points-for-the-debug-too.patch` | The System-level JIT invalidation calls the port needs, and the debug server's `jit_clear` |
+| `patches/lichii/0007-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
+| `patches/lichii/0006-core-JIT-invalidation-entry-points-for-the-debug-too.patch` | The System-level JIT invalidation calls the port needs, and the debug server's `jit_clear` |
 | `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same work against the PR #2101 tree (`72ff982a3`), with the tests and the JIT replay test |
 | [`tools/jit-cache/`](../../tools/jit-cache/README.md) | Tools and run specs |
 

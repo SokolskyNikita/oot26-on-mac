@@ -152,8 +152,9 @@ corruptions had clean logs.
 
 ## 6. What is here and how it maps onto the pinned source
 
-The pinned Lichii source is `8c0558a3d3` plus `patches/lichii/0001`-`0008`, checked out as branch `gold` in
-`build/src/lichii`. The three files the Hypervisor patches touch (`src/core/arm/hvf/arm_hvf.cpp`,
+The patches were made against the series pinned until 2026-11-19 (`8c0558a3d3` plus 8 patches); what follows
+describes that source. On the series pinned now (`d2ca32974d` plus `patches/lichii/0001`-`0007`, branch `gold` in
+`build/src/lichii`) all three pass `git apply --check` (2026-11-19, not built). The three files the Hypervisor patches touch (`src/core/arm/hvf/arm_hvf.cpp`,
 `src/core/memory.cpp`, `src/core/memory.h`) are byte-identical in every commit from 0001 (`a5ec919891`, the PR
 #1970 merge) to `gold`, and in the tree (HEAD `44532bbe15`, since deleted) they were made
 against. So every patch here was made against "the series from 0001 on", and all of them apply.
