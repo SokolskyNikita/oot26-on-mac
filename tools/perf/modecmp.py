@@ -7,7 +7,8 @@ from pathlib import Path
 import os, subprocess
 REPO = subprocess.check_output(["git", "rev-parse", "--show-toplevel"],
                                cwd=os.path.dirname(os.path.abspath(__file__)), text=True).strip()
-MV = Path(REPO + "/build/old-trees")
+# Folder with the frame-profile runs to read (runs/LABEL.prof and the frame-time runs beside them)
+MV = Path(os.environ.get("OOT26_PERF_DIR", REPO + "/build/perf"))
 lab = sys.argv[1]; ranges = [(int(sys.argv[2]), int(sys.argv[3])), (int(sys.argv[4]), int(sys.argv[5]))]
 SITES = ["Other", "FetchDrain", "Acquire", "SemaphoreFlush", "FenceRelease", "ListWriters", "ListCopies", "ListSync", "ListFlush",
          "MacroDmaRead", "MacroDmaWrites", "MacroDmaFlush", "GpSyncFence", "Map"]

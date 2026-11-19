@@ -155,7 +155,7 @@ corruptions had clean logs.
 The pinned Lichii source is `8c0558a3d3` plus `patches/lichii/0001`-`0008`, checked out as branch `gold` in
 `build/src/lichii`. The three files the Hypervisor patches touch (`src/core/arm/hvf/arm_hvf.cpp`,
 `src/core/memory.cpp`, `src/core/memory.h`) are byte-identical in every commit from 0001 (`a5ec919891`, the PR
-#1970 merge) to `gold`, and in the old tree `build/old-trees/path-60/lichii` (HEAD `44532bbe15`) they were made
+#1970 merge) to `gold`, and in the tree (HEAD `44532bbe15`, since deleted) they were made
 against. So every patch here was made against "the series from 0001 on", and all of them apply.
 
 | File | What | Applies to `gold`, `gold~1`, `gold~2` |
@@ -178,11 +178,11 @@ against. So every patch here was made against "the series from 0001 on", and all
 
 **Paths in the scripts and specs.** Absolute paths of the machine the work was done on are replaced by two
 placeholders: `OLD_REPO` (the glitch-research repository this one was split from; what was `OLD_REPO/emulator/mvk-mesh`
-is `build/old-trees` here and `OLD_REPO/emulator/debugsrv` is `tools/harness`) and `OLD_WORKTREE` (a checkout that
+was `build/old-trees` here until it was deleted on 2026-11-19, and `OLD_REPO/emulator/debugsrv` is `tools/harness`) and `OLD_WORKTREE` (a checkout that
 no longer exists). Replace them before running anything.
 
 **Running the scripts.** Their contents are unchanged, so their default paths are the old layout. `make-final.py`
-reads `$P60/lichii` (set `P60=build/old-trees/path-60` or a tree with pristine files), the experiments patch from
+reads `$P60/lichii` (set `P60=build/src`, whose `lichii` has the three files unchanged), the experiments patch from
 `$P60/../../debugsrv/patches/` and 01/02 from `../../investigations/hypervisor-render-bug/` relative to itself. In
 the new layout, either edit those three constants or give it a scratch layout with those names (symlinks); it only
 reads them and writes `OUTDIR`. `03-hvf-final.patch` here was regenerated exactly that way from the old tree.
@@ -206,9 +206,9 @@ tools it names, `pairdiff.py` and `metal-validation/run_to_spawn.sh`, are not in
 
 | Item | State |
 | --- | --- |
-| `build/old-trees/path-60/app-hvf-final` | Binary 2026-11-18 00:43, sha1 `b3fde34a2d0e…`; carries 03 exactly (contains `EDEN_NX2_HVF_INTERPRET_READS` and the re-protect log text, no `EDEN_NX2_HVF_GRANT_READS`); MoltenVK `17f76f69f2`; hypervisor entitlement present; `nx2_switches.txt` without the shared-JIT line; built from the old tree's `build/release`, so no shared JIT cache. Never booted in this exact form |
-| `build/old-trees/path-60/app-hvfx` | 2026-11-17 16:27, sha1 `5c1bf286719e…`: the earlier burst/loop experiments only (no race fix), old MoltenVK `aa7120ae18` |
-| Source trees | No tree under `build/` carries any of these changes; `build/src/lichii` and `build/old-trees/path-60/lichii` have only upstream's `EDEN_NX2_HVF_STATS`. The two `mvk-backups/*.tar` hold no Hypervisor files. `mvk-backups/app-hvf*.libMoltenVK.before-cullfix-*.dylib` are only MoltenVK copies |
+| `app-hvf-final` (deleted 2026-11-19 with the old build trees; rebuild with `scripts/build-final.sh`) | Binary 2026-11-18 00:43, sha1 `b3fde34a2d0e…`; carries 03 exactly (contains `EDEN_NX2_HVF_INTERPRET_READS` and the re-protect log text, no `EDEN_NX2_HVF_GRANT_READS`); MoltenVK `17f76f69f2`; hypervisor entitlement present; `nx2_switches.txt` without the shared-JIT line; built from the old tree's `build/release`, so no shared JIT cache. Never booted in this exact form |
+| `app-hvfx` (deleted 2026-11-19) | 2026-11-17 16:27, sha1 `5c1bf286719e…`: the earlier burst/loop experiments only (no race fix), old MoltenVK `aa7120ae18` |
+| Source trees | No tree under `build/` carries any of these changes; `build/src/lichii` and the old trees (`build/old-trees/path-60/lichii` have only upstream's `EDEN_NX2_HVF_STATS`. The two `mvk-backups/*.tar` hold no Hypervisor files. `mvk-backups/app-hvf*.libMoltenVK.before-cullfix-*.dylib` are only MoltenVK copies |
 | Run folders in `tools/harness/runs/` | `ab-20261117-160732` (15 MB: `hvf-r1`, `hvf-r2`, `hvf-stats`), `-203916` (3.9 MB: `hvfrace-diag`, `hvfrace-fix`), `-204540` (12 MB: `hvffast-*`, 6 runs), `ab-20261118-000511` (2 MB: `fin-smoke`), `-000958` (34 MB: 17 `fin-*` runs), `-002819` (22 MB: `shards-hvf-r1`…`r10`, `shards-jit-r1`, an incomplete `shards-jit-r2`). Gone: every `wall-*`, `long-*`, `kdbg-*`, `walk5-*`, `rd-*` run |
 
 ## 8. Recovered from / missing

@@ -1,0 +1,15 @@
+diff --git a/src/video_core/renderer_vulkan/vk_buffer_cache.h b/src/video_core/renderer_vulkan/vk_buffer_cache.h
+index 6375901..1b9bdb8 100644
+--- a/src/video_core/renderer_vulkan/vk_buffer_cache.h
++++ b/src/video_core/renderer_vulkan/vk_buffer_cache.h
+@@ -202,7 +202,9 @@ public:
+     void BindQuadIndexBuffer(PrimitiveTopology topology, u32 first, u32 count);
+ 
+     bool WidensUint8IndicesOnHost() const {
+-        return device.IsMoltenVK() && !device.IsExtIndexTypeUint8Supported();
++        // Also when MoltenVK advertises 8-bit indices: it converts them with a compute dispatch at every
++        // draw, which also splits the Metal render pass.
++        return device.IsMoltenVK();
+     }
+ 
+     void BindHostUint8IndexBuffer(std::span<const u8> indices);

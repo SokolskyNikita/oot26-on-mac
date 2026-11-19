@@ -8,7 +8,7 @@
 # Runs niced with 6 jobs so measurements running at the same time are disturbed as little as possible.
 set -u
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-HERE=$REPO/build/old-trees/path-60
+HERE=${VARIANT_TREE:?set VARIANT_TREE to a folder that holds the lichii/ and moltenvk/ source trees to build variants in}
 PROF=$HERE/pgo-profiles
 JOBS=6
 SDK=$(xcrun --show-sdk-path)

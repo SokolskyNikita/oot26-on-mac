@@ -13,5 +13,4 @@ Write-up: [../../research/mesh-white-specks/README.md](../../research/mesh-white
 | `diag_payload.py` | Decodes the mesh payload/group readbacks used in the diagnosis |
 | `mtlspy/mtlspy.m` | Metal logger injected into the replay (`libmtlspy.dylib`): bindings, argument-buffer contents, `useResource`, raster state; can force state |
 | `patches/upstream/moltenvk-mesh-cull-mode.patch` (repository root) | The fix (MoltenVK `MVKPipeline.mm`); the same as `patches/moltenvk/0010-…` |
-| `rollout-mvk-cullfix.sh` | How the fixed library was put into the installed app on 2026-11-17 (written for local paths) |
 | `specs/specks*.json` | The investigation's run specs (cave wall: Link stops at `WALL=(21.3, 109.95, 14.22)`) |

@@ -1,0 +1,157 @@
+--- a/src/video_core/buffer_cache/buffer_cache.h
++++ b/src/video_core/buffer_cache/buffer_cache.h
+@@ -3908,6 +3908,37 @@
+         const auto add_upload = [&](DAddr start, DAddr end) {
+             if (start == end) return;
+             const u64 range_size = end - start;
++            // Diagnostic: EDEN_NX2_DIAG_WATCH_UPLOADS=addr:size[,addr:size...] (device addresses, hex) reports every
++            // upload of guest memory into a host buffer that overlaps one of the ranges. A range a GPU pass
++            // filled must not be uploaded over before its readers have run.
++            {
++                static const std::vector<std::pair<u64, u64>> watch = [] {
++                    std::vector<std::pair<u64, u64>> out;
++                    const char* v = std::getenv("EDEN_NX2_DIAG_WATCH_UPLOADS");
++                    while (v && *v) {
++                        char* end_ptr{};
++                        const u64 addr = std::strtoull(v, &end_ptr, 16);
++                        u64 len = 0;
++                        if (*end_ptr == ':') {
++                            len = std::strtoull(end_ptr + 1, &end_ptr, 16);
++                        }
++                        out.emplace_back(addr, len);
++                        v = *end_ptr == ',' ? end_ptr + 1 : end_ptr;
++                        if (v == end_ptr && *v != 0 && *v != ',') {
++                            break;
++                        }
++                    }
++                    return out;
++                }();
++                for (const auto& [addr, len] : watch) {
++                    if (start < addr + len && addr < end) {
++                        std::fprintf(stderr, "[diag-upload] guest memory uploaded over watched %#llx+%#llx: range %#llx..%#llx (bind of %#llx+%#x)\n",
++                                     static_cast<unsigned long long>(addr), static_cast<unsigned long long>(len),
++                                     static_cast<unsigned long long>(start), static_cast<unsigned long long>(end),
++                                     static_cast<unsigned long long>(device_addr), size);
++                    }
++                }
++            }
+             ForgetUploadedEarlyLanded(start, range_size);  // EDEN_NX2_READ_CHECK
+             upload_copies.push_back(BufferCopy{
+                 .src_offset = total_size_bytes,
+--- a/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp
++++ b/src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp
+@@ -701,6 +701,23 @@
+     std::array<bool, NUM_STAGES> present_stages{};
+     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+         present_stages[stage] = infos[stage] != nullptr;
++    }
++    // Diagnostic: EDEN_NX2_DIAG_STAGE_INFO=1 prints, for every graphics pipeline, which stages have shader info
++    // and how many constant and storage buffers each one binds. A stage that runs but has none here gets no
++    // buffers bound or synchronised at draw time.
++    if (static const bool diag_stage_info = std::getenv("EDEN_NX2_DIAG_STAGE_INFO") != nullptr; diag_stage_info) {
++        std::string line;
++        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
++            line += fmt::format(" st{}:{}/cb{:#x}/sb{}", stage, infos[stage] ? "info" : "none",
++                                infos[stage] ? infos[stage]->constant_buffer_mask : 0U,
++                                infos[stage] ? infos[stage]->storage_buffers_descriptors.size() : size_t{0});
++        }
++        std::fprintf(stderr, "[diag-stage-info] pipeline %016llx programs %016llx %016llx %016llx %016llx %016llx %016llx emulated=%d%s\n",
++                     static_cast<unsigned long long>(key.Hash()),
++                     static_cast<unsigned long long>(key.unique_hashes[0]), static_cast<unsigned long long>(key.unique_hashes[1]),
++                     static_cast<unsigned long long>(key.unique_hashes[2]), static_cast<unsigned long long>(key.unique_hashes[3]),
++                     static_cast<unsigned long long>(key.unique_hashes[4]), static_cast<unsigned long long>(key.unique_hashes[5]),
++                     mesh_emulation ? 1 : 0, line.c_str());
+     }
+     configure_func = ConfigureFunc(present_stages, stage_infos);
+     build.emplace(build_queue, std::move(func), std::move(emit));
+@@ -1787,6 +1804,32 @@
+ 
+ /// Creates the Vulkan pipeline for `render_pass`. A mesh pipeline without VK_EXT_mesh_shader is
+ /// built from the mesh emulation's vertex shader as a point, line or triangle list.
++
++// Diagnostic: EDEN_NX2_DIAG_DEPTH_EQUAL=always|lequal|gequal|less|greater|notequal replaces the depth test of every
++// pipeline that asks for Equal (this build sets the compare op in the pipeline, not as dynamic state). Opaque colour
++// is drawn Equal against a depth pre-pass, so this shows whether a colour pass that leaves holes draws nothing there,
++// or draws nearer or farther than its pre-pass.
++static VkCompareOp DiagDepthEqual(VkCompareOp op) {
++    static const int diag_equal = [] {
++        const char* v = std::getenv("EDEN_NX2_DIAG_DEPTH_EQUAL");
++        if (!v) return -1;
++        const std::string_view s{v};
++        if (s == "always") return static_cast<int>(VK_COMPARE_OP_ALWAYS);
++        if (s == "lequal") return static_cast<int>(VK_COMPARE_OP_LESS_OR_EQUAL);
++        if (s == "gequal") return static_cast<int>(VK_COMPARE_OP_GREATER_OR_EQUAL);
++        if (s == "less") return static_cast<int>(VK_COMPARE_OP_LESS);
++        if (s == "greater") return static_cast<int>(VK_COMPARE_OP_GREATER);
++        if (s == "notequal") return static_cast<int>(VK_COMPARE_OP_NOT_EQUAL);
++        return -1;
++    }();
++    if (diag_equal >= 0 && op == VK_COMPARE_OP_EQUAL) {
++        static std::atomic<int> count{};
++        if (++count <= 3) std::fprintf(stderr, "[diag-depth] Equal replaced in a pipeline\n");
++        return static_cast<VkCompareOp>(diag_equal);
++    }
++    return op;
++}
++
+ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
+     if (IsMeshPipeline() && !device.IsExtMeshShaderSupported() && !mesh_emulation) {
+         return;
+@@ -2069,7 +2112,7 @@
+         .depthTestEnable = dynamic.depth_test_enable,
+         .depthWriteEnable = dynamic.depth_write_enable,
+         .depthCompareOp = dynamic.depth_test_enable
+-                              ? MaxwellToVK::ComparisonOp(dynamic.DepthTestFunc())
++                              ? DiagDepthEqual(MaxwellToVK::ComparisonOp(dynamic.DepthTestFunc()))
+                               : VK_COMPARE_OP_ALWAYS,
+         .depthBoundsTestEnable = dynamic.depth_bounds_enable && device.IsDepthBoundsSupported(),
+         .stencilTestEnable = dynamic.stencil_enable,
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp
++++ b/src/video_core/renderer_vulkan/vk_rasterizer.cpp
+@@ -1311,6 +1311,46 @@
+         reuse_probe_ns = VideoCommon::Nx2Profile::Now() - probe_start;
+     }
+ 
++    // Diagnostic: EDEN_NX2_DIAG_DRAW_BUFFERS=<program hash, hex> prints, for the first draws of every pipeline that
++    // uses that program, how the draw was configured and what the buffer cache has bound per stage, next to the
++    // guest's own constant-buffer state for stage 0. It answers "does this draw's stage get its buffers?".
++    {
++        static const u64 diag_program = [] {
++            const char* v = std::getenv("EDEN_NX2_DIAG_DRAW_BUFFERS");
++            return v ? std::strtoull(v, nullptr, 16) : 0ULL;
++        }();
++        static std::atomic<u32> diag_left{40};
++        if (diag_program != 0) {
++            const auto hashes = pipeline->ShaderHashes();
++            if (std::ranges::find(hashes, diag_program) != hashes.end() && diag_left.load() != 0) {
++                --diag_left;
++                std::array<u32, 5> uniforms{}, storages{};
++                std::string detail;
++                buffer_cache.ForEachBoundBuffer(false, [&](u32 stage, bool storage, u32 index, bool written,
++                                                           const auto& binding, u32 bound_size, const auto*, u32) {
++                    ++(storage ? storages : uniforms)[stage];
++                    if (stage == 0) {
++                        detail += fmt::format(" {}{}@{:#x}+{}{}", storage ? "sb" : "cb", index, binding.device_addr,
++                                              bound_size, written ? "w" : "");
++                    }
++                });
++                std::string guest;
++                const auto& cbufs = maxwell3d->state.shader_stages[0].const_buffers;
++                for (size_t i = 0; i < cbufs.size(); ++i) {
++                    if (cbufs[i].enabled) {
++                        guest += fmt::format(" c{}@{:#x}+{}", i, cbufs[i].address, cbufs[i].size);
++                    }
++                }
++                std::fprintf(stderr,
++                             "[diag-draw-buffers] frame %llu draw %u path=%s programs %016llx/%016llx bound cb %u,%u,%u,%u,%u sb %u,%u,%u,%u,%u | stage0:%s | guest stage0 cbufs:%s\n",
++                             static_cast<unsigned long long>(render_trace_frame), render_trace_draws,
++                             path == DrawPath::Delta ? "delta" : "full",
++                             static_cast<unsigned long long>(hashes[1]), static_cast<unsigned long long>(hashes[3]),
++                             uniforms[0], uniforms[1], uniforms[2], uniforms[3], uniforms[4], storages[0], storages[1],
++                             storages[2], storages[3], storages[4], detail.c_str(), guest.c_str());
++            }
++        }
++    }
+     TrackOcarinaCamera();
+     TrackOcarinaActor(pipeline->ShaderHashes()[1], is_indexed, is_indirect);
+     TracePendingCpuWrites(false, pipeline->ShaderHashes());

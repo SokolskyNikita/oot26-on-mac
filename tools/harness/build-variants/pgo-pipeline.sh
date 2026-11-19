@@ -1,7 +1,7 @@
 #!/bin/sh
 # PGO: instrumented build -> one training run (standard route, 1800-frame phases) -> merge -> PGO+ThinLTO build -> compare
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-H=$REPO/build/old-trees/path-60
+H=${VARIANT_TREE:?set VARIANT_TREE to a folder that holds the lichii/ and moltenvk/ source trees to build variants in}
 D=$REPO/tools/harness
 cd $H || exit 1
 echo "[$(date +%H:%M:%S)] pgo: building instrumented app"

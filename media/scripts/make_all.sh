@@ -1,7 +1,7 @@
 #!/bin/sh
 # Regenerate every picture in media/. Run from anywhere; needs uv.
 # The walk chart and the specks pair read local run data under tools/harness/runs/ (not tracked), and the canopy pair
-# reads build/old-trees/ (not tracked); those steps are skipped with a message when the data is missing.
+# reads two screenshots in data/; those steps are skipped with a message when the data is missing.
 set -eu
 cd "$(dirname "$0")/.."
 PY="uv run -q --with matplotlib --with numpy --with pillow python"
@@ -41,15 +41,15 @@ $PY scripts/pair.py "$SHOTS/native-mesh-no-position-fix.png" "$SHOTS/native-mesh
   --after-label "With the two added lines in the generated Metal source (Y flip and depth fixup): the picture matches stock at the spawn." \
   --note "Kokiri Forest spawn, 2026-11-16, game area only. Images: research/mac-performance/shots/native-mesh-no-position-fix.png and native-mesh-with-position-fix.png (research/mac-performance/README.md, cause 4.3)."
 
-if [ -f ../build/old-trees/base-5189f8d.standing.jpg ] && [ -f ../build/old-trees/push16.standing.jpg ]; then
-  $PY scripts/pair.py ../build/old-trees/base-5189f8d.standing.jpg ../build/old-trees/push16.standing.jpg \
+if [ -f data/base-5189f8d.standing.jpg ] && [ -f data/push16.standing.jpg ]; then
+  $PY scripts/pair.py data/base-5189f8d.standing.jpg data/push16.standing.jpg \
     canopy-before-after.png \
     --title "Missing tree canopy on MoltenVK main: maxPushDescriptors capped at 16" \
     --before-label "MoltenVK main reports maxPushDescriptors 287; Lichii pushes 37-buffer sets past Metal's 31 slots, 5 compute pipelines fail and the canopy is bare." \
     --after-label "Reported as 16 (as Lichii's bundled MoltenVK fork does): all 135 compute pipelines build and the canopy is leafy." \
     --note "Kokiri Forest spawn, Lichii nx2 7c7f723 with MoltenVK main of 2026-10-13; the white specks in the after picture are a separate fault. Images: build/old-trees/ (local, not tracked), runs base and push16 in research/compute-buffer-bounds/README.md."
 else
-  echo "skip canopy-before-after.png: build/old-trees/ not found" >&2
+  echo "skip canopy-before-after.png: media/data/ images not found" >&2
 fi
 
 $PY scripts/pair.py "$SHOTS/stock-228.png" "$SHOTS/all-in-one.png" stock-vs-combined.png \

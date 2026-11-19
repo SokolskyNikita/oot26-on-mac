@@ -1,0 +1,102 @@
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+index 3e9fc79..8156c3e 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCmdPipeline.mm
+@@ -161,11 +161,17 @@
+ #endif
+ 
+ 	if (!cmdEncoder->_mtlRenderEncoder && cmdEncoder->isUsingMetalArgumentBuffers() && cmdEncoder->getDevice()->hasResidencySet()) {
+-		cmdEncoder->endCurrentMetalEncoding();
++		// A barrier need not end a blit or serial compute encoder: the encoder waits on the other stages' fences instead.
++		bool keep = cmdEncoder->canKeepEncoderAcrossBarrier();
++		if ( !keep ) { cmdEncoder->endCurrentMetalEncoding(); }
+ 
+ 		for (auto& b : _barriers) {
+ 			uint64_t sourceStageMask = mvkBarrierStagesFromPipelineStageFlags(b.srcStageMask), destStageMask = mvkBarrierStagesFromPipelineStageFlags(b.dstStageMask);
+-			cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			if (keep) {
++				cmdEncoder->setBarrierKeepingEncoder(sourceStageMask, destStageMask);
++			} else {
++				cmdEncoder->setBarrier(sourceStageMask, destStageMask);
++			}
+ 		}
+ 	}
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+index f6c9462..3221bb6 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.h
+@@ -449,6 +449,15 @@ public:
+ 	/** Encode waits in the current command encoder for the stage that corresponds to given use. */
+ 	void encodeBarrierWaits(MVKCommandUse use);
+ 
++	/** Whether the open blit or plain compute encoder may stay open across a pipeline barrier. */
++	bool canKeepEncoderAcrossBarrier();
++
++	/** setBarrier() for an encoder that stays open: it waits for the other source stages now, and its own stage's barrier is set when it ends. */
++	void setBarrierKeepingEncoder(uint64_t sourceStageMask, uint64_t destStageMask);
++
++	int _keptEncoderStage = -1;
++	uint64_t _keptEncoderPendingDest = 0;
++
+ 	/** Update fences for the currently executing pipeline stage. */
+ 	void encodeBarrierUpdates();
+ 
+diff --git a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+index de39c96..e221273 100644
+--- a/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
++++ b/MoltenVK/MoltenVK/Commands/MVKCommandBuffer.mm
+@@ -724,6 +724,42 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ }
+ 
+ 
++// On unless MVK_P60_NO_KEEP_ENCODER is set (a switch for A/B measurements).
++static bool mvkKeepEncoderAcrossBarriers() {
++	static const bool on = getenv("MVK_P60_NO_KEEP_ENCODER") == nullptr;
++	return on;
++}
++
++bool MVKCommandEncoder::canKeepEncoderAcrossBarrier() {
++	if ( !mvkKeepEncoderAcrossBarriers() || _mtlRenderEncoder ) { return false; }
++	MVKBarrierStage own = kMVKBarrierStageNone;
++	if (_mtlBlitEncoder) {
++		own = commandUseToBarrierStage(_mtlBlitEncoderUse);
++	} else if (_mtlComputeEncoder && _mtlComputeEncoderUse == kMVKCommandUseDispatch &&
++			   _mtlComputeEncoderStages == (1u << kMVKBarrierStageCompute)) {
++		own = kMVKBarrierStageCompute;
++	}
++	if (own == kMVKBarrierStageNone) { return false; }
++	_keptEncoderStage = own;
++	return true;
++}
++
++void MVKCommandEncoder::setBarrierKeepingEncoder(uint64_t sourceStageMask, uint64_t destStageMask) {
++	auto &fenceSlots = _pEncodingContext->fenceSlots;
++	for (int i = 0; i < kMVKBarrierStageCount; ++i) {
++		if (i == _keptEncoderStage || !mvkIsAnyFlagEnabled(sourceStageMask, 1ull << i)) continue;
++		// Later commands of the open encoder must see stage i's work so far: the whole encoder waits for it.
++		if (mvkIsAnyFlagEnabled(destStageMask, 1ull << _keptEncoderStage)) {
++			id<MTLFence> fence = _device->getFence((MVKBarrierStage)i, fenceSlots.update[i]);
++			if (_mtlBlitEncoder) { [_mtlBlitEncoder waitForFence: fence]; }
++			else if (_mtlComputeEncoder) { [_mtlComputeEncoder waitForFence: fence]; }
++		}
++		setBarrier(1ull << i, destStageMask);
++	}
++	// The encoder's own stage: its fence is updated when it ends; later encoders must wait for that update.
++	if (mvkIsAnyFlagEnabled(sourceStageMask, 1ull << _keptEncoderStage)) { _keptEncoderPendingDest |= destStageMask; }
++}
++
+ void MVKCommandEncoder::encodeBarrierWaits(MVKCommandUse use) {
+ 	if (_mtlRenderEncoder) {
+ 		[_mtlRenderEncoder insertDebugSignpost:@"Encoding waits"];
+@@ -1064,6 +1100,10 @@ static MVKBarrierStage commandUseToBarrierStage(MVKCommandUse use) {
+ void MVKCommandEncoder::endCurrentMetalEncoding() {
+ 	endMetalRenderEncoding();
+ 	encodeBarrierUpdates();
++	if (_keptEncoderPendingDest) {
++		setBarrier(1ull << _keptEncoderStage, _keptEncoderPendingDest);
++		_keptEncoderPendingDest = 0;
++	}
+ 
+ 	if (_mtlComputeEncoder && _cmdBuffer->_hasStageCounterTimestampCommand) { [_mtlComputeEncoder updateFence: getStageCountersMTLFence()]; }
+ 	endMetalEncoding(_mtlComputeEncoder);

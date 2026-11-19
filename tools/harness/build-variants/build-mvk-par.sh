@@ -3,7 +3,7 @@
 # APFS clones moltenvk-pown, -p2901, -p2905, -pboth) and assemble app-mvk<variant> = app-practice with that libMoltenVK.
 set -u
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-HERE=$REPO/build/old-trees/path-60
+HERE=${VARIANT_TREE:?set VARIANT_TREE to a folder that holds the lichii/ and moltenvk/ source trees to build variants in}
 for v in pown p2901 p2905 pboth; do
   echo "[$(date +%H:%M:%S)] == $v"
   (cd "$HERE/moltenvk-$v" && rm -rf build-par && nice -n 19 cmake -G Ninja -S . -B build-par -DCMAKE_BUILD_TYPE=Release > build-par-configure.log 2>&1 &&
