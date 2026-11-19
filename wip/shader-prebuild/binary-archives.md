@@ -77,7 +77,7 @@ GPU code and 10 KB of library per record, so **about 5–7 GB of archives** for 
 
 ## Where it goes in MoltenVK
 
-**Read** in `build/old-trees/path-60/moltenvk` (HEAD `8fc3c2af` plus local changes). The tree has no
+**Read** in the MoltenVK tree of that time (`8fc3c2af` plus local changes; today `build/src/moltenvk`, branch `gold`). The tree has no
 `binaryArchive` code. Every Metal pipeline goes through three functions:
 
 - `MVKRenderPipelineCompiler::newMTLRenderPipelineState(MTLRenderPipelineDescriptor*)` (`MVKPipeline.mm:3133`),

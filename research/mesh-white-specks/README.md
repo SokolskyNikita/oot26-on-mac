@@ -39,7 +39,7 @@ masked, a frame counts above 0.3 %):
 
 | Run | Speckled |
 | --- | --- |
-| Run that found the fault (run ab-20261117-233936): patched build | 0/30, 0/30 again |
+| Run that found the fault (run ab-20261117-233936, run data not kept): patched build | 0/30, 0/30 again |
 | The same, unfixed build (#2901 test build) | 28/30 |
 | Independent check (spec `tools/harness/specs/val-cull.json`, a separate build of the patch): unfixed reference | 27/30 |
 | Independent check: patched | 0/30, 0/30 |

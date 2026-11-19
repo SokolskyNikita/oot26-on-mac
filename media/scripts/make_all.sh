@@ -47,7 +47,7 @@ if [ -f data/base-5189f8d.standing.jpg ] && [ -f data/push16.standing.jpg ]; the
     --title "Missing tree canopy on MoltenVK main: maxPushDescriptors capped at 16" \
     --before-label "MoltenVK main reports maxPushDescriptors 287; Lichii pushes 37-buffer sets past Metal's 31 slots, 5 compute pipelines fail and the canopy is bare." \
     --after-label "Reported as 16 (as Lichii's bundled MoltenVK fork does): all 135 compute pipelines build and the canopy is leafy." \
-    --note "Kokiri Forest spawn, Lichii nx2 7c7f723 with MoltenVK main of 2026-10-13; the white specks in the after picture are a separate fault. Images: build/old-trees/ (local, not tracked), runs base and push16 in research/compute-buffer-bounds/README.md."
+    --note "Kokiri Forest spawn, Lichii nx2 7c7f723 with MoltenVK main of 2026-10-13; the white specks in the after picture are a separate fault. Images: media/data/, runs base and push16 in research/compute-buffer-bounds/README.md."
 else
   echo "skip canopy-before-after.png: media/data/ images not found" >&2
 fi

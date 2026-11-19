@@ -3,7 +3,7 @@
 # Shader caches are left as they are. Prints the standing-phase frame times in thirds.
 set -u
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-HERE=$REPO/build/old-trees/sc-update
+HERE=${SC_UPDATE:?the folder this archived script ran in; it is not kept}
 APP=$1; LABEL=$2; shift 2
 if [ -e "$HERE/runs/$LABEL" ]; then echo "label $LABEL already used"; exit 1; fi
 if pgrep -f '[l]ichii.app/Contents/MacOS' >/dev/null; then echo "a Lichii is running"; exit 1; fi

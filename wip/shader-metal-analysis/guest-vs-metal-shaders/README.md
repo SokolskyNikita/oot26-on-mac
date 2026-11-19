@@ -3,7 +3,7 @@
 Done 2026-11-17, offline, on an M4 Pro. No emulator was run and no Nvidia hardware was available, so everything about
 Nvidia's side is read from the game's code, not measured. Tools are in
 [`../shader-compare/`](../shader-compare/); the Lichii sources read are those of
-`build/old-trees/path-60/lichii` in the main checkout.
+the Lichii tree of that time (`44532bbe15` plus the frame-time fixes; today `build/src/lichii`, branch `gold`).
 
 ## Answer
 

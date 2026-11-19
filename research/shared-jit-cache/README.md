@@ -93,7 +93,7 @@ at p50 and 84.5 → 11.6 ms at p99. Slow frames are compile frames.
 ### Validation before adoption
 
 Spec `tools/harness/specs/merge-sharedjit.json`, run ab-20261118-014956, per-run results in
-[`tools/harness/merge-sharedjit.log`](../../tools/harness/merge-sharedjit.log). A candidate with only the JIT change
+run ab-20261118-014956 (labels `merge-*`; local run data, not tracked). A candidate with only the JIT change
 (16 files of the port; speck diagnostics left out), same MoltenVK library in every app, harness walk with turns,
 three runs each:
 

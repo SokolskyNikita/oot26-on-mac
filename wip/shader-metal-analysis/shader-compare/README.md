@@ -11,7 +11,7 @@ scratch folder and do not commit them.
 | Guest programs (Nvidia code) | `~/.cache/lichii/shader/0400486024dec000/lichii-cache.v2.bin`, read with `../../../extractor/shaders/lichii_cache.py` |
 | Metal source | `vulkan_pipelines.fork-v54.bin` in the same folder (MoltenVK's pipeline cache, plain-text MSL) |
 | Metal bitcode | Apple's cache, `$(getconf DARWIN_USER_CACHE_DIR)/io.github.zortos293.lichii/com.apple.metal/*/libraries.data` |
-| Prepared standalone shader | a folder written by `build/old-trees/offline-probes/perf/fsprep.py` (main checkout): `fs.metal`, `vs.metal`, `meta.json` |
+| Prepared standalone shader | a folder written by `fsprep.py` (a local probe script, kept in `build/keep/offline-probes-src/perf/`, not tracked): `fs.metal`, `vs.metal`, `meta.json` |
 
 Lichii rewrites its caches when it runs or precompiles. Copy the cache before a long scan; the scan scripts take the
 cache path as their first argument.

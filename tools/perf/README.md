@@ -15,7 +15,7 @@ repository. They are kept as they were.
 
 | Script | What it does |
 | --- | --- |
-| `rest.sh`, `reorder.sh`, `pgo-llvm-pipeline.sh` | one-off queues for the PGO, LTO and LLVM builds and the harness batches |
+| `tg_audit.py DUMP_DIR` | sums the threadgroup memory each dumped Metal mesh or object shader declares (`MVK_CONFIG_SHADER_DUMP_DIR` dump) |
 | `cmp.py LABEL...` | one row per run: standing median, GPU busy and idle, command buffers, encoders |
 | `perframe.py`, `sigdiff.py`, `modecmp.py` | per-frame, per-signal and per-mode comparisons of profiler output |
 | `gapctx.py`, `gaptrace.py`, `gapsplit.py` | GPU idle gaps against Lichii's sync trace |

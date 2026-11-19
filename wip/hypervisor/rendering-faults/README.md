@@ -96,9 +96,9 @@ earlier write-ups were not found by name.
 | Stray triangles from vertices the shader never wrote | The NaN guard ran only on the emulated path | Read from code; no visible effect measured | Lichii `44532bbe15` | `mesh-native-colours` sections 5–6 |
 | Shards in the canopy, one run in three | An older shader translation in a shared cache file | Suspected | Give each build its own pipeline cache | `mac-performance`, "How to measure" |
 | Grass flashing | `provokingVertexLast` not reported by MoltenVK | Suspected, untested | — | `wip/shader-prebuild/README.md` |
-| White specks on foliage | MoltenVK does not apply a mesh pipeline's cull mode; the draw inherits the previous draw's | Proven in a replay | In progress (mesh topology from the shader's output mode) | section 2.2 |
+| White specks on foliage | MoltenVK does not apply a mesh pipeline's cull mode; the draw inherits the previous draw's | Proven in a replay | Fixed: `patches/moltenvk/0010-…` (27 of 30 speckled frames to 0 of 30) | section 2.2, `research/mesh-white-specks/` |
 
-### 2.2 White specks on foliage (cause found 2026-11-17, fix in progress in the JIT cache session)
+### 2.2 White specks on foliage (cause found 2026-11-17, fixed in the pinned build)
 
 **Cause, proven in an offline replay:** MoltenVK never applies the cull mode of a mesh pipeline. Its pipeline
 constructor drops the input-assembly state for mesh pipelines, so the pipeline's primitive type stays "point", and
@@ -108,7 +108,7 @@ back-facing blades; the depth pre-pass happened to follow cull-none draws and wa
 only the moss colour draws: none 0 of 20 frames speckled, back 20 of 20 (identical to the fault). An emulated mesh
 program is an ordinary triangle pipeline, which is why emulating it hid the fault.
 
-**Fix being made:** a mesh pipeline takes its topology from the mesh shader's output primitive mode
+**The fix** (`patches/moltenvk/0010-…`): a mesh pipeline takes its topology from the mesh shader's output primitive mode
 (`MVKPipeline.mm`). Details and tools (`mtlspy` Metal call logger, `replay.sh`): `tools/speckcheck/`,
 `research/mesh-white-specks/`.
 
@@ -139,7 +139,7 @@ ordering, SIMD operations, group numbering) were measured and ruled out.
   natively drawn grass.
 - **No effect:** `P60_LIST_INDIRECT=0`, `EDEN_NX2_LIST_INDIRECT_CHECK=1` (0 lists differ),
   `EDEN_NX2_FRAMES_AHEAD=0`, `EDEN_NX2_FETCH_DRAIN=1`.
-- **What the white is** (JIT cache session, capture `tools/harness/runs/ab-20261117-210551/specks-capture`): the HDR scene target
+- **What the white is** (JIT cache session, capture run ab-20261117-210551, `specks-capture`; local run data, not kept): the HDR scene target
   is cleared to a bright value, a depth pre-pass writes grass depth, and opaque colour is then drawn depth-equal.
   Terrain cannot write where the pre-pass depth is grass, so a pixel whose grass colour draw does not land keeps
   the clear value. Rule: **white on foliage = the pre-pass wrote depth there and the colour draw did not land.**
