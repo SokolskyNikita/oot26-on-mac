@@ -1,5 +1,8 @@
 # Tools
 
+The rules for running the emulator (the harness by default, the lock, input through the debug server, only the
+pinned app on the real folders) are in [../CLAUDE.md](../CLAUDE.md); they are for people as much as for agents.
+
 | Folder | What it does |
 | --- | --- |
 | [harness/](harness/README.md) | Runs the game unattended through Lichii's debug server and compares settings, builds and patches: boots, loads a save by name, walks, stands, records frame times and pictures |

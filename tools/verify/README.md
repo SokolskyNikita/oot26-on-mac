@@ -22,7 +22,7 @@ cd tools/verify
 ./verify.py analyze runs/<run>          # redo result.json from a run's files (after changing the error rules)
 ./verify.py lock-status
 ./verify.py build-hook                  # build/libverifyhook.dylib (also built by run and by the harness)
-./verify.py with-lock -- ./measure.sh LABEL   # run anything else that uses the emulator under the same lock
+./verify.py with-lock -- COMMAND   # run anything else that uses the emulator under the same lock
 ```
 
 A run takes 5 to 8 minutes (boot, shader cache load, menus, about 3,000 game frames of route). Run it in the
@@ -57,8 +57,9 @@ Only one emulator may run at a time: two spoil every measurement, and there is o
 - Stale locks: if the owner's pid is dead, or the directory has had no `owner.json` for 60 s, it is removed.
 - Released on every exit, including SIGTERM and Ctrl-C (it kills its Lichii first). Release removes the
   directory only if `owner.json` names this process.
-- `measure.sh` does not know about the lock, and it starts with `pkill -9 -f '[l]ichii.app/Contents/MacOS'`,
-  which kills any Lichii, including one in a verify run. Run it as `./verify.py with-lock -- ./measure.sh LABEL`.
+- Anything else that starts Lichii must run under the lock too: `./verify.py with-lock -- COMMAND`. A script that
+  kills running emulators (`pkill -9 -f '[l]ichii.app/Contents/MacOS'`) without holding the lock would kill a
+  measurement in progress; check `./verify.py lock-status` first.
 
 ## How it works
 

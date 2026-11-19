@@ -101,6 +101,12 @@ To run the game you also need your dump added as a game folder in Lichii and the
 | `media/` | charts and before/after pictures, with the scripts and data that make them |
 | `build/`, `runs/` | source clones, build output and run data; not tracked |
 
+## Running it under test
+
+Measurements and scripted runs go through the harness in [tools/harness/](tools/harness/README.md): one emulator
+at a time under a lock, input through Lichii's debug server, game state read from memory, the picture scored and
+looked at. The rules are in [CLAUDE.md](CLAUDE.md).
+
 ## Changing the pinned build
 
 A change goes in as a commit on the `gold` branch of `build/src/lichii` or `build/src/moltenvk`, a re-export of the
