@@ -1,0 +1,119 @@
+dynarmic arm64: DYNARMIC_FASTMEM_PATCH keeps a block whose fastmem access faulted. Each fastmem access gets, beside its
+slow path, a stub that does the access through the page table inline (as a recompiled block would) and a branch to it;
+the fault handler replaces the faulting instruction with a branch to that branch. Exclusive accesses keep the
+drop-and-recompile path. Measured 2026-11-19: 33 % fewer compiles and 43 % less compile time over a boot, load and
+walk at an unchanged frame rate (wip/walk-tail).
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp
+@@ -523,6 +523,31 @@
+         if (patch_entry->second.recompile) {
+             const auto marker = patch_entry->second.marker;
+             const auto descriptor = std::get<0>(marker);
++            // Test build: DYNARMIC_FASTMEM_PATCH replaces the faulting access with a branch to its own slow path
++            // (fc.call_pc, emitted in the same block) and keeps the block, instead of dropping and recompiling it.
++            // One instruction for another: a core in the block runs the access (and faults here again) or the branch.
++            static const bool patch_in_place = std::getenv("DYNARMIC_FASTMEM_PATCH") != nullptr;
++            if (patch_in_place) {
++                // The trampoline is the instruction before the slow path: an unconditional branch forward (to the stub
++                // after it). Accesses without one (exclusive accesses) keep the drop-and-recompile path below.
++                const u64 trampoline_pc = fc.call_pc - 4;
++                const u32 trampoline = *std::bit_cast<const u32*>(trampoline_pc);
++                const bool has_stub = (trampoline & 0xFE000000u) == 0x14000000u && (trampoline & 0x01FFFFFFu) != 0;
++                const s64 delta = static_cast<s64>(trampoline_pc) - static_cast<s64>(host_pc);
++                if (has_stub && (delta & 3) == 0 && delta >= -(s64{1} << 27) && delta < (s64{1} << 27)) {
++                    fastmem_manager.MarkDoNotFastmem(marker);
++                    u32* const insn = std::bit_cast<u32*>(host_pc);
++                    UnprotectCodeMemory();
++                    *insn = 0x14000000u | (static_cast<u32>(delta >> 2) & 0x03FFFFFFu);
++                    ProtectCodeMemory();
++                    mem.invalidate(insn, sizeof(u32));
++                    ++compile_stats.fastmem_stale_faults;
++                    if (JitTrace::Enabled()) {
++                        JitTrace::Write(JitTrace::Type::Fault, 0, 4, descriptor.Value(), std::get<1>(marker));
++                    }
++                    return fc;
++                }
++            }
+             // Dropped code stays until the cache is cleared: the faulting block finishes its run, and with a
+             // shared cache another Jit can still be in it or return into it. A fault there takes the slow path
+             // like any other. The access is marked in any case, so that one pass through a block marks all of
+--- a/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_memory.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_memory.cpp
+@@ -6,6 +6,7 @@
+  * SPDX-License-Identifier: 0BSD
+  */
+ 
++#include <cstdlib>
+ #include "dynarmic/backend/arm64/emit_arm64_memory.h"
+ 
+ #include <optional>
+@@ -500,6 +501,11 @@
+     });
+ 
+     code.l(*end);
++}
++
++inline bool FastmemPatchStubs() {
++    static const bool enabled = std::getenv("DYNARMIC_FASTMEM_PATCH") != nullptr;
++    return enabled;
+ }
+ 
+ std::optional<DoNotFastmemMarker> ShouldFastmem(EmitContext& ctx, IR::Inst* inst) {
+@@ -559,6 +565,14 @@
+     const auto fastmem_location = EmitMemoryLdr<bitsize>(code, Rvalue->index(), Xbase, Xoffset, ordered, ShouldExt32(ctx));
+ 
+     ctx.deferred_emits.emplace_back([&code, &ctx, inst, marker, Xaddr = *Xaddr, Rvalue = *Rvalue, ordered, fallback, end, fastmem_location] {
++        // Test build (DYNARMIC_FASTMEM_PATCH): the instruction before the slow path is a branch to a stub that
++        // does the access through the page table inline, as a recompiled block would. The fault handler points the
++        // faulting access at that branch and keeps the block.
++        SharedLabel patch_stub = GenSharedLabel();
++        const bool with_stub = FastmemPatchStubs() && ctx.conf.page_table_pointer != 0;
++        if (with_stub) {
++            code.B(*patch_stub);
++        }
+         ctx.ebi.fastmem_patch_info.emplace(
+             fastmem_location - ctx.ebi.entry_point,
+             FastmemPatchInfo{
+@@ -582,6 +596,12 @@
+         }
+         ctx.conf.emit_check_memory_abort(code, ctx, inst, *end);
+         code.B(*end);
++        if (with_stub) {
++            code.l(*patch_stub);
++            const auto [Xstub_base, Xstub_offset] = InlinePageTableEmitVAddrLookup<bitsize>(code, ctx, Xaddr, fallback);
++            EmitMemoryLdr<bitsize>(code, Rvalue.index(), Xstub_base, Xstub_offset, ordered);
++            code.B(*end);
++        }
+     });
+ 
+     code.l(*end);
+@@ -609,6 +629,14 @@
+     const auto fastmem_location = EmitMemoryStr<bitsize>(code, Rvalue->index(), Xbase, Xoffset, ordered, ShouldExt32(ctx));
+ 
+     ctx.deferred_emits.emplace_back([&code, &ctx, inst, marker, Xaddr = *Xaddr, Rvalue = *Rvalue, ordered, fallback, end, fastmem_location] {
++        // Test build (DYNARMIC_FASTMEM_PATCH): the instruction before the slow path is a branch to a stub that
++        // does the access through the page table inline, as a recompiled block would. The fault handler points the
++        // faulting access at that branch and keeps the block.
++        SharedLabel patch_stub = GenSharedLabel();
++        const bool with_stub = FastmemPatchStubs() && ctx.conf.page_table_pointer != 0;
++        if (with_stub) {
++            code.B(*patch_stub);
++        }
+         ctx.ebi.fastmem_patch_info.emplace(
+             fastmem_location - ctx.ebi.entry_point,
+             FastmemPatchInfo{
+@@ -636,6 +664,12 @@
+         }
+         ctx.conf.emit_check_memory_abort(code, ctx, inst, *end);
+         code.B(*end);
++        if (with_stub) {
++            code.l(*patch_stub);
++            const auto [Xstub_base, Xstub_offset] = InlinePageTableEmitVAddrLookup<bitsize>(code, ctx, Xaddr, fallback);
++            EmitMemoryStr<bitsize>(code, Rvalue.index(), Xstub_base, Xstub_offset, ordered);
++            code.B(*end);
++        }
+     });
+ 
+     code.l(*end);

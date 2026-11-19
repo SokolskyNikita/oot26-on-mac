@@ -1,0 +1,37 @@
+Lichii: EDEN_NX2_GPUWAIT_SPIN_US=<us> polls the host GPU's tick for that long before a waiting thread sleeps.
+Measured 2026-11-19 at 300 us: no gain (wip/walk-tail).
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/video_core/renderer_vulkan/vk_master_semaphore.cpp
++++ b/src/video_core/renderer_vulkan/vk_master_semaphore.cpp
+@@ -3,6 +3,8 @@
+ 
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ 
++#include <chrono>
++#include <cstdlib>
+ #include <thread>
+ 
+ #include <ranges>
+@@ -116,6 +118,21 @@
+         return;
+     }
+ 
++    // Test build: EDEN_NX2_GPUWAIT_SPIN_US=<us> polls the host GPU's tick for that long before sleeping, so a
++    // short wait ends without a thread wake-up.
++    static const long long spin_us = [] {
++        const char* value = std::getenv("EDEN_NX2_GPUWAIT_SPIN_US");
++        return value ? std::atoll(value) : 0LL;
++    }();
++    if (spin_us > 0) {
++        const auto deadline = std::chrono::steady_clock::now() + std::chrono::microseconds{spin_us};
++        while (std::chrono::steady_clock::now() < deadline) {
++            Refresh();
++            if (IsFree(tick)) {
++                return;
++            }
++        }
++    }
+     // If none of the above is hit, fallback to a regular wait
+     const VideoCommon::Nx2Profile::Scope scope{VideoCommon::Nx2Profile::Zone::GpuWait};
+     try {

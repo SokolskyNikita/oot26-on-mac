@@ -1,0 +1,19 @@
+Lichii: EDEN_NX2_FASTMEM_NO_RECOMPILE turns dynarmic's recompile_on_fastmem_failure off: a block whose fastmem access
+faulted is kept and the access faults every time. Measured 2026-11-19: the game does not get past the Launching screen
+(wip/walk-tail). Kept as the control that shows the access has to change after its first fault.
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/core/arm/dynarmic/arm_dynarmic_64.cpp
++++ b/src/core/arm/dynarmic/arm_dynarmic_64.cpp
+@@ -408,6 +408,11 @@
+ 
+         config.fastmem_exclusive_access = config.fastmem_pointer != std::nullopt;
+         config.recompile_on_exclusive_fastmem_failure = true;
++        // Test build: EDEN_NX2_FASTMEM_NO_RECOMPILE keeps a block whose fastmem access faulted (the access then
++        // faults every time it runs) instead of dropping and recompiling it.
++        if (std::getenv("EDEN_NX2_FASTMEM_NO_RECOMPILE") != nullptr) {
++            config.recompile_on_fastmem_failure = false;
++        }
+ 
+         if (reinterpret_cast<u64>(m_system.DeviceMemory().buffer.BackingBasePointer() +
+             Kernel::Board::Nintendo::Nx::KSystemControl::Init::GetIntendedMemorySize()) < (1ULL << 39)) {

@@ -189,6 +189,29 @@ def set_cfg(over):
     CFG.write_text("\n".join(lines) + "\n")
 
 
+CUBE_MAX = 50.0   # a clean lighting cube face stays under about 1.2; the bad boots of 2026-11-19 held 4,672-57,856
+
+
+def cube_check(call, n):
+    """Capture n frames in a row and return the largest value in any 128x128 format-21 render target."""
+    worst = {"max": 0.0, "captures": 0, "targets": 0}
+    for _ in range(n):
+        try:
+            r = call("capture_frame", timeout=120, sampled=False)
+            rows = [json.loads(l) for l in (Path(r["directory"]) / "manifest.jsonl").read_text().splitlines() if l]
+        except Exception as e:   # a failed capture must not fail the run
+            worst["error"] = str(e); break
+        worst["captures"] += 1
+        for row in rows:
+            if (row.get("kind") == "pass" and row.get("width") == 128 and row.get("height") == 128
+                    and str(row.get("format")) == "21" and row.get("max")):
+                worst["targets"] += 1
+                m = max(row["max"][:3])
+                if m > worst["max"]:
+                    worst.update(max=m, name=row.get("name"), directory=r["directory"])
+    return worst
+
+
 def hook(cmd):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(3)
     s.sendto(cmd.encode(), ("127.0.0.1", HOOK_PORT))
@@ -386,6 +409,7 @@ def flicker_burst(rd, n=40, thrs=(15, 40)):
 # The Load list's cursor (0 = top entry) is an int at +0x1520 of screen 36.
 UI_SLOT, LIST, DIALOG, LOADING, HUD, CURSOR_OFF = 0x84c9e098, 36, 38, 55, 0, 0x1520
 CONFIG = json.loads((HERE / "config.json").read_text())
+GUEST_CRASH_LINES = ("Unhandled guest exception", "Cannot execute instruction at unmapped address")
 
 
 def resolve_save(name):
@@ -735,6 +759,19 @@ def _one_run(spec, out, attempt="1/1"):
                                         "leash_turns_at_frame": leash_turns,
                                         "max_from_start_m": round(max(sum((x - y) ** 2 for x, y in zip(pt, path[0])) ** 0.5
                                                                       for pt in path), 1)}
+                # A walk that stands still measures nothing (Link in an NPC dialog, or stuck where a turn does
+                # not free him): three chunks in a row without movement mark the run, and it says so.
+                still = [sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5 < float(spec.get("bounce_min_m", 0.3))
+                         for a, b in zip(path, path[1:])]
+                run = best = at = 0
+                for i, st in enumerate(still):
+                    run = run + 1 if st else 0
+                    if run > best:
+                        best, at = run, i - run + 1
+                if best >= 3:
+                    res[ph("walk_stalled")] = {"chunks": best, "from_frame": at * chunk, "at": path[at]}
+                    print(f"{spec['label']}: WALK STALLED for {best} chunks from walk frame {at * chunk} at {path[at]}: "
+                          f"its frame times from there are not a walk", flush=True)
                 if spec.get("walk_shots"):
                     import speckhunt, whitecount
                     wd = rd / f"{prefix.strip('/') or 'run'}-walk"; time.sleep(0.5); shots = sorted(wd.glob("f*.png"))
@@ -816,11 +853,28 @@ def _one_run(spec, out, attempt="1/1"):
             shot = rd / "run-stand2.png"
             if shot.is_file():
                 res["picture"] = persist.picture_metrics(shot)
+                # "end_white_max" (a spec key, or config.json's for runs of the default save): a lower limit on
+                # clipped-white pixels than picture_metrics' 15 %, for scenes known to have none (the canopy
+                # shards of KNOWN-ISSUES KI-29 score 2.6-2.8 % where a clean Kokiri Forest scene scores 0.0).
+                limit = spec.get("end_white_max", CONFIG.get("end_white_max") if "save" not in spec else None)
+                if limit is not None and res["picture"]["clipped_pct"] > float(limit):
+                    res["picture"].update(corrupt=True, over_end_white_max=float(limit))
+                # "cube_check" (a spec key, or config.json's for runs of the default save): N frame captures in a
+                # row, read for the 128x128 lighting cube the game redraws one face a frame. In a boot with the
+                # canopy shards of KNOWN-ISSUES KI-29 a face holds values in the thousands where a clean boot stays
+                # near 1, whichever way Link faces, so the end picture's view does not matter.
+                n_cube = spec.get("cube_check", CONFIG.get("cube_check") if "save" not in spec else 0)
+                if n_cube:
+                    title("cube check")
+                    res["cube_check"] = cube_check(call, int(n_cube))
+                    if res["cube_check"].get("max", 0) > CUBE_MAX:
+                        res["picture"].update(corrupt=True, cube_max=res["cube_check"]["max"])
                 if res["picture"]["corrupt"]:
                     print(f"{spec['label']}: CORRUPT PICTURE {res['picture']}", flush=True)
-                    if spec.get("on_corrupt"):
+                    steps = spec.get("on_corrupt", CONFIG.get("on_corrupt") if "save" not in spec else None)
+                    if steps:
                         import speckhunt
-                        speckhunt.at_end(spec["on_corrupt"], rd, res, call, lambda n: wait_frames(n, alive), title)
+                        speckhunt.at_end(steps, rd, res, call, lambda n: wait_frames(n, alive), title)
         except Exception as e:  # scoring must never fail a run
             res["picture_error"] = str(e)
         title("done"); res["outcome"] = "completed"
@@ -847,8 +901,10 @@ def _one_run(spec, out, attempt="1/1"):
         if m.get(a, -1) >= 0 and m.get(b, -1) > m[a]:
             res[a] = stats(ts[m[a]:m[b] + 1])
     log_path = rd / "eden_log.txt"
+    # The guest's own crash: the Hypervisor backend logs "Unhandled guest exception", the dynarmic JIT
+    # "Cannot execute instruction at unmapped address" (a jump into nothing, KNOWN-ISSUES KI-2).
     if res["outcome"] != "completed" and log_path.exists() and \
-            "Unhandled guest exception" in log_path.read_text(errors="replace"):
+            any(t in log_path.read_text(errors="replace") for t in GUEST_CRASH_LINES):
         res["outcome"] = "error: guest crashed (" + res["outcome"][7:80] + ")"
     res["loadavg_after"] = os.getloadavg()
     (rd / "result.json").write_text(json.dumps(res, indent=1))
@@ -1037,6 +1093,8 @@ def main():
             cp = [v for v in (r.get("clipped_pct") or {}).values() if v is not None]
             if cp:
                 row["clipped_max"] = max(cp)
+            if any(k.endswith("walk_stalled") for k in r):
+                row["walk_stalled"] = True
             if r.get("blowout"):
                 row["BLOWOUT"] = True
             for a, _ in r.get("phases") or []:

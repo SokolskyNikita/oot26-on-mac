@@ -34,6 +34,7 @@ OWNERS = {"lichii", "ours-lichii-patch", "moltenvk", "ours-moltenvk-patch", "dyn
 KINDS = {"env", "setting", "debug-call", "always-on", "tool"}
 SETTABLE = {"env", "nx2_switches.txt", "spec env", "LSEnvironment", "debug call", "setting"}
 LEVELS = {0, 1, 2, "3a", "3b", 4, 5, 6, "hygiene", "not-for-timing"}
+TIERS = {"proven": "### Proven here", "untested": "### Untested here, worth trying", "other": "### Everything else, by level"}
 FIELDS = ("name", "owner", "level", "kind", "output", "granularity", "cost", "settable_from", "in_pinned_build",
           "last_checked", "reader", "hazards")
 SOURCE_OWNERS = {"lichii", "ours-lichii-patch", "moltenvk", "ours-moltenvk-patch", "dynarmic"}
@@ -142,6 +143,27 @@ def main():
                 problems.append(f"record {r['name']}: source {src} does not exist")
             elif r["kind"] == "env" and re.sub(r"^MVK_CONFIG_", "", r["name"]) not in f.read_text(errors="replace"):
                 problems.append(f"record {r['name']}: {src} does not mention it")
+
+    # 3a. tiers: every record has one, a proven or untested record says why (verdict), and README.md lists the record
+    #     under its tier's heading
+    heads = {t: readme.find(h) for t, h in TIERS.items()}
+    for t, at in heads.items():
+        if at < 0:
+            problems.append(f"README.md has no heading {TIERS[t]!r}")
+    bounds = sorted((at, t) for t, at in heads.items() if at >= 0)
+    for r in recs:
+        t = r.get("tier")
+        if t not in TIERS:
+            problems.append(f"record {r['name']}: tier missing or not one of {sorted(TIERS)}")
+            continue
+        if t != "other" and not r.get("verdict"):
+            problems.append(f"record {r['name']}: tier {t} without a verdict")
+        first = bounds[0][0] if bounds else 0      # rows before the first tier heading are other tables
+        at = readme.find(f"| `{r['name']}` ", first)
+        if at >= 0 and bounds:
+            under = [name for start, name in bounds if start <= at]
+            if not under or under[-1] != t:
+                problems.append(f"record {r['name']}: tier {t}, but README.md lists it under {under[-1] if under else 'no tier heading'}")
 
     # 3. README
     for n in catalogued:

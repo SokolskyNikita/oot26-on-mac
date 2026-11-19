@@ -1,0 +1,22 @@
+Lichii, macOS: EDEN_NX2_GPU_THREAD_PRIO gives the GPU, GPUBack, VulkanWorker, GPUFencingThread and GPUSnapshot threads
+the scheduling priority of the guest core threads. Measured 2026-11-19: no gain on a quiet machine (wip/walk-tail).
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/common/thread.cpp
++++ b/src/common/thread.cpp
+@@ -692,6 +692,15 @@
+     }
+ #elif  defined(__APPLE__)
+     pthread_setname_np(name);
++    // Test build: EDEN_NX2_GPU_THREAD_PRIO gives the threads of the GPU hand-off the scheduling priority the guest
++    // core threads have (ThreadPriority::Critical); without it they run at the default priority.
++    if (std::getenv("EDEN_NX2_GPU_THREAD_PRIO") != nullptr) {
++        for (const char* wanted : {"GPU", "GPUBack", "VulkanWorker", "GPUFencingThread", "GPUSnapshot"}) {
++            if (std::strcmp(name, wanted) == 0) {
++                SetCurrentThreadPriority(ThreadPriority::Critical);
++            }
++        }
++    }
+ #elif defined(__HAIKU__)
+     rename_thread(find_thread(NULL), name);
+ #elif defined(__Bitrig__) || defined(__DragonFly__) || defined(__FreeBSD__) || defined(__OpenBSD__)

@@ -19,7 +19,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/frames.py vi2",
    "hazards": "counts game presents, menus and loading included; one line covers about 10 s, so it is placed by the time it was written",
-   "source": "src/core/hle/service/nx2_gsv.h:2221"
+   "source": "src/core/hle/service/nx2_gsv.h:2221",
+   "tier": "other"
   },
   {
    "name": "Runtime pipelines in the last 10 s",
@@ -35,7 +36,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (BUILD_RE: settle and the builds count per phase)",
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:3429"
+   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:3429",
+   "tier": "other"
   },
   {
    "name": "Bounded pipeline wait",
@@ -51,7 +53,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (BUILD_RE)",
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2574"
+   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2574",
+   "tier": "other"
   },
   {
    "name": "Background prebuild",
@@ -67,7 +70,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (BUILD_RE)",
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2451"
+   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2451",
+   "tier": "other"
   },
   {
    "name": "pipeline build failed",
@@ -83,7 +87,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (BUILD_RE)",
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:663"
+   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:663",
+   "tier": "other"
   },
   {
    "name": "JIT code cache flush requested",
@@ -99,7 +104,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stutter.py flushes",
    "hazards": "",
-   "source": "src/core/core.cpp:102"
+   "source": "src/core/core.cpp:102",
+   "tier": "other"
   },
   {
    "name": "Module main loaded at",
@@ -115,7 +121,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (main_base); tools/diag/jit.py log (modules)",
    "hazards": "",
-   "source": "src/core/loader/nso.cpp:525"
+   "source": "src/core/loader/nso.cpp:525",
+   "tier": "other"
   },
   {
    "name": "Unhandled guest exception",
@@ -131,7 +138,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (outcome 'guest crashed')",
    "hazards": "only the Hypervisor backend writes this text (src/core/arm/hvf/arm_hvf.cpp); a guest crash under dynarmic leaves other lines, so ab.py's crash check does not recognise it",
-   "source": "src/core/arm/hvf/arm_hvf.cpp:562"
+   "source": "src/core/arm/hvf/arm_hvf.cpp:562",
+   "tier": "other"
   },
   {
    "name": "Device fault",
@@ -147,7 +155,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "Lichii exits after a device loss",
-   "source": "src/video_core/vulkan_common/vulkan_device.cpp:1289"
+   "source": "src/video_core/vulkan_common/vulkan_device.cpp:1289",
+   "tier": "other"
   },
   {
    "name": "Memory trace",
@@ -163,7 +172,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "the same prefix every 2 s with EDEN_NX2_MEM_TRACE",
-   "source": "src/video_core/vulkan_common/vulkan_memory_allocator.cpp:713"
+   "source": "src/video_core/vulkan_common/vulkan_memory_allocator.cpp:713",
+   "tier": "other"
   },
   {
    "name": "[mvk-diag] mesh position fixup",
@@ -179,7 +189,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (boot progress in the window title)",
    "hazards": "",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:328"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:328",
+   "tier": "other"
   },
   {
    "name": "stderr.log",
@@ -195,7 +206,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": null,
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "hang-sample.txt",
@@ -211,7 +223,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": null,
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "rss_mb / footprint_mb",
@@ -227,7 +240,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "result.json",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "loadavg_before / loadavg_after",
@@ -243,7 +257,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "result.json",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "fail_status / fail_log",
@@ -259,7 +274,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "result.json",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "settle_builds / builds",
@@ -275,7 +291,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "result.json",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "picture",
@@ -291,7 +308,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/persist.py",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "t_uptime / t_monotonic",
@@ -307,7 +325,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/rundir.py",
    "hazards": "",
-   "source": "tools/harness/ab.py"
+   "source": "tools/harness/ab.py",
+   "tier": "other"
   },
   {
    "name": "frames.bin",
@@ -323,7 +342,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/frames.py",
    "hazards": "indices are presents; result.json marks index it",
-   "source": "tools/verify/hook.m"
+   "source": "tools/verify/hook.m",
+   "tier": "proven",
+   "verdict": "The clock every figure rests on: percentiles, bands and 300-frame walk segments"
   },
   {
    "name": "frame_times",
@@ -341,7 +362,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/core/debugger/nx2_debug_tools.cpp:215"
+   "source": "src/core/debugger/nx2_debug_tools.cpp:215",
+   "tier": "untested",
+   "verdict": "The guest's own present times, to compare with the hook's clock"
   },
   {
    "name": "record_frame_times",
@@ -359,7 +382,8 @@
    "last_checked": "earlier build (research/emulator-options, Tooling checks)",
    "reader": null,
    "hazards": "written only on a clean exit: nothing under kill -9, so never in a harness run",
-   "source": "src/frontend_common/config.cpp:410"
+   "source": "src/frontend_common/config.cpp:410",
+   "tier": "other"
   },
   {
    "name": "status-bar FPS",
@@ -375,7 +399,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "freezes in background captures and shows 60 FPS where the frame clock does not (KNOWN-ISSUES KI-8): never a measurement",
-   "source": null
+   "source": null,
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FPS_LOG",
@@ -396,7 +421,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "command-line frontend (eden-cli) only; the app the harness runs never writes it",
-   "source": "src/lichii_cmd/emu_window/emu_window_sdl3.cpp:46"
+   "source": "src/lichii_cmd/emu_window/emu_window_sdl3.cpp:46",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_STUTTER_TRACE",
@@ -417,7 +443,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stutter.py",
    "hazards": "Nx2Stutter only for frames over 33 ms (constexpr StutterMs), so no line for an ordinary frame; frame= counts the trace's presents, not the harness's; jit_cache_mib 6x too high with the shared cache (KI-6); Nx2Boot is the only line that maps log time to the monotonic clock",
-   "source": "src/video_core/nx2_stutter_trace.h:110"
+   "source": "src/video_core/nx2_stutter_trace.h:110",
+   "tier": "proven",
+   "verdict": "Names the JIT compile frames (blocks and compile time per slow frame) and places the log on the harness clock"
   },
   {
    "name": "EDEN_NX2_STUTTER_DETAIL_MS",
@@ -438,7 +466,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": null,
    "hazards": "",
-   "source": "src/video_core/nx2_stutter_trace.cpp:574"
+   "source": "src/video_core/nx2_stutter_trace.cpp:574",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_STUTTER_ALL_FRAMES",
@@ -459,7 +488,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stutter.py split",
    "hazards": "about 2.7 MB of log per walk",
-   "source": "src/video_core/nx2_stutter_trace.cpp:494"
+   "source": "src/video_core/nx2_stutter_trace.cpp:494",
+   "tier": "proven",
+   "verdict": "Showed the p95 frames are not compile frames (0.3 ms of compile in them) and that a frame is about 1.1 ms longer per ms of compile time"
   },
   {
    "name": "EDEN_NX2_GUEST_THREAD_STATS",
@@ -480,7 +511,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/core/hle/kernel/nx2_thread_stats.h:22"
+   "source": "src/core/hle/kernel/nx2_thread_stats.h:22",
+   "tier": "proven",
+   "verdict": "The game's main thread is on a core 7.2 ms a frame and waits 11.6 ms: the game is not the limit"
   },
   {
    "name": "EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS",
@@ -501,7 +534,9 @@
    "last_checked": "test build of 2026-11-19 from the pinned trees (wip/walk-tail/build-test-app.sh; run ab-20261119-094316, local run data, not tracked)",
    "reader": null,
    "hazards": "only in patches/experiments/lichii-thread-stats-slow-frames-2026-11-19.patch: needs a test build in a private data root; the window is between guest presents, which is not the hook's present-to-present interval, so match a block to its frame by the Nx2Stutter line that follows it; figures are per present in the window",
-   "source": "patches/experiments/lichii-thread-stats-slow-frames-2026-11-19.patch"
+   "source": "patches/experiments/lichii-thread-stats-slow-frames-2026-11-19.patch",
+   "tier": "proven",
+   "verdict": "In late frames under load, several worker threads sat ready without a core for about 10 or 20 ms at once"
   },
   {
    "name": "EDEN_NX2_GPU_PROFILE",
@@ -522,7 +557,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "its cost skews the frame times it explains: give it its own run",
-   "source": "src/video_core/nx2_profile.h:137"
+   "source": "src/video_core/nx2_profile.h:137",
+   "tier": "proven",
+   "verdict": "Its fence decision line: of 2,400-2,800 fences made a second, 2,200-2,500 carry a query report the game reads"
   },
   {
    "name": "EDEN_NX2_ACQUIRE_STATS",
@@ -543,7 +580,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/video_core/gpu_split.cpp:190"
+   "source": "src/video_core/gpu_split.cpp:190",
+   "tier": "other",
+   "verdict": "Tested with the back idle trace: front waits of 2.6-2.8 ms a frame for list writers and 1.6-1.9 ms for acquires"
   },
   {
    "name": "EDEN_NX2_BACK_IDLE_TRACE",
@@ -564,7 +603,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/video_core/nx2_back_idle_trace.h:42"
+   "source": "src/video_core/nx2_back_idle_trace.h:42",
+   "tier": "proven",
+   "verdict": "The GPU back thread idles 4.2-5.0 ms a frame, over half of it while the front waits on a semaphore between GPU channels"
   },
   {
    "name": "EDEN_NX2_PRESENT_FENCE_TRACE",
@@ -585,7 +626,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/core/hle/service/nx2_gsv.h:2118"
+   "source": "src/core/hle/service/nx2_gsv.h:2118",
+   "tier": "other",
+   "verdict": "Tested: every present's fence is reached about one frame later; nothing further"
   },
   {
    "name": "EDEN_DKB_FRAME_TRACE",
@@ -606,7 +649,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "its DKB frame and DKB gpu_frame lines are one sample a second, not every frame; on MoltenVK only gpu_pass times are real (gpu_work and gpu_site read 0 or overflowed values)",
-   "source": "src/common/dkb_frame_trace.h:16"
+   "source": "src/common/dkb_frame_trace.h:16",
+   "tier": "other",
+   "verdict": "Tested: one sample a second, too coarse for frame-level questions"
   },
   {
    "name": "EDEN_NX2_HOSTTIMING_STATS",
@@ -628,7 +673,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "also switched live by the debug server's host_timing {\"stats\": true}",
-   "source": "src/core/core_timing.cpp:136"
+   "source": "src/core/core_timing.cpp:136",
+   "tier": "proven",
+   "verdict": "Ruled out late timers: wake-ups late by under 0.1 ms at p99"
   },
   {
    "name": "EDEN_NX2_IDLE_STATS",
@@ -649,7 +696,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/core/hle/kernel/physical_core.cpp:25"
+   "source": "src/core/hle/kernel/physical_core.cpp:25",
+   "tier": "proven",
+   "verdict": "Ruled out slow core wake-ups: 15-18 us at p99"
   },
   {
    "name": "EDEN_NX2_BUFFER_TRACE",
@@ -670,7 +719,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/video_core/buffer_cache/buffer_cache_base.h:948"
+   "source": "src/video_core/buffer_cache/buffer_cache_base.h:948",
+   "tier": "other",
+   "verdict": "Tested: 80-144 buffers created a second while walking; no cause found in it"
   },
   {
    "name": "EDEN_NX2_TC_LOG",
@@ -691,7 +742,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/video_core/texture_cache/texture_cache.h:1619"
+   "source": "src/video_core/texture_cache/texture_cache.h:1619",
+   "tier": "other",
+   "verdict": "Tested: nothing the texture trace does not show"
   },
   {
    "name": "EDEN_NX2_DRAW_REUSE_PROBE",
@@ -712,7 +765,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.h:86"
+   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.h:86",
+   "tier": "other",
+   "verdict": "Tested: 4-8 images created per walking frame, which EDEN_NX2_TC_TRACE shows in more detail"
   },
   {
    "name": "EDEN_NX2_DOWNLOAD_TRACE",
@@ -733,7 +788,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "only the first 2,000 guest reads are logged (in that run the cap was reached during the walk); the 10 s lines appear only when something was copied back",
-   "source": "src/video_core/nx2_download_trace.h:22"
+   "source": "src/video_core/nx2_download_trace.h:22",
+   "tier": "proven",
+   "verdict": "The game reads GPU-written memory about 0.8 times a frame while walking, 87 % of it in one 2 MiB region"
   },
   {
    "name": "EDEN_NX2_MEM_TRACE",
@@ -754,7 +811,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "the SVC part logs the first 200 queries per event",
-   "source": "src/video_core/texture_cache/texture_cache.h:1576"
+   "source": "src/video_core/texture_cache/texture_cache.h:1576",
+   "tier": "untested",
+   "verdict": "What the buffer and texture caches hold every 2 s, against a growing footprint"
   },
   {
    "name": "EDEN_NX2_LIST_MACRO_TRACE",
@@ -775,7 +834,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/video_core/nx2_list_macro_trace.h:37"
+   "source": "src/video_core/nx2_list_macro_trace.h:37",
+   "tier": "untested",
+   "verdict": "Which GPU-written command lists the front waits for, by kind: whether more can be taken without waiting"
   },
   {
    "name": "EDEN_NX2_FS_READ_TRACE",
@@ -796,7 +857,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "lines only while the guest reads",
-   "source": "src/core/hle/service/filesystem/fsp/fs_read_trace.h:35"
+   "source": "src/core/hle/service/filesystem/fsp/fs_read_trace.h:35",
+   "tier": "proven",
+   "verdict": "Ruled out file reads: none over 1 ms while walking"
   },
   {
    "name": "EDEN_NX2_HVF_STATS",
@@ -817,7 +880,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "Hypervisor backend only (not the pinned build's CPU backend)",
-   "source": "src/core/arm/hvf/arm_hvf.cpp:214"
+   "source": "src/core/arm/hvf/arm_hvf.cpp:214",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_IPC_SUMMARY",
@@ -838,7 +902,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/core/hle/service/service.cpp:245"
+   "source": "src/core/hle/service/service.cpp:245",
+   "tier": "untested",
+   "verdict": "Service calls every 5 s: whether a service is busy during slow frames"
   },
   {
    "name": "EDEN_NX2_MME_MEMO_STATS",
@@ -859,7 +925,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/video_core/macro.cpp:1537"
+   "source": "src/video_core/macro.cpp:1537",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_CMDPAGE_DIAG",
@@ -880,7 +947,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/video_core/nx2_cmdpage_diag.h:31"
+   "source": "src/video_core/nx2_cmdpage_diag.h:31",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TC_TRACE",
@@ -901,7 +969,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/stats.py",
    "hazards": "about 30,000 lines a walk (9.8 MB of log with the other cache switches)",
-   "source": "src/video_core/texture_cache/texture_cache.h:125"
+   "source": "src/video_core/texture_cache/texture_cache.h:125",
+   "tier": "proven",
+   "verdict": "Ruled out texture churn as the trigger of stalls; 4-8 images are created and deleted per walking frame"
   },
   {
    "name": "EDEN_NX2_PIPELINE_BUILD_TRACE",
@@ -922,7 +992,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "times include waiting on other builds",
-   "source": "src/video_core/renderer_vulkan/pipeline_build_trace.h:23"
+   "source": "src/video_core/renderer_vulkan/pipeline_build_trace.h:23",
+   "tier": "untested",
+   "verdict": "Time of each driver pipeline build: first visits to an area"
   },
   {
    "name": "EDEN_NX2_PIPELINE_DIFF",
@@ -943,7 +1015,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2256"
+   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:2256",
+   "tier": "untested",
+   "verdict": "Which state made each new pipeline: first visits to an area"
   },
   {
    "name": "EDEN_NX2_READBLOCK_TRACE",
@@ -964,7 +1038,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/core/device_memory_manager.inc:154"
+   "source": "src/core/device_memory_manager.inc:154",
+   "tier": "other"
   },
   {
    "name": "MVK_FRAMEPROF",
@@ -984,7 +1059,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/gpu.py",
    "hazards": "E records only for frames where frame % 150 == 0 (dump in MVKFrameProf.mm); about 46-48 MB per walk; host clock is mach_absolute_time in us",
-   "source": "MoltenVK/MoltenVK/Utility/MVKFrameProf.mm:77"
+   "source": "MoltenVK/MoltenVK/Utility/MVKFrameProf.mm:77",
+   "tier": "proven",
+   "verdict": "GPU busy against idle for every frame; found the command buffers that stall and the fixed cost of about 0.3-0.4 ms per command buffer"
   },
   {
    "name": "MVK_FRAMEPROF_DUMP_MS",
@@ -1004,7 +1081,9 @@
    "last_checked": "test build of 2026-11-19 from the pinned trees (wip/walk-tail/build-test-app.sh; run ab-20261119-094316, local run data, not tracked)",
    "reader": "tools/diag/gpu.py gapctx",
    "hazards": "only in patches/experiments/moltenvk-frameprof-dump-long-buffers-2026-11-19.patch: needs a test build in a private data root",
-   "source": "patches/experiments/moltenvk-frameprof-dump-long-buffers-2026-11-19.patch"
+   "source": "patches/experiments/moltenvk-frameprof-dump-long-buffers-2026-11-19.patch",
+   "tier": "proven",
+   "verdict": "Showed a stalled command buffer is one gap between two passes, of 7-11 ms or about twice that, with nothing between 2 and 7 ms"
   },
   {
    "name": "P60_SYNC_TRACE",
@@ -1024,7 +1103,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/gpu.py",
    "hazards": "200-250 MB per walk; CLOCK_UPTIME_RAW ns",
-   "source": "src/common/p60_trace.h:13"
+   "source": "src/common/p60_trace.h:13",
+   "tier": "proven",
+   "verdict": "Classes each slow frame without the profiler (JIT compile, read wait, late start, mid gap) and showed the game waits on about 8.6 fences a frame"
   },
   {
    "name": "MVK_CONFIG_PERFORMANCE_TRACKING",
@@ -1049,7 +1130,9 @@
     "MVK_CONFIG_PERFORMANCE_LOGGING_FRAME_COUNT",
     "MVK_CONFIG_ACTIVITY_PERFORMANCE_LOGGING_STYLE",
     "MVK_CONFIG_PERFORMANCE_LOGGING_INLINE"
-   ]
+   ],
+   "tier": "untested",
+   "verdict": "MoltenVK's own timing of command buffer encoding and submission: what is inside the fixed cost per command buffer"
   },
   {
    "name": "MVK_CONFIG_LOG_LEVEL",
@@ -1069,7 +1152,8 @@
    "last_checked": "tools/verify/verify.py run sets it to 2",
    "reader": null,
    "hazards": "",
-   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:67"
+   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:67",
+   "tier": "other"
   },
   {
    "name": "MVK_CONFIG_TRACE_VULKAN_CALLS",
@@ -1089,7 +1173,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "per call: tens of thousands a frame",
-   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:68"
+   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:68",
+   "tier": "other"
   },
   {
    "name": "MVK_CONFIG_DEBUG",
@@ -1112,7 +1197,8 @@
    "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:47",
    "companions": [
     "MVK_DEBUG"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "DYNARMIC_JIT_TRACE",
@@ -1132,7 +1218,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/diag/jit.py trace",
    "hazards": "its clock starts at the first record; replays offline with DYNARMIC_JIT_REPLAY in the PR #2101 test tree",
-   "source": "src/dynarmic/src/dynarmic/backend/arm64/jit_trace.h:46"
+   "source": "src/dynarmic/src/dynarmic/backend/arm64/jit_trace.h:46",
+   "tier": "proven",
+   "verdict": "What is compiled and when: 73 % of a walk's compiles are first compiles, 27 % recompiles after a fault; replays offline in the test bench"
   },
   {
    "name": "DYNARMIC_BLOCK_MAP",
@@ -1152,7 +1240,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "",
-   "source": "src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp:606"
+   "source": "src/dynarmic/src/dynarmic/backend/arm64/a64_address_space.cpp:606",
+   "tier": "untested",
+   "verdict": "Host address to guest block, to name JIT code in a sample"
   },
   {
    "name": "EDEN_NX2_JIT_SYMBOLS",
@@ -1173,7 +1263,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "takes a process-wide lock per compiled block; only the Windows sampler reads the names",
-   "source": "src/common/jit_symbols.cpp:26"
+   "source": "src/common/jit_symbols.cpp:26",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_JIT_LOG",
@@ -1194,7 +1285,9 @@
    "last_checked": "test build of 2026-11-17 (research/emulator-options; run ab-20261117-190501, local run data, not tracked)",
    "reader": "tools/diag/jit.py log",
    "hazards": "only in patches/experiments/dynarmic-jit-log-2026-11-17.patch: needs a test build in a private data root",
-   "source": "patches/experiments/dynarmic-jit-log-2026-11-17.patch"
+   "source": "patches/experiments/dynarmic-jit-log-2026-11-17.patch",
+   "tier": "untested",
+   "verdict": "Time per compile stage for every block; last run on a build before the shared code cache. Needs a test build"
   },
   {
    "name": "DYNARMIC_ARM64_REGION_SIZE",
@@ -1214,7 +1307,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes code generation: never for a measurement",
-   "source": "src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp:54"
+   "source": "src/dynarmic/src/dynarmic/backend/arm64/address_space.cpp:54",
+   "tier": "other"
   },
   {
    "name": "sample",
@@ -1230,7 +1324,9 @@
    "last_checked": "the harness takes a 3 s sample of a hung boot (hang-sample.txt)",
    "reader": "build/src/lichii/tools/nx2/macos_sample.py (per-thread summary)",
    "hazards": "never during a measured phase",
-   "source": null
+   "source": null,
+   "tier": "proven",
+   "verdict": "On the offline replay of a JIT recording: register allocator bookkeeping is a third of compile work and instruction encoding 3 %"
   },
   {
    "name": "EDEN_NX2_SAMPLE",
@@ -1256,7 +1352,8 @@
     "EDEN_NX2_SAMPLE_OUT",
     "EDEN_NX2_SAMPLE_START",
     "EDEN_NX2_SAMPLE_SECONDS"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "sample (debug call)",
@@ -1274,7 +1371,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "Windows only: returns 'the sampler is Windows only'",
-   "source": "src/core/debugger/nx2_debug_tools.cpp:778"
+   "source": "src/core/debugger/nx2_debug_tools.cpp:778",
+   "tier": "other"
   },
   {
    "name": "footprint",
@@ -1290,7 +1388,8 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": "tools/harness/ab.py (footprint_mb)",
    "hazards": "",
-   "source": null
+   "source": null,
+   "tier": "other"
   },
   {
    "name": "metalperftrace",
@@ -1306,7 +1405,27 @@
    "last_checked": "macOS 27.0.1, 2026-11-19: collect and overview work; the last ten minutes listed lichii and iTerm2 only (not the window compositor or other apps)",
    "reader": null,
    "hazards": "per second and per program, with nothing per pass: it cannot show who had the GPU inside one frame; its earlier reader (mpt_report.py) is lost; never attach listen",
-   "source": null
+   "source": null,
+   "tier": "other",
+   "verdict": "Tested: per second and per program, with only lichii and iTerm2 listed; cannot show who has the GPU inside a frame"
+  },
+  {
+   "name": "powermetrics",
+   "level": 6,
+   "owner": "apple",
+   "kind": "tool",
+   "purpose": "Apple's sampler of CPU time per program and of GPU power and idle time, every 100 ms or more",
+   "output": "`sudo powermetrics --samplers tasks,gpu_power --show-process-gpu -i 100 -n N`: text, one block per sample",
+   "granularity": "per second",
+   "cost": "not measured (the walk it sampled ran at a 19.9 ms median)",
+   "settable_from": [],
+   "in_pinned_build": true,
+   "last_checked": "macOS 27.0.1, 2026-11-19 (run ab-20261119-103808, local run data, not tracked)",
+   "reader": null,
+   "hazards": "needs sudo; its GPU time per program reads 0.00 for every program on this macOS, so it cannot say who has the GPU; samples come about 113 ms apart at -i 100",
+   "source": null,
+   "tier": "other",
+   "verdict": "Tested: GPU time per program reads zero; did show the emulator at 7.3 cores and the GPU idle 80 % of the time without it"
   },
   {
    "name": "shotwatch",
@@ -1322,7 +1441,27 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": null,
    "hazards": "captures before presented frame 1,500 are never kept (the boot logos are white); a clean Kokiri Forest scene scores 0.0 % white and the canopy-shard picture 2.6-2.8 %; the bright-saturated score flags a yellow lantern near the camera, so it is off unless asked for",
-   "source": "tools/speckcheck/shotwatch.py"
+   "source": "tools/speckcheck/shotwatch.py",
+   "tier": "proven",
+   "verdict": "Watched 22 boots in play for the canopy shards of KNOWN-ISSUES KI-29, all clean"
+  },
+  {
+   "name": "threadcpu",
+   "level": 6,
+   "owner": "harness",
+   "kind": "tool",
+   "purpose": "CPU time of every thread of a running process over a window, by thread name, read through libproc without pausing the process and without sudo",
+   "output": "stdout: ms of CPU per second per thread name",
+   "granularity": "whole run",
+   "cost": "none seen: the walk it read ran at a 19.8 ms median (one run; run ab-20261119-104210 (local run data, not tracked), label cpu-threads)",
+   "settable_from": [],
+   "in_pinned_build": true,
+   "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
+   "reader": null,
+   "hazards": "reads two snapshots a window apart, so threads that start or end in between are miscounted",
+   "source": "tools/diag/threadcpu.py",
+   "tier": "proven",
+   "verdict": "The emulator uses 7.3 of 10 performance cores: six guest core threads 4.3, the three GPU threads 2.1"
   },
   {
    "name": "Instruments / xctrace",
@@ -1338,7 +1477,9 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "never tried here",
-   "source": null
+   "source": null,
+   "tier": "untested",
+   "verdict": "Which program's work runs on the GPU and when, with display refreshes: the direct answer to what holds the GPU in a stalled command buffer. Needs Xcode"
   },
   {
    "name": "MTL_DEBUG_LAYER",
@@ -1362,7 +1503,8 @@
    "companions": [
     "MTL_DEBUG_LAYER_ERROR_MODE",
     "MTL_DEBUG_LAYER_WARNING_MODE"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "MTL_SHADER_VALIDATION",
@@ -1386,7 +1528,8 @@
    "companions": [
     "MTL_SHADER_VALIDATION_REPORT_TO_STDERR",
     "MTL_SHADER_VALIDATION_RESOURCE_USAGE"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "MTL_LOG_COMPILE_STATS",
@@ -1406,7 +1549,9 @@
    "last_checked": "earlier build (wip/shader-prebuild)",
    "reader": "wip/shader-prebuild/scripts/metal-probes/oslogtap.c",
    "hazards": "the payload is <private> unless read in-process with oslogtap.dylib (DYLD_INSERT_LIBRARIES)",
-   "source": null
+   "source": null,
+   "tier": "untested",
+   "verdict": "Metal's own compile statistics: first visits and cold boots"
   },
   {
    "name": "MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE",
@@ -1431,7 +1576,8 @@
     "MVK_CONFIG_AUTO_GPU_CAPTURE_OUTPUT_FILE",
     "MVK_CONFIG_DEFAULT_GPU_CAPTURE_SCOPE_QUEUE_FAMILY_INDEX",
     "MVK_CONFIG_DEFAULT_GPU_CAPTURE_SCOPE_QUEUE_INDEX"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_GPU_TRACE",
@@ -1455,7 +1601,8 @@
    "source": "src/video_core/gpu_trace/recorder.h:34",
    "companions": [
     "EDEN_NX2_GPU_TRACE_PRESENTS"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "trace_record",
@@ -1477,7 +1624,8 @@
    "companions": [
     "trace_stop",
     "trace_status"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "capture_bundle",
@@ -1495,7 +1643,8 @@
    "last_checked": "earlier build (research/emulator-options, Tooling checks)",
    "reader": "build/src/lichii/tools/nx2/bundle_index.py",
    "hazards": "holds game data",
-   "source": "src/core/debugger/nx2_debug_tools.cpp:776"
+   "source": "src/core/debugger/nx2_debug_tools.cpp:776",
+   "tier": "other"
   },
   {
    "name": "use_gdbstub",
@@ -1513,7 +1662,8 @@
    "last_checked": "earlier build (tools/harness/specs/debugcost2.json)",
    "reader": null,
    "hazards": "needs jsdbg.py from the glitch-research repository",
-   "source": "src/common/settings.h:1031"
+   "source": "src/common/settings.h:1031",
+   "tier": "other"
   },
   {
    "name": "MVK_P60_NO_APPNAP",
@@ -1533,7 +1683,9 @@
    "last_checked": "pinned build (LICHII_COMMIT a1ee50a6ef, MOLTENVK_COMMIT dc964d4011), 2026-11-19",
    "reader": null,
    "hazards": "set by ab.py and by config/launch-env.txt; a run without it can land on the efficiency cores",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm:284"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKInstance.mm:284",
+   "tier": "proven",
+   "verdict": "Required for every measured run: without it a hidden window drops to the efficiency cores"
   },
   {
    "name": "log_filter",
@@ -1552,7 +1704,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "a Debug filter on busy classes floods the log",
-   "source": "src/common/settings.h:1088"
+   "source": "src/common/settings.h:1088",
+   "tier": "other"
   },
   {
    "name": "flush_line",
@@ -1570,7 +1723,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "without it a kill -9 loses at most the last second of lines below Error",
-   "source": "src/common/settings.h:1089"
+   "source": "src/common/settings.h:1089",
+   "tier": "other"
   },
   {
    "name": "extended_logging",
@@ -1588,7 +1742,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "at the limit the log stops being written (src/common/logging.cpp:312)",
-   "source": "src/common/settings.h:1056"
+   "source": "src/common/settings.h:1056",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_ACQUIRE_VERIFY",
@@ -1609,7 +1764,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/gpu_split.cpp:187"
+   "source": "src/video_core/gpu_split.cpp:187",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_BACKX_VERIFY",
@@ -1630,7 +1786,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_backx.h:28"
+   "source": "src/video_core/nx2_backx.h:28",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DELTA_DESCRIPTORS_VERIFY",
@@ -1651,7 +1808,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:307"
+   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:307",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DMA_READ_VERIFY",
@@ -1672,7 +1830,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_async_readback.h:45"
+   "source": "src/video_core/nx2_async_readback.h:45",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FAST_DRAW_VERIFY",
@@ -1693,7 +1852,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_fast_draw.h:91"
+   "source": "src/video_core/nx2_fast_draw.h:91",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_LIST_MACRO_VERIFY",
@@ -1714,7 +1874,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_list_macro_trace.h:36"
+   "source": "src/video_core/nx2_list_macro_trace.h:36",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_PERF_VERIFY",
@@ -1735,7 +1896,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_perf.h:11"
+   "source": "src/video_core/nx2_perf.h:11",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_REG_BLOCK_VERIFY",
@@ -1756,7 +1918,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/maxwell_3d.h:3487"
+   "source": "src/video_core/engines/maxwell_3d.h:3487",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SPLIT_VERIFY",
@@ -1777,7 +1940,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/maxwell_3d.cpp:1426"
+   "source": "src/video_core/engines/maxwell_3d.cpp:1426",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TEXTURE_MEMO_VERIFY",
@@ -1798,7 +1962,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:298"
+   "source": "src/video_core/renderer_vulkan/vk_graphics_pipeline.cpp:298",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_UBO_KEEP_VERIFY",
@@ -1819,7 +1984,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/buffer_cache/buffer_cache_base.h:984"
+   "source": "src/video_core/buffer_cache/buffer_cache_base.h:984",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DRAIN_CHECK",
@@ -1840,7 +2006,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_drain_check.h:34"
+   "source": "src/video_core/nx2_drain_check.h:34",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_LIST_INDIRECT_CHECK",
@@ -1861,7 +2028,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_list_indirect_stats.h:47"
+   "source": "src/video_core/nx2_list_indirect_stats.h:47",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_LIVE_READ_CHECK",
@@ -1882,7 +2050,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/dma_pusher.cpp:614"
+   "source": "src/video_core/dma_pusher.cpp:614",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_PB_CHECK",
@@ -1903,7 +2072,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/dma_pusher.h:352"
+   "source": "src/video_core/dma_pusher.h:352",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_READ_CHECK",
@@ -1924,7 +2094,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/nx2_async_readback.h:43"
+   "source": "src/video_core/nx2_async_readback.h:43",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SPLIT_CHECK",
@@ -1945,7 +2116,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/gpu_split.cpp:186"
+   "source": "src/video_core/gpu_split.cpp:186",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DUMP",
@@ -1966,7 +2138,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/service/nx2_gsv.h:2904"
+   "source": "src/core/hle/service/nx2_gsv.h:2904",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FRAME_CAPTURE",
@@ -1990,7 +2163,8 @@
    "source": "src/core/hle/service/nx2_gsv.h:2863",
    "companions": [
     "EDEN_NX2_FRAME_CAPTURE_EVERY"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FRAME_DUMP",
@@ -2015,7 +2189,8 @@
    "companions": [
     "EDEN_NX2_FRAME_DUMP_AT",
     "EDEN_NX2_FRAME_DUMP_SAMPLED"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_MESH_EMULATION_DUMP",
@@ -2036,7 +2211,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:3242"
+   "source": "src/video_core/renderer_vulkan/vk_pipeline_cache.cpp:3242",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_MESH_EMULATION_PROBE",
@@ -2057,7 +2233,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1152"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1152",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_MME_DUMP",
@@ -2078,7 +2255,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/kepler_compute.cpp:171"
+   "source": "src/video_core/engines/kepler_compute.cpp:171",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_MME_RECORD",
@@ -2102,7 +2280,8 @@
    "source": "src/video_core/macro.cpp:1377",
    "companions": [
     "EDEN_NX2_MME_RECORD_SKIP"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_PB_DUMP",
@@ -2123,7 +2302,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/dma_pusher.cpp:1537"
+   "source": "src/video_core/dma_pusher.cpp:1537",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SHADER_DUMP",
@@ -2144,7 +2324,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/shader_environment.cpp:704"
+   "source": "src/video_core/shader_environment.cpp:704",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TEXTURE_DUMP",
@@ -2165,7 +2346,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1534"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1534",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_VDEC_DUMP",
@@ -2186,7 +2368,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/service/nx2_gsv.h:4125"
+   "source": "src/core/hle/service/nx2_gsv.h:4125",
+   "tier": "other"
   },
   {
    "name": "EDEN_NATIVE_DRAW_CAPTURE",
@@ -2207,7 +2390,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1423"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1423",
+   "tier": "other"
   },
   {
    "name": "EDEN_NATIVE_FRAME_CAPTURE",
@@ -2228,7 +2412,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/macro.cpp:1357"
+   "source": "src/video_core/macro.cpp:1357",
+   "tier": "other"
   },
   {
    "name": "capture_frame",
@@ -2246,7 +2431,8 @@
    "last_checked": "never used here",
    "reader": "build/src/lichii/tools/nx2/frame_dump_index.py",
    "hazards": "stalls the frame; holds game data",
-   "source": "src/core/debugger/nx2_debug_tools.cpp:775"
+   "source": "src/core/debugger/nx2_debug_tools.cpp:775",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_IPC_TRACE",
@@ -2267,7 +2453,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/service/service.cpp:205"
+   "source": "src/core/hle/service/service.cpp:205",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SVC_TRACE",
@@ -2288,7 +2475,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/kernel/svc.cpp:2515"
+   "source": "src/core/hle/kernel/svc.cpp:2515",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_METHOD_TRACE",
@@ -2309,7 +2497,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/puller.cpp:743"
+   "source": "src/video_core/engines/puller.cpp:743",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_PULLER_TRACE",
@@ -2330,7 +2519,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/puller.cpp:657"
+   "source": "src/video_core/engines/puller.cpp:657",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_RENDER_TRACE",
@@ -2351,7 +2541,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/render_trace.h:12"
+   "source": "src/video_core/render_trace.h:12",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_QUERY_TRACE",
@@ -2372,7 +2563,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/query_cache/query_cache.h:247"
+   "source": "src/video_core/query_cache/query_cache.h:247",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_MME_LOG",
@@ -2393,7 +2585,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/macro.cpp:1363"
+   "source": "src/video_core/macro.cpp:1363",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_CB24_TRACE",
@@ -2414,7 +2607,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1573"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1573",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_RT_TRACE",
@@ -2435,7 +2629,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1664"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1664",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_QMD_TRACE",
@@ -2456,7 +2651,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/kepler_compute.cpp:55"
+   "source": "src/video_core/engines/kepler_compute.cpp:55",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TABLE_POINTER_TRACE",
@@ -2477,7 +2673,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/buffer_cache/buffer_cache.h:4392"
+   "source": "src/video_core/buffer_cache/buffer_cache.h:4392",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_PENDING_WRITE_TRACE",
@@ -2498,7 +2695,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:3397"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:3397",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_QUERY_DMA_TRACE",
@@ -2519,7 +2717,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/query_dma.h:24"
+   "source": "src/video_core/query_dma.h:24",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_UPSCALER_TRACE",
@@ -2544,7 +2743,8 @@
    "companions": [
     "EDEN_NX2_UPSCALER_TRACE_FRAME",
     "EDEN_NX2_UPSCALER_TRACE_FRAMES"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_VDEC_TRACE",
@@ -2565,7 +2765,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/service/nx2_gsv.h:1734"
+   "source": "src/core/hle/service/nx2_gsv.h:1734",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_WINDOW_TRACE",
@@ -2589,7 +2790,8 @@
    "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1468",
    "companions": [
     "EDEN_NX2_WINDOW_TRACE_SKIP"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_3D_HISTORY",
@@ -2610,7 +2812,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/maxwell_3d.h:3462"
+   "source": "src/video_core/engines/maxwell_3d.h:3462",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_3D_METHODS",
@@ -2631,7 +2834,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/maxwell_3d.h:3477"
+   "source": "src/video_core/engines/maxwell_3d.h:3477",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SEM_WATCH",
@@ -2655,7 +2859,8 @@
    "source": "src/video_core/dma_pusher.h:348",
    "companions": [
     "EDEN_NX2_SEM_WATCH_EMITS"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TRACE_DST",
@@ -2676,7 +2881,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/engines/maxwell_dma.cpp:145"
+   "source": "src/video_core/engines/maxwell_dma.cpp:145",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TRACE_PS",
@@ -2697,7 +2903,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1477"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1477",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_TRACE_VS",
@@ -2718,7 +2925,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1603"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1603",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_HANDLE_TABLE_NOTES",
@@ -2739,7 +2947,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/shader_handle_program.h:164"
+   "source": "src/video_core/shader_handle_program.h:164",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DLSS_CONTRACT_TRACE",
@@ -2763,7 +2972,8 @@
    "source": "src/video_core/engines/kepler_compute.cpp:1532",
    "companions": [
     "EDEN_NX2_DLSS_CONTRACT_SKIP"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DLSS_LOG",
@@ -2784,7 +2994,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/vulkan_common/streamline.cpp:101"
+   "source": "src/video_core/vulkan_common/streamline.cpp:101",
+   "tier": "other"
   },
   {
    "name": "EDEN_NATIVE_DRAW_DIAGNOSTICS",
@@ -2805,7 +3016,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/native_query_trace.h:33"
+   "source": "src/video_core/native_query_trace.h:33",
+   "tier": "other"
   },
   {
    "name": "EDEN_DKB_INDIRECT_READBACK",
@@ -2826,7 +3038,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1350"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1350",
+   "tier": "other"
   },
   {
    "name": "EDEN_STARFOX_WINDOW_TRACE",
@@ -2847,7 +3060,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/arm/dynarmic/window_trace.h:26"
+   "source": "src/core/arm/dynarmic/window_trace.h:26",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_AUDIO_LEVEL",
@@ -2868,7 +3082,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/audio_core/sink/sink_stream.cpp:274"
+   "source": "src/audio_core/sink/sink_stream.cpp:274",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FAULT_MAP",
@@ -2889,7 +3104,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/vulkan_common/vulkan_address_map.cpp:23"
+   "source": "src/video_core/vulkan_common/vulkan_address_map.cpp:23",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_KEY_RECORD",
@@ -2910,7 +3126,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/lichii_cmd/emu_window/emu_window_sdl3.cpp:144"
+   "source": "src/lichii_cmd/emu_window/emu_window_sdl3.cpp:144",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_REJECT",
@@ -2931,7 +3148,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/shader_environment.cpp:695"
+   "source": "src/video_core/shader_environment.cpp:695",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_REJECT_HASH",
@@ -2952,7 +3170,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/shader_environment.cpp:803"
+   "source": "src/video_core/shader_environment.cpp:803",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_SKIP_VS",
@@ -2973,7 +3192,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1650"
+   "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1650",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_NO_MESH",
@@ -2997,7 +3217,8 @@
    "source": "src/video_core/renderer_vulkan/vk_rasterizer.cpp:1094",
    "companions": [
     "EDEN_NX2_NO_MESH_FILE"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_FORCE_LOD0",
@@ -3018,7 +3239,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/renderer_vulkan/vk_texture_cache.cpp:5184"
+   "source": "src/video_core/renderer_vulkan/vk_texture_cache.cpp:5184",
+   "tier": "other"
   },
   {
    "name": "EDEN_NATIVE_SHADER_OVERRIDE_DIR",
@@ -3039,7 +3261,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/shader_environment.cpp:735"
+   "source": "src/video_core/shader_environment.cpp:735",
+   "tier": "other"
   },
   {
    "name": "MVK_DIAG_OVERRIDE_DIR",
@@ -3059,7 +3282,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:41"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:41",
+   "tier": "other"
   },
   {
    "name": "MVK_DIAG_INVARIANT",
@@ -3079,7 +3303,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:312"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:312",
+   "tier": "other"
   },
   {
    "name": "MVK_DIAG_NO_OPTNONE",
@@ -3099,7 +3324,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:332"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:332",
+   "tier": "other"
   },
   {
    "name": "MVK_ALLINONE_NO_MESH_FLIP",
@@ -3119,7 +3345,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:322"
+   "source": "MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm:322",
+   "tier": "other"
   },
   {
    "name": "MVK_CONFIG_SHADER_DUMP_DIR",
@@ -3139,7 +3366,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:86"
+   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:86",
+   "tier": "other"
   },
   {
    "name": "MVK_CONFIG_SHADER_LOG_ESTIMATED_GLSL",
@@ -3159,7 +3387,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:87"
+   "source": "MoltenVK/MoltenVK/Utility/MVKConfigMembers.def:87",
+   "tier": "other"
   },
   {
    "name": "MESA_SHADER_CACHE_DISABLE",
@@ -3182,7 +3411,8 @@
    "source": "src/video_core/vulkan_common/vulkan_device.cpp:1348",
    "companions": [
     "MESA_GLSL_CACHE_DISABLE"
-   ]
+   ],
+   "tier": "other"
   },
   {
    "name": "RADV_DEBUG",
@@ -3202,7 +3432,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/video_core/vulkan_common/vulkan_device.cpp:570"
+   "source": "src/video_core/vulkan_common/vulkan_device.cpp:570",
+   "tier": "other"
   },
   {
    "name": "SSLKEYLOGFILE",
@@ -3222,7 +3453,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "src/core/hle/service/ssl/ssl_backend_openssl.cpp:556"
+   "source": "src/core/hle/service/ssl/ssl_backend_openssl.cpp:556",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DIAG_DEPTH_EQUAL",
@@ -3243,7 +3475,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "patches/experiments/lichii-render-diagnostics.patch"
+   "source": "patches/experiments/lichii-render-diagnostics.patch",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DIAG_DRAW_BUFFERS",
@@ -3264,7 +3497,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "patches/experiments/lichii-render-diagnostics.patch"
+   "source": "patches/experiments/lichii-render-diagnostics.patch",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DIAG_STAGE_INFO",
@@ -3285,7 +3519,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "patches/experiments/lichii-render-diagnostics.patch"
+   "source": "patches/experiments/lichii-render-diagnostics.patch",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_DIAG_WATCH_UPLOADS",
@@ -3306,7 +3541,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "patches/experiments/lichii-render-diagnostics.patch"
+   "source": "patches/experiments/lichii-render-diagnostics.patch",
+   "tier": "other"
   },
   {
    "name": "EDEN_NX2_HVF_SITES",
@@ -3327,7 +3563,8 @@
    "last_checked": "never used here",
    "reader": null,
    "hazards": "changes timing or floods the log: not for frame-time runs",
-   "source": "patches/experiments/hvf-experiments-2026-11-17.patch"
+   "source": "patches/experiments/hvf-experiments-2026-11-17.patch",
+   "tier": "other"
   }
  ],
  "not_diagnostic": {
@@ -3472,6 +3709,10 @@
   "VK_LOADER_LAYERS_DISABLE": "platform environment",
   "XDG_CACHE_HOME": "platform environment",
   "__GL_SHADER_DISK_CACHE_PATH": "platform environment",
-  "__GL_SHADER_DISK_CACHE_SIZE": "platform environment"
+  "__GL_SHADER_DISK_CACHE_SIZE": "platform environment",
+  "DYNARMIC_FASTMEM_PATCH": "experiment patch: fastmem faults patched to a fast stub (behaviour)",
+  "EDEN_NX2_FASTMEM_NO_RECOMPILE": "experiment patch: recompile on fastmem fault off (behaviour)",
+  "EDEN_NX2_GPU_THREAD_PRIO": "experiment patch: GPU thread priority (behaviour)",
+  "EDEN_NX2_GPUWAIT_SPIN_US": "experiment patch: spin before a host GPU wait (behaviour)"
  }
 }

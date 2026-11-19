@@ -139,6 +139,17 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
 - `walk_shots`: a window capture after each walk chunk, with a sheet, a GIF and the white share per frame
   (`walk_white_pct`). It changes the walk (on 2026-11-17 Link ended 9 m short of the cave wall with it), so never
   combine it with `at_end`.
+- `end_white_max`: a limit, in percent, on clipped-white pixels in the end picture, below `picture_metrics`' own 15 %:
+  the picture counts as corrupted above it. `config.json` sets 1.0 for runs of the default save (a clean Kokiri
+  Forest scene scores 0.0; the canopy shards of KNOWN-ISSUES KI-29 score 2.6-2.8); a run of another save has no
+  such limit unless its spec gives one. The end picture shows one view: corruption that needs a particular object on screen is
+  missed when Link ends facing away from it (one of the KI-29 boots ended facing a rock wall and scored 0.0).
+  To catch that, run `tools/speckcheck/shotwatch.py` beside the batch; its captures cost about 50 ms each inside
+  Lichii (two a second raised walk p95 by about 3 ms and p99 by 5-13 ms), so not beside a timing run.
+- `cube_check`: N frame captures in a row after the end picture, read for the 128x128 lighting cube the game
+  redraws one face a frame; a value over 50 in it marks the run corrupt (`cube_max` in `picture`). It catches the
+  KI-29 boots whichever way Link faces. `config.json` sets 8 for runs of the default save, and an `on_corrupt` for
+  them: a GPU trace, twelve frame captures with sampled textures and a bug bundle.
 - `on_corrupt`: steps like `at_end`'s, run only when the run's end picture scores as corrupted, while the game is
   still up (a GPU trace, a frame capture). Every run's `result.json` gets `picture` (`clipped_pct`, `vivid_pct`,
   `corrupt`: clipped over 15 % or vivid over 0.15 %, from `persist.picture_metrics` on `run-stand2.png`); a corrupt
@@ -148,6 +159,12 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
 - `hold_file` / `hold_max_s`: right after the load, write main's address and Link's object to that file and keep
   the game open for manual debug-server calls until the file is removed (at most `hold_max_s`, default 900 s).
 - `resave`: save again right after the load (above).
+
+A bounce walk that stands still for three chunks in a row (Link in an NPC dialog, or stuck where a turn does not
+free him) is marked: `walk_stalled` in `result.json` and in the run's line, and `WALK STALLED` printed, because its
+frame times from there are not a walk. A run that ends early with the guest's own crash in the log ("Unhandled guest
+exception" from the Hypervisor backend, "Cannot execute instruction at unmapped address" from the JIT) gets the
+outcome `error: guest crashed` and is retried once.
 
 Each run folder holds `result.json` (frame statistics per phase, boot and load times, build counts, positions, the
 picture score), the per-present clock `frames.bin`, `eden_log.txt`, screenshots, and on failure a stack sample or

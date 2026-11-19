@@ -1,137 +1,150 @@
 #!/bin/bash
-# p99probe-build.sh: a test app for the walk p99 work, linked from the pinned build trees without touching the pinned
-# source or those trees. Two changes:
-#   MoltenVK frame profiler: MVK_FRAMEPROF_DUMP_MS=<ms> also writes the per-encoder E records of every command
-#     buffer whose GPU interval is at least that long (the pinned profiler writes them for every 150th frame only).
-#   Lichii guest thread statistics: EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS=<ms> makes each report window one
-#     present-to-present interval and logs only windows at least that long.
-# Output: build/p99probe/app/lichii.app with its own bundle id. Work files: build/p99probe/work/.
+# build-test-app.sh: a test app for the walk-tail work, linked from the pinned build trees (./build.sh) with the
+# experiment patches below, without touching the pinned source or those trees. Every change is behind a switch
+# that is off unless set, so the same app runs the control and the experiment.
+#
+#   switch                                       patch (patches/experiments/)
+#   MVK_FRAMEPROF_DUMP_MS=<ms>                   moltenvk-frameprof-dump-long-buffers-2026-11-19
+#   EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS=<ms>     lichii-thread-stats-slow-frames-2026-11-19
+#   DYNARMIC_FASTMEM_PATCH=1                     dynarmic-fastmem-patch-to-stub-2026-11-19
+#   EDEN_NX2_FASTMEM_NO_RECOMPILE=1              lichii-fastmem-no-recompile-2026-11-19
+#   EDEN_NX2_GPU_THREAD_PRIO=1                   lichii-gpu-thread-priority-2026-11-19
+#   EDEN_NX2_GPUWAIT_SPIN_US=<us>                lichii-gpuwait-spin-2026-11-19
+#   (none: the sync trace's gpuwait event)       lichii-gpuwait-caller-stamp-2026-11-19
+#
+# Output: build/p99probe/app/lichii.app with its own bundle id (its Metal shader cache is its own; the pipeline
+# cache id is the pinned one). Work files: build/p99probe/work/. Run it in a private data root:
+#   python3 tools/harness/ab.py --make-home build/p99probe/home --with-shader-cache
+# and name both in a spec ("app", "home"), as wip/walk-tail/specs/test-app.json does.
 set -eu
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-LSRC=$REPO/build/src/lichii; LBLD=$LSRC/build/release
-MSRC=$REPO/build/src/moltenvk; MBLD=$MSRC/build
+EXP=$REPO/patches/experiments
+# Physical paths: the build trees' compile commands name their files that way, and build/ may be a link.
+LSRC=$(cd "$REPO/build/src/lichii" && pwd -P); LBLD=$LSRC/build/release
+MSRC=$(cd "$REPO/build/src/moltenvk" && pwd -P); MBLD=$MSRC/build
 PINNED=$REPO/build/app/lichii.app
 OUT=$REPO/build/p99probe; WORK=$OUT/work
+LICHII_PATCHES="lichii-thread-stats-slow-frames-2026-11-19 dynarmic-fastmem-patch-to-stub-2026-11-19 lichii-fastmem-no-recompile-2026-11-19 lichii-gpu-thread-priority-2026-11-19 lichii-gpuwait-spin-2026-11-19 lichii-gpuwait-caller-stamp-2026-11-19"
+MVK_PATCHES="moltenvk-frameprof-dump-long-buffers-2026-11-19"
+# A patched header is only seen by the files that are compiled again: these are the callers of Scheduler::Wait.
+HEADER_USERS="src/video_core/renderer_vulkan/nx2_list_slots.cpp src/video_core/renderer_vulkan/vk_blit_screen.cpp src/video_core/renderer_vulkan/vk_buffer_cache.cpp src/video_core/renderer_vulkan/vk_descriptor_buffer.cpp src/video_core/renderer_vulkan/vk_fence_manager.cpp src/video_core/renderer_vulkan/vk_scheduler.cpp src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp src/video_core/renderer_vulkan/vk_swapchain.cpp"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
-rm -rf "$WORK"; mkdir -p "$WORK/src"
+[ -f "$LBLD/compile_commands.json" ] || { log "no $LBLD/compile_commands.json: run ./build.sh first"; exit 1; }
+[ -x "$PINNED/Contents/MacOS/lichii" ] || { log "no pinned app $PINNED: run ./build.sh"; exit 1; }
+pgrep -f "[p]99probe/app/lichii.app" > /dev/null && { log "the test app is running: stop it first"; exit 1; }
+rm -rf "$WORK"; mkdir -p "$WORK/lichii" "$WORK/moltenvk" "$WORK/obj" "$WORK/mobj"
 
-python3 - "$LSRC" "$MSRC" "$WORK/src" <<'PY'
-import sys
-from pathlib import Path
-lsrc, msrc, out = map(Path, sys.argv[1:])
+# --- overlays: the files each patch touches, copied from the pinned tree and patched there
+overlay() { # tree overlay patch...
+  local tree=$1 over=$2 p rel; shift 2
+  for p in "$@"; do
+    for rel in $(sed -n 's#^--- a/##p' "$EXP/$p.patch"); do
+      [ -e "$over/$rel" ] || { mkdir -p "$over/$(dirname "$rel")"; cp "$tree/$rel" "$over/$rel"; }
+    done
+    patch -s -p1 -d "$over" < "$EXP/$p.patch" || { log "$p.patch did not apply"; exit 1; }
+  done
+}
+overlay "$LSRC" "$WORK/lichii" $LICHII_PATCHES
+overlay "$MSRC" "$WORK/moltenvk" $MVK_PATCHES
+log "patched copies in $WORK/lichii and $WORK/moltenvk"
 
-def patch(src, dst, edits):
-    s = src.read_text()
-    for old, new in edits:
-        assert s.count(old) == 1, (src.name, old[:60], s.count(old))
-        s = s.replace(old, new)
-    dst.write_text(s)
-
-patch(msrc / "MoltenVK/MoltenVK/Utility/MVKFrameProf.mm", out / "MVKFrameProf.mm", [
-    ("\tbool dump = (r->frame % 150) == 0;\n",
-     "\tstatic const double dumpSec = [] { const char* v = getenv(\"MVK_FRAMEPROF_DUMP_MS\"); return v ? atof(v) / 1e3 : 0.0; }();\n"
-     "\tbool dump = (r->frame % 150) == 0 || (dumpSec > 0 && gpuEnd - gpuStart >= dumpSec);\n"),
-])
-patch(lsrc / "src/core/hle/kernel/nx2_thread_stats.cpp", out / "nx2_thread_stats.cpp", [
-    ("constexpr u64 ReportSeconds = 10;\n",
-     "constexpr u64 ReportSeconds = 10;\n"
-     "// Test build: EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS=<ms> makes each window one present-to-present interval\n"
-     "// and logs only windows at least that long.\n"
-     "const double g_slow_ms = [] {\n"
-     "    const char* value = std::getenv(\"EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS\");\n"
-     "    return value ? std::strtod(value, nullptr) : 0.0;\n"
-     "}();\n"),
-    ("    LOG_INFO(Kernel, \"Guest threads over {:.1f} s, {} presents, {} threads ran; ms per frame:\",\n"
-     "             seconds, presents, rows.size());\n",
-     "    const bool quiet = g_slow_ms > 0 && seconds * 1e3 < g_slow_ms;\n"
-     "    if (!quiet) {\n"
-     "        LOG_INFO(Kernel, \"Guest threads over {:.4f} s, {} presents, {} threads ran; ms per frame:\",\n"
-     "                 seconds, presents, rows.size());\n"
-     "    }\n"),
-    ("        const auto& d = rows[i].delta;\n        if (i >= ReportThreads && d[Presents] == 0) {\n",
-     "        if (quiet) {\n            break;\n        }\n"
-     "        const auto& d = rows[i].delta;\n        if (i >= ReportThreads && d[Presents] == 0) {\n"),
-    ("        if (exits == 0) {\n            continue;\n        }\n",
-     "        if (exits == 0 || quiet) {\n            continue;\n        }\n"),
-    ("    g_next_report.store(now + ReportSeconds * Common::g_wall_clock.GetGuestCNTFRQ(),\n"
-     "                        std::memory_order_relaxed);\n",
-     "    g_next_report.store(g_slow_ms > 0 ? ~u64{0}\n"
-     "                                      : now + ReportSeconds * Common::g_wall_clock.GetGuestCNTFRQ(),\n"
-     "                        std::memory_order_relaxed);\n"),
-    ("    g_presents.fetch_add(1, std::memory_order_relaxed);\n    if (Counters* c = Get(client)) {\n",
-     "    g_presents.fetch_add(1, std::memory_order_relaxed);\n"
-     "    if (g_slow_ms > 0) {\n        g_next_report.store(1, std::memory_order_relaxed);\n    }\n"
-     "    if (Counters* c = Get(client)) {\n"),
-])
+# --- Lichii: compile every patched .cpp and every user of a patched header, with the overlay first on the include path
+python3 - "$LBLD/compile_commands.json" "$LSRC" "$WORK" $HEADER_USERS > "$WORK/cc.list" <<'PY'
+import json, os, shlex, sys
+db, lsrc, work = sys.argv[1:4]; users = sys.argv[4:]
+db = json.load(open(db)); over = work + "/lichii"
+rels = [os.path.relpath(os.path.join(d, f), over) for d, _, fs in os.walk(over) for f in fs if f.endswith(".cpp")]
+for rel in sorted(set(rels) | set(users)):
+    orig = f"{lsrc}/{rel}"
+    e = next(x for x in db if x["file"] == orig)
+    a = [x for x in shlex.split(e["command"]) if x != "ccache"]
+    src = f"{over}/{rel}" if os.path.exists(f"{over}/{rel}") else orig
+    # where the build tree keeps this object says which library it belongs to (two libraries can hold the same name)
+    print(os.path.basename(rel) + ".o", a[a.index("-o") + 1], file=open(f"{work}/obj.map", "a"))
+    a[a.index("-o") + 1] = f"{work}/obj/{os.path.basename(rel)}.o"
+    a[a.index(orig)] = src
+    a[1:1] = ["-I", over + "/src", "-iquote", os.path.dirname(orig)]
+    print("cd " + shlex.quote(e["directory"]) + " && " + shlex.join(a))
 PY
-log "patched copies written to $WORK/src"
+n=0; while IFS= read -r line; do n=$((n + 1)); ( nice -n 19 sh -c "$line" > "$WORK/obj/job$n.log" 2>&1 || echo "$n" >> "$WORK/cc.failed" ) & done < "$WORK/cc.list"; wait
+[ ! -e "$WORK/cc.failed" ] || { log "compile failed:"; grep -h 'error' "$WORK"/obj/job*.log | head -12; exit 1; }
+log "compiled $(ls "$WORK"/obj/*.o | wc -l | tr -d ' ') Lichii files"
 
-# --- MoltenVK: compile the one file, relink the library elsewhere
-MORIG=$MSRC/MoltenVK/MoltenVK/Utility/MVKFrameProf.mm
+# --- each object replaces its namesake in a copy of the library that holds it; the emulator is linked from the copies
+(cd "$LBLD" && ninja -t commands lichii | tail -1) > "$WORK/link.cmd"
+python3 - "$WORK/link.cmd" "$WORK" "$LBLD" > "$WORK/link.sh" <<'PY'
+import os, re, subprocess, sys
+cmd, work, bld = sys.argv[1:]
+s = open(cmd).read(); s = s[s.index("/usr/bin/c++"):]; s = s[:s.index(" && ")]
+libs = [x for x in re.findall(r" (\S+\.a)(?= )", s) if not x.startswith("/")]
+members = {lib: set(subprocess.run(["ar", "t", f"{bld}/{lib}"], capture_output=True, text=True).stdout.split()) for lib in libs}
+used = {}
+built_at = dict(l.split() for l in open(work + "/obj.map"))
+for o in sorted(f for f in os.listdir(work + "/obj") if f.endswith(".o")):
+    homes = [lib for lib in libs if o in members[lib] and built_at[o].startswith(os.path.dirname(lib) + "/")]
+    if len(homes) > 1:   # nested library folders: the deepest one holds it
+        homes = [max(homes, key=lambda lib: len(os.path.dirname(lib)))]
+    assert len(homes) == 1, (o, homes)
+    used.setdefault(homes[0], []).append(o)
+for lib, objs in used.items():
+    copy = f"{work}/{os.path.basename(lib)}"
+    subprocess.run(["cp", f"{bld}/{lib}", copy], check=True)
+    subprocess.run(["ar", "r", copy] + [f"{work}/obj/{o}" for o in objs], check=True, capture_output=True)
+    subprocess.run(["ranlib", copy], check=True, capture_output=True)
+    assert s.count(f" {lib} ") == 1, lib
+    s = s.replace(f" {lib} ", f" {copy} ")
+    print(f"# {lib}: {' '.join(objs)}", file=sys.stderr)
+out = " -o bin/lichii.app/Contents/MacOS/lichii "
+assert s.count(out) == 1
+print(s.replace(out, f" -o {work}/lichii.bin "))
+PY
+(cd "$LBLD" && nice -n 19 sh "$WORK/link.sh" 2>&1 | grep -v 'ld: warning' || true)
+[ -f "$WORK/lichii.bin" ] && [ -s "$WORK/lichii.bin" ] || { log "Lichii link failed"; exit 1; }
+log "Lichii linked ($(stat -f %z "$WORK/lichii.bin") bytes; pinned $(stat -f %z "$PINNED/Contents/MacOS/lichii"))"
+
+# --- MoltenVK: the same for its patched files
 (cd "$MBLD" && ninja -t commands) > "$WORK/mvk.cmds"
-python3 - "$WORK/mvk.cmds" "$MORIG" "$WORK/src/MVKFrameProf.mm" "$WORK/MVKFrameProf.mm.o" "$WORK/libMoltenVK.dylib" > "$WORK/mvk.sh" <<'PY'
-import sys, shlex, os
-cmds, orig, patched, obj, lib = sys.argv[1:]
-lines = open(cmds).read().splitlines()
-cc = [l for l in lines if l.rstrip().endswith("-c " + orig)]
-assert len(cc) == 1, len(cc)
-a = shlex.split(cc[0])
-a[a.index("-o") + 1] = obj
-a[a.index(orig)] = patched
-a[1:1] = ["-iquote", os.path.dirname(orig)]
-print(shlex.join(a))
+python3 - "$WORK/mvk.cmds" "$MSRC" "$WORK" > "$WORK/mvk.sh" <<'PY'
+import os, shlex, sys
+cmds, msrc, work = sys.argv[1:]
+lines = open(cmds).read().splitlines(); over = work + "/moltenvk"
 ld = [l for l in lines if "-dynamiclib" in l and "libMoltenVK" in l]
-assert len(ld) == 1, len(ld)
+assert len(ld) == 1
 s = ld[0]; s = s[s.index("/usr/bin/c++"):]; s = s[:s.rindex(" && :")]
-old = "MoltenVK/CMakeFiles/MoltenVK.dir/MoltenVK/Utility/MVKFrameProf.mm.o"
-assert s.count(" " + old + " ") == 1 and s.count(" -o MoltenVK/libMoltenVK.1.4.3.dylib ") == 1
-print(s.replace(" " + old + " ", f" {obj} ").replace(" -o MoltenVK/libMoltenVK.1.4.3.dylib ", f" -o {lib} "))
+for d, _, fs in os.walk(over):
+    for f in fs:
+        if not f.endswith((".mm", ".cpp", ".m")):
+            continue
+        rel = os.path.relpath(os.path.join(d, f), over); orig = f"{msrc}/{rel}"
+        cc = [l for l in lines if l.rstrip().endswith("-c " + orig)]
+        assert len(cc) == 1, rel
+        a = shlex.split(cc[0]); obj = a[a.index("-o") + 1]; new = f"{work}/mobj/{f}.o"
+        a[a.index("-o") + 1] = new; a[a.index(orig)] = f"{over}/{rel}"; a[1:1] = ["-iquote", os.path.dirname(orig)]
+        print(shlex.join(a))
+        assert s.count(" " + obj + " ") == 1, obj
+        s = s.replace(" " + obj + " ", f" {new} ")
+out = [x for x in shlex.split(s) if x.endswith(".dylib") and "MoltenVK/libMoltenVK" in x][0]
+print(s.replace(f" -o {out} ", f" -o {work}/libMoltenVK.dylib "))
 PY
 (cd "$MBLD" && nice -n 19 sh -e "$WORK/mvk.sh" 2>&1 | grep -v 'ld: warning' || true)
 [ -s "$WORK/libMoltenVK.dylib" ] || { log "MoltenVK link failed"; exit 1; }
-log "MoltenVK linked ($(stat -f %z "$WORK/libMoltenVK.dylib") bytes; pinned $(stat -f %z "$PINNED/Contents/Frameworks/libMoltenVK.dylib")); carries the switch: $(strings -a "$WORK/libMoltenVK.dylib" | grep -c MVK_FRAMEPROF_DUMP_MS)"
-
-# --- Lichii: compile the one file into a copy of libcore.a, relink the emulator elsewhere
-LORIG=$LSRC/src/core/hle/kernel/nx2_thread_stats.cpp
-python3 - "$LBLD/compile_commands.json" "$LORIG" "$WORK/src/nx2_thread_stats.cpp" "$WORK/nx2_thread_stats.cpp.o" > "$WORK/cc.sh" <<'PY'
-import json, shlex, sys, os
-db, orig, patched, out = sys.argv[1:]
-entry = next(e for e in json.load(open(db)) if e["file"] == orig)
-args = [a for a in shlex.split(entry["command"]) if a != "ccache"]
-args[args.index("-o") + 1] = out
-args[args.index(orig)] = patched
-args[1:1] = ["-iquote", os.path.dirname(orig)]
-print("cd", shlex.quote(entry["directory"]), "&&", shlex.join(args))
-PY
-nice -n 19 sh "$WORK/cc.sh" 2>&1 | grep -v -e 'Wno-error-all' -e 'warning generated' || true
-[ -s "$WORK/nx2_thread_stats.cpp.o" ] || { log "compile of nx2_thread_stats.cpp failed"; exit 1; }
-cp "$LBLD/src/core/libcore.a" "$WORK/libcore.a"
-ar t "$WORK/libcore.a" | grep -c '^nx2_thread_stats.cpp.o$' | grep -q '^1$' || { log "libcore.a does not hold exactly one nx2_thread_stats.cpp.o"; exit 1; }
-(cd "$WORK" && ar r libcore.a nx2_thread_stats.cpp.o 2> ar.log && ranlib libcore.a 2>> ar.log)
-(cd "$LBLD" && ninja -t commands lichii | tail -1) > "$WORK/link.cmd"
-python3 - "$WORK/link.cmd" "$WORK/libcore.a" "$WORK/lichii" > "$WORK/link.sh" <<'PY'
-import sys
-cmd, lib, out = sys.argv[1:]
-s = open(cmd).read(); s = s[s.index("/usr/bin/c++"):]; s = s[:s.index(" && ")]
-assert s.count(" src/core/libcore.a ") == 1 and s.count(" -o bin/lichii.app/Contents/MacOS/lichii ") == 1
-print(s.replace(" src/core/libcore.a ", f" {lib} ").replace(" -o bin/lichii.app/Contents/MacOS/lichii ", f" -o {out} "))
-PY
-(cd "$LBLD" && nice -n 19 sh "$WORK/link.sh" 2>&1 | grep -v 'ld: warning' || true)
-[ -s "$WORK/lichii" ] || { log "Lichii link failed"; exit 1; }
-log "Lichii linked ($(stat -f %z "$WORK/lichii") bytes; pinned $(stat -f %z "$PINNED/Contents/MacOS/lichii")); carries the switch: $(strings -a "$WORK/lichii" | grep -c GUEST_THREAD_STATS_SLOW_MS)"
+log "MoltenVK linked ($(stat -f %z "$WORK/libMoltenVK.dylib") bytes; pinned $(stat -f %z "$PINNED/Contents/Frameworks/libMoltenVK.dylib"))"
 
 # --- the app: a copy of the pinned app with this binary, this library and its own bundle id
 app=$OUT/app/lichii.app
 rm -rf "$OUT/app"; mkdir -p "$OUT/app"
 ditto "$PINNED" "$app"
-cp "$WORK/lichii" "$WORK/signed"
+cp "$WORK/lichii.bin" "$WORK/signed"
 codesign --force --sign - --entitlements "$LSRC/dist/eglantine.entitlements" "$WORK/signed" 2> "$WORK/codesign.log" || { cat "$WORK/codesign.log"; exit 1; }
 cp "$WORK/signed" "$app/Contents/MacOS/lichii"
 cp "$WORK/libMoltenVK.dylib" "$app/Contents/Frameworks/libMoltenVK.dylib"
 codesign --force --sign - "$app/Contents/Frameworks/libMoltenVK.dylib" 2>> "$WORK/codesign.log"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier io.github.zortos293.lichii.p99probe' "$app/Contents/Info.plist"
-log "assembled $app"
-log "  bundle id   $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")"
+found=0
+for sw in MVK_FRAMEPROF_DUMP_MS EDEN_NX2_GUEST_THREAD_STATS_SLOW_MS DYNARMIC_FASTMEM_PATCH EDEN_NX2_FASTMEM_NO_RECOMPILE EDEN_NX2_GPU_THREAD_PRIO EDEN_NX2_GPUWAIT_SPIN_US; do
+  if strings -a "$app/Contents/MacOS/lichii" "$app/Contents/Frameworks/libMoltenVK.dylib" | grep -qx "$sw"; then found=$((found + 1)); else log "switch $sw is not in the app"; fi
+done
+log "assembled $app: $found of 6 switches present"
 log "  lichii      $(shasum "$app/Contents/MacOS/lichii" | cut -c1-12) (pinned $(shasum "$PINNED/Contents/MacOS/lichii" | cut -c1-12))"
 log "  libMoltenVK $(shasum "$app/Contents/Frameworks/libMoltenVK.dylib" | cut -c1-12) (pinned $(shasum "$PINNED/Contents/Frameworks/libMoltenVK.dylib" | cut -c1-12))"
-log "  pipeline cache id in the library: $(strings -a "$app/Contents/Frameworks/libMoltenVK.dylib" | grep -c "$(sed -n 's/^MOLTENVK_CACHE_ID=//p' "$REPO/versions.lock" | tr -d '"')")"
+[ "$found" = 6 ]

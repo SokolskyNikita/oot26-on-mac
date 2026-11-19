@@ -1,0 +1,35 @@
+Lichii: the sync trace's gpuwait event (P60_SYNC_TRACE) carries the file and line that asked to wait for the host GPU
+(where, a) in place of the tick. Changes a header, so the eight callers of Scheduler::Wait are recompiled
+(wip/walk-tail/build-test-app.sh lists them). Used 2026-11-19 to show the fence manager makes nearly all such waits.
+Against the pinned Lichii tree (versions.lock).
+
+--- a/src/video_core/renderer_vulkan/vk_scheduler.h
++++ b/src/video_core/renderer_vulkan/vk_scheduler.h
+@@ -289,8 +289,10 @@
+     /// be waiting for them).
+     /// target_fps paces presents in game frames; game_frame_presents is how many presents show the
+     /// current one (see FramePacer).
++    // Test build: the caller's file and line go into the sync trace's gpuwait event (where, a).
+     void Wait(u64 tick, double target_fps = 0.0, bool may_flush = true,
+-              u32 game_frame_presents = 1) {
++              u32 game_frame_presents = 1, const char* p60_file = __builtin_FILE(),
++              int p60_line = __builtin_LINE()) {
+         const bool trace = Common::DkbFrameTrace::Enabled() && target_fps > 0.0;
+         const auto trace_start = trace ? std::chrono::steady_clock::now()
+                                        : std::chrono::steady_clock::time_point{};
+@@ -301,7 +303,14 @@
+             if (P60Trace::On() && !master_semaphore->IsFree(tick)) {
+                 const auto p60_start = P60Trace::Now();
+                 master_semaphore->Wait(tick);
+-                P60Trace::Event("gpuwait", "-", tick, P60Trace::Now() - p60_start);
++                const char* p60_base = p60_file;
++                for (const char* c = p60_file; *c; ++c) {
++                    if (*c == '/') {
++                        p60_base = c + 1;
++                    }
++                }
++                P60Trace::Event("gpuwait", p60_base, static_cast<unsigned long long>(p60_line),
++                                P60Trace::Now() - p60_start);
+             } else {
+                 master_semaphore->Wait(tick);
+             }
