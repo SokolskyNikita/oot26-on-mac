@@ -1,0 +1,11 @@
+[
+ {
+  "label": "cold",
+  "cold_metal_cache": true,
+  "desc": "Boot with the Metal shader cache held aside (about 100 s; the cache is put back afterwards)"
+ },
+ {
+  "label": "warm",
+  "desc": "Warm boot right after, for comparison"
+ }
+]

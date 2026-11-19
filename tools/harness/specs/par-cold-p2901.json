@@ -1,8 +1,0 @@
-[
- {
-  "label": "cold-p2901",
-  "app": "${REPO}/build/old-trees/path-60/app-mvkp2901/lichii.app",
-  "env": {},
-  "desc": "Cold Metal cache: boot with upstream MoltenVK PR 2901 (compile on first use)"
- }
-]

@@ -12,4 +12,4 @@ Write-up: [../../research/mesh-white-specks/README.md](../../research/mesh-white
 | `diag_payload.py` | Decodes the mesh payload/group readbacks used in the diagnosis |
 | `mtlspy/mtlspy.m` | Metal logger injected into the replay (`libmtlspy.dylib`): bindings, argument-buffer contents, `useResource`, raster state; can force state |
 | `patches/upstream/moltenvk-mesh-cull-mode.patch` (repository root) | The fix (MoltenVK `MVKPipeline.mm`); the same as `patches/moltenvk/0010-…` |
-| `specs/specks*.json` | The investigation's run specs (cave wall: Link stops at `WALL=(21.3, 109.95, 14.22)`) |
+| `specs/wall-burst.json` | The regression check: 30 scored screenshots at the cave wall, where Link stops at `WALL=(21.3, 109.95, 14.22)` (0 of 30 speckled expected). The investigation's own specs are not kept; their runs' `result.json` files hold them |

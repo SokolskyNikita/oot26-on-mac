@@ -1,0 +1,13 @@
+[
+ {
+  "label": "wall",
+  "phase_frames": 600,
+  "at_end": [
+   {
+    "burst": 30,
+    "name": "wall"
+   }
+  ],
+  "desc": "30 screenshots at the Kokiri cave wall at the end of the walk, each scored for white specks (0 of 30 expected)"
+ }
+]

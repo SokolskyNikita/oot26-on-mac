@@ -41,7 +41,7 @@ masked, a frame counts above 0.3 %):
 | --- | --- |
 | Run that found the fault (run ab-20261117-233936, run data not kept): patched build | 0/30, 0/30 again |
 | The same, unfixed build (#2901 test build) | 28/30 |
-| Independent check (spec `tools/harness/specs/val-cull.json`, a separate build of the patch): unfixed reference | 27/30 |
+| Independent check (spec `val-cull`, not kept, a separate build of the patch; `tools/speckcheck/specs/wall-burst.json` repeats the burst on the pinned build): unfixed reference | 27/30 |
 | Independent check: patched | 0/30, 0/30 |
 | The fix installed in the pinned build (run ab-20261118-000338) | 0/30 |
 

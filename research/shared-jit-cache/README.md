@@ -92,7 +92,7 @@ at p50 and 84.5 → 11.6 ms at p99. Slow frames are compile frames.
 
 ### Validation before adoption
 
-Spec `tools/harness/specs/merge-sharedjit.json`, run ab-20261118-014956, per-run results in
+Spec `merge-sharedjit` (not kept; each run's `result.json` holds it), run ab-20261118-014956, per-run results in
 run ab-20261118-014956 (labels `merge-*`; local run data, not tracked). A candidate with only the JIT change
 (16 files of the port; speck diagnostics left out), same MoltenVK library in every app, harness walk with turns,
 three runs each:
@@ -124,7 +124,7 @@ path. Findings:
    in-flight translations retry (dropping that would let code patched twice in a row leave a stale block).
 
 Both fixes are in the pinned build (installed 2026-11-18 02:31). Validation: spec
-`tools/jit-cache/specs/jit-review-fixes.json`, run ab-20261118-023158: no regression against the build without the
+Spec `jit-review-fixes` (not kept), run ab-20261118-023158: no regression against the build without the
 fixes, full clears still work with a 128 MiB cache; the fixes themselves are proven by the offline tests (146
 dynarmic and 6 shared-cache tests, ThreadSanitizer clean on three runs).
 

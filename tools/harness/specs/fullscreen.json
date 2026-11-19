@@ -1,21 +1,13 @@
 [
  {
-  "label": "jitlog",
-  "app": "${REPO}/build/old-trees/path-60/app-jitlog/lichii.app",
-  "env": {
-   "EDEN_NX2_JIT_LOG": "{rd}/jit.bin"
-  },
-  "desc": "Log every JIT compile (core, PC, phase times) from boot until Link stands"
- },
- {
   "label": "windowed",
-  "desc": "Check frame time in a window (reference for fullscreen)"
+  "desc": "Pinned build in a window"
  },
  {
   "label": "fullscreen",
   "args": [
    "-f"
   ],
-  "desc": "Check if fullscreen (less WindowServer compositing) speeds up frames"
+  "desc": "Pinned build fullscreen (measured about 0.6-0.8 ms faster on 2026-11-17)"
  }
 ]

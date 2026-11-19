@@ -11,7 +11,7 @@ The cache is in the pinned build, switched on by `EDEN_NX2_SHARED_JIT_CACHE=512`
 | `jit_totals.py RUN_DIR…` | Whole-load JIT counters from a run's log: blocks, compile time, lock waits by kind, faults, discarded translations, lookup hits |
 | `frame_split.py RUN_DIR` | Per-frame core-time split (JIT run, compiling, lock wait, faults, guest code) from an every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`) |
 | `profile_loads.sh OUTDIR N` | Samples the next N launches' loads with `sample` |
-| `specs/sharedjit*.json`, `specs/jit-review-fixes.json` | The A/B specs (run with `tools/harness/queue.sh`) |
+| `specs/shared-cache-128.json` | The pinned build at 512 MiB against 128 MiB, where the cache fills and is cleared during a load: the test for the full-clear path (run with `tools/harness/queue.sh`). The specs of the development rounds are not kept; their runs' `result.json` files hold them |
 
 Switches (in the emulator): `EDEN_NX2_SHARED_JIT_CACHE=<MiB>` (multiples of 128, 128–2048; unset = private caches),
 `DYNARMIC_JIT_TRACE=<file>` (record JIT operations for offline replay). Test settings: `DYNARMIC_ARM64_REGION_SIZE=<bytes>`

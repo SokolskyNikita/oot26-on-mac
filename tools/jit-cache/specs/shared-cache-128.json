@@ -1,0 +1,49 @@
+[
+ {
+  "label": "sc512-warmup",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Warm-up, discarded"
+ },
+ {
+  "label": "sc512-1",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "Pinned build, shared code cache 512 MiB (as installed)"
+ },
+ {
+  "label": "sc128-1",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 128
+  },
+  "phase_frames": 600,
+  "desc": "128 MiB: the cache fills and is cleared during the load, which exercises the full-clear path"
+ },
+ {
+  "label": "sc512-2",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "phase_frames": 600,
+  "desc": "512 MiB"
+ },
+ {
+  "label": "sc128-2",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200,
+   "EDEN_NX2_SHARED_JIT_CACHE": 128
+  },
+  "phase_frames": 600,
+  "desc": "128 MiB"
+ }
+]

@@ -1,0 +1,35 @@
+[
+ {
+  "label": "gerudo-1",
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Gerudo Valley (needs a save there): walk with turns at walls"
+ },
+ {
+  "label": "gerudo-2",
+  "save": "GerudoValley_Child",
+  "expect_spawn": null,
+  "phase_frames": 600,
+  "walk": "bounce",
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Gerudo Valley, second run"
+ },
+ {
+  "label": "kokiri-long",
+  "phase_frames": 3600,
+  "env": {
+   "EDEN_NX2_STUTTER_TRACE": 1,
+   "EDEN_NX2_STUTTER_DETAIL_MS": 200
+  },
+  "desc": "Kokiri Forest, one-minute phases"
+ }
+]

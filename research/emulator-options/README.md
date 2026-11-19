@@ -439,7 +439,7 @@ blown out (white bloom, rainbow colours): a cold boot of the parallel load (21% 
 #2901 + #2905 (44%), and the known run with reactive flushing off. So the two builds whose shader compiles run
 concurrently broke 2 of ~9 runs, silently (no compile or Metal error in the logs); no other build did in 150+. Likely
 a race in the concurrent compile path (unconfirmed). #2901 alone (compiles still serialised under the pipeline
-cache's lock) was clean in 14 of 14: 8 runs plus 6 safety boots (spec `tools/harness/specs/p2901-safety.json`: 3
+cache's lock) was clean in 14 of 14: 8 runs plus 6 safety boots (spec `p2901-safety`, not kept; `tools/harness/specs/cold-boot.json` repeats its cold and warm boot on the pinned build: 3
 cold, 3 warm, every screenshot scored by the harness's `clipped_pct`, worst 2.95%). Cold boots 99.7–100.7 s; a warm
 boot right after another 17.5 s.
 
