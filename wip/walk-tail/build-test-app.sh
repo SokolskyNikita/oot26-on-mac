@@ -11,6 +11,7 @@
 #   EDEN_NX2_GPU_THREAD_PRIO=1                   lichii-gpu-thread-priority-2026-11-19
 #   EDEN_NX2_GPUWAIT_SPIN_US=<us>                lichii-gpuwait-spin-2026-11-19
 #   EDEN_NX2_SYNC_PAYLOAD_RELEASE=1              lichii-sync-payload-release-2026-11-19
+#   (none: always on)                           dynarmic-arm64-regalloc-used-slots-2026-11-19
 #   (none: the sync trace's gpuwait event)       lichii-gpuwait-caller-stamp-2026-11-19
 # Not built, because they change the same lines as the one above: lichii-query-wait-own-reports-2026-11-19
 # (EDEN_NX2_QUERY_WAIT_REPORTS) and lichii-fence-lazy-submit-2026-11-19 (EDEN_NX2_FENCE_LAZY_US), which goes with it.
@@ -27,10 +28,10 @@ LSRC=$(cd "$REPO/build/src/lichii" && pwd -P); LBLD=$LSRC/build/release
 MSRC=$(cd "$REPO/build/src/moltenvk" && pwd -P); MBLD=$MSRC/build
 PINNED=$REPO/build/app/lichii.app
 OUT=$REPO/build/p99probe; WORK=$OUT/work
-LICHII_PATCHES="lichii-thread-stats-slow-frames-2026-11-19 dynarmic-fastmem-patch-to-stub-2026-11-19 lichii-fastmem-no-recompile-2026-11-19 lichii-gpu-thread-priority-2026-11-19 lichii-gpuwait-spin-2026-11-19 lichii-gpuwait-caller-stamp-2026-11-19 lichii-sync-payload-release-2026-11-19"
+LICHII_PATCHES="lichii-thread-stats-slow-frames-2026-11-19 dynarmic-fastmem-patch-to-stub-2026-11-19 lichii-fastmem-no-recompile-2026-11-19 lichii-gpu-thread-priority-2026-11-19 lichii-gpuwait-spin-2026-11-19 lichii-gpuwait-caller-stamp-2026-11-19 lichii-sync-payload-release-2026-11-19 dynarmic-arm64-regalloc-used-slots-2026-11-19"
 MVK_PATCHES="moltenvk-frameprof-dump-long-buffers-2026-11-19"
-# A patched header is only seen by the files that are compiled again: these are the callers of Scheduler::Wait and the file that instantiates the query cache.
-HEADER_USERS="src/video_core/renderer_vulkan/vk_query_cache.cpp src/video_core/renderer_vulkan/nx2_list_slots.cpp src/video_core/renderer_vulkan/vk_blit_screen.cpp src/video_core/renderer_vulkan/vk_buffer_cache.cpp src/video_core/renderer_vulkan/vk_descriptor_buffer.cpp src/video_core/renderer_vulkan/vk_fence_manager.cpp src/video_core/renderer_vulkan/vk_scheduler.cpp src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp src/video_core/renderer_vulkan/vk_swapchain.cpp"
+# A patched header is only seen by the files that are compiled again: these are the callers of Scheduler::Wait, the file that instantiates the query cache, and the arm64 emitters (the register allocator's header).
+HEADER_USERS="src/dynarmic/src/dynarmic/backend/arm64/emit_arm64.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a32.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a32_coprocessor.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a32_memory.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_a64_memory.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_cryptography.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_data_processing.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_floating_point.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_memory.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_packed.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_saturation.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_vector.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_vector_floating_point.cpp src/dynarmic/src/dynarmic/backend/arm64/emit_arm64_vector_saturation.cpp src/dynarmic/src/dynarmic/backend/arm64/verbose_debugging_output.cpp src/video_core/renderer_vulkan/vk_query_cache.cpp src/video_core/renderer_vulkan/nx2_list_slots.cpp src/video_core/renderer_vulkan/vk_blit_screen.cpp src/video_core/renderer_vulkan/vk_buffer_cache.cpp src/video_core/renderer_vulkan/vk_descriptor_buffer.cpp src/video_core/renderer_vulkan/vk_fence_manager.cpp src/video_core/renderer_vulkan/vk_scheduler.cpp src/video_core/renderer_vulkan/vk_staging_buffer_pool.cpp src/video_core/renderer_vulkan/vk_swapchain.cpp"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 [ -f "$LBLD/compile_commands.json" ] || { log "no $LBLD/compile_commands.json: run ./build.sh first"; exit 1; }
 [ -x "$PINNED/Contents/MacOS/lichii" ] || { log "no pinned app $PINNED: run ./build.sh"; exit 1; }

@@ -101,7 +101,9 @@ Each is a switch of the test app (`build-test-app.sh`), off unless set, and none
 | MoltenVK encodes command buffers early (prefill style 1 and 2) | `MVK_CONFIG_PREFILL_METAL_COMMAND_BUFFERS` | No change (run ab-20261119-114059). Style 1 is the setting of one of the two boots with the canopy shards of KNOWN-ISSUES KI-29. Dropped |
 | Fence flushes held back 0, 100, 1000 or 2000 us (pinned: 500 us) | `EDEN_NX2_FENCE_FLUSH_US` | No change. 1000 and 2000 us: 19.4 / 22.9 / 28.0 and 19.4 / 23.4 / 29.1 ms against the control's 20.0 / 23.7 / 28.9 ms (run ab-20261119-120851). 0 and 100 us: walk p50 / p95 / p99 20.0 / 23.6 / 28.9 and 19.9 / 23.4 / 31.0 ms against 19.6-19.9 / 22.9-23.1 / 28.2-29.0 ms (run ab-20261119-114059). Dropped |
 | MoltenVK submits from its own queue thread | `MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS=0` | No gain at p50 or p95 (19.7 / 25.1 ms) in one walk, which was also a boot with the KI-29 corruption (run ab-20261119-120851). Dropped |
-| The register allocator scans only the spill slots a block has used, slot helpers inline | `patches/experiments/dynarmic-arm64-regalloc-used-spills-2026-11-19.patch` | 8.6 % less compile time in the offline replay of the walk's 839,000 recorded compiles (50.2, 51.2 s against 46.7, 46.1 s; Release, asserts off). Too little to move p99; not run in the game |
+| The register allocator visits only the registers and spill slots that may hold something (a bit per register, a high-water mark for spills), slot helpers inline | `patches/experiments/dynarmic-arm64-regalloc-used-slots-2026-11-19.patch` | 20 % less compile time in the offline replay of the walk's 839,000 recorded compiles (52.7, 52.1 s against 43.1, 40.9 s; Release, asserts off); dynarmic's tests pass, 146 cases. Spill slots alone gave 8.6 %. Not run in the game; in the test app's build list, always on |
+| Flat maps for a block's relocations and fastmem patch info (after Lichii PR 1372, the map types only) | none kept | 1.4 % less compile time in the same replay. Dropped |
+| Fence-flagged payload releases not delayed at low accuracy (after Lichii PR 1099) | `EDEN_NX2_SYNC_PAYLOAD_RELEASE` | No change: 19.7 / 24.4 / 29.8 and 20.1 / 24.7 / 29.9 ms, pictures clean; the deferred submissions it was meant to remove stayed at 15-16 a frame (run ab-20261119-140219, whose control ran beside a GPU replay and is not usable: 21.8 / 26.6 / 32.5 ms). Dropped |
 | A macro read of report memory waits only for its own query reports (after Lichii PR 559) | `EDEN_NX2_QUERY_WAIT_REPORTS` | No change: 19.6 / 24.4 / 29.3 ms against the control's 20.3 / 24.8 / 29.2 ms. The wait it shortens happens fewer than 10 times a second here (its timer never reached 1,024 waits in a run). Dropped |
 | A submission every 512 or 4,096 draws, not every 128 (the MoltenVK budget) | `EDEN_NX2_FLUSH_DRAWS` | Slower: 21.3 / 26.0 / 29.6 and 21.9 / 27.5 / 31.3 ms, with 19.6 and 18.8 submissions a frame against 27.6. Fewer submissions is not faster: an early submission lets the GPU work while the CPU records the rest. Dropped |
 | Report fences not submitted at once; the fence thread gives the back 500 or 2,000 us before it asks | `EDEN_NX2_FENCE_LAZY_US` (with the query-wait switch) | No gain at 500 us (19.9 / 24.7 / 30.7 ms), slower at 2,000 us (21.9 / 26.9 / 31.1 ms). The 500 us boot was a KI-29 boot; two boots at 2,000 us were clean. Dropped |
@@ -130,13 +132,29 @@ so only a p99 under about 26 ms is repeated.
 | (screens 1 and 2) | Runs ab-20261119-120851 and ab-20261119-133259; their specs were not kept. The per-frame trace files of the dropped experiments' runs were deleted on 2026-11-19; results, frame times, logs and pictures remain |
 | `specs/shard-hunt.json` | Twenty watched boots looking for the canopy shards of KNOWN-ISSUES KI-29 (run beside `tools/speckcheck/shotwatch.py --on-bad`) |
 
+## The Hypervisor backend on this walk
+
+The patched Hypervisor backend ([wip/hypervisor](../hypervisor/README.md), `build/hvf/app-hvf-final`, in its own
+data root) against the pinned build on the JIT, one batch, other programs open (run ab-20261119-144645):
+
+| Run | Walk p50 / p95 / p99 / max (ms) | Boot / load (s) |
+| --- | --- | --- |
+| Pinned, JIT | 20.0 / 23.7 / 31.4 / 59 | 66 / 88 (not typical: 16 / 39 in the day's other runs) |
+| Hypervisor, defaults | 19.6 / 23.0 / 27.0 / 45 and 19.6 / 23.5 / 26.5 / 1,195 | 23 / 34 and 9 / 20 |
+| Hypervisor, `EDEN_NX2_HVF_INTERPRET_READS=1` | 19.2 / 22.9 / 26.5 / 44 | 9 / 20 |
+
+p99 is 2-5 ms under the day's JIT walks (28-31 ms): there are no compile frames. The median and p95 move by about
+0.5 ms, as the base cost is on the GPU side. A load takes about half as long and the process uses 16 GB against
+20 GB. The 1,195 ms frame is a wait for pipelines built at run time (6 graphics, 3 compute, after the walk), not
+Hypervisor work. Pictures and the lighting cube were clean in all four runs; four boots say nothing about its
+1-in-12 corrupt boots. A second walk with the read switch was cut off.
+
 ## Next
 
-1. Screen `EDEN_NX2_SYNC_PAYLOAD_RELEASE` (after Lichii PR 1099, `patches/experiments/lichii-sync-payload-release-2026-11-19.patch`,
-   in the test app): fence-flagged payload releases are not delayed at low accuracy. The walk makes about 740 of
-   them a second (run ab-20261119-120851 query-reports: 74,154 of type 0 with the fence flag), each a fence that is
-   never skipped. Look at the pictures: the delay it removes was added upstream against white flashes.
+1. The register allocator patch into the pinned build: three walks of the test app (all switches off) against three
+   of the installed build, pictures looked at and load times compared, then a commit on `gold`, patch 0008,
+   `versions.lock` and a `TRACKER.md` row.
 2. Record a Metal System Trace of one walk (needs Xcode) to see what runs on the GPU in the gaps.
-4. Removing the compiles altogether needs a code cache kept across boots or the Hypervisor backend; a faster
-   compiler does not reach p99 (the two JIT rows above).
+4. Removing the compiles altogether needs a code cache kept across boots or the Hypervisor backend (section
+   above); a faster compiler alone has not moved p99.
 3. Repeat the closed-programs walks after a restart with nothing else open, for the floor of causes 2 and 3.

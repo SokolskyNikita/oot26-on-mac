@@ -9,7 +9,10 @@ tested yet).
 than the JIT at the Kokiri Forest spawn and has no walk hitch [measured]. The render race that broke the picture
 (dark band, missing HUD) is found and fixed [measured]. About one Hypervisor boot in twelve still comes up with a
 corrupted picture [measured]. A cause is suspected and a fix is written (`EDEN_NX2_HVF_INTERPRET_READS=1`), but
-that fix has never been booted. Do not make Hypervisor the default until section 5 is settled.
+that fix has booted once (2026-11-19: one 1,800-frame walk, picture clean, no cost seen) and has not been tested
+against the corruption. Do not make Hypervisor the default until section 5 is settled. The corrupt JIT boots of
+KNOWN-ISSUES KI-29 (a lightmap atlas whose guest memory is overwritten around area load) give the same picture, so
+the Hypervisor boots may be that fault and not the read path.
 
 ## 1. What the Hypervisor backend is, and why it matters
 
@@ -33,7 +36,9 @@ that fix has never been booted. Do not make Hypervisor the default until section
 
   The JIT's 450-650 ms walk frame is its code-cache flush; Hypervisor has none. The pinned build's shared JIT cache
   (512 MiB) has since reduced the JIT's hitch (its own validation: walk p95 28-30 ms, worst 51-60 ms), but
-  Hypervisor has not been compared against it side by side.
+  Against it (2026-11-19, 1,800-frame walk, run `ab-20261119-144645`): Hypervisor 19.2-19.6 / 22.9-23.5 ms p50 / p95
+  and p99 26.5-27.0 ms, the JIT 20.0 / 23.7 ms and p99 28-31 ms; loads in about 20 s against 39 s. Table in
+  [wip/walk-tail](../walk-tail/README.md).
 
 ## 2. The render race (fixed)
 

@@ -1,0 +1,272 @@
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.cpp b/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.cpp
+index b7ab55139..ea4baae41 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.cpp
++++ b/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.cpp
+@@ -87,10 +87,6 @@ HostLoc::Kind Argument::CurrentLocationKind(RegAlloc& reg_alloc) const {
+     return reg_alloc.ValueLocation(value.GetInst())->kind;
+ }
+ 
+-bool HostLocInfo::Contains(const IR::Inst* value) const {
+-    return std::find(values.begin(), values.end(), value) != values.end();
+-}
+-
+ void HostLocInfo::SetupScratchLocation() {
+     ASSERT(IsCompletelyEmpty());
+     realized = true;
+@@ -106,29 +102,6 @@ void HostLocInfo::SetupLocation(const IR::Inst* value) {
+     expected_uses = value->UseCount();
+ }
+ 
+-bool HostLocInfo::IsCompletelyEmpty() const {
+-    return values.empty() && !locked && !realized && !accumulated_uses && !expected_uses && !uses_this_inst;
+-}
+-
+-bool HostLocInfo::MaybeAllocatable() const {
+-    return !locked && !realized;
+-}
+-
+-bool HostLocInfo::IsOneRemainingUse() const {
+-    return accumulated_uses + 1 == expected_uses && uses_this_inst == 1;
+-}
+-
+-void HostLocInfo::UpdateUses() {
+-    accumulated_uses += uses_this_inst;
+-    uses_this_inst = 0;
+-
+-    if (accumulated_uses == expected_uses) {
+-        values.clear();
+-        accumulated_uses = 0;
+-        expected_uses = 0;
+-    }
+-}
+-
+ RegAlloc::ArgumentInfo RegAlloc::GetArgumentInfo(IR::Inst* inst) {
+     ArgumentInfo ret = {Argument{}, Argument{}, Argument{}, Argument{}};
+     for (std::size_t i = 0; i < inst->NumArgs(); i++) {
+@@ -207,6 +180,7 @@ void RegAlloc::DefineAsExisting(IR::Inst* inst, Argument& arg) {
+ void RegAlloc::DefineAsRegister(IR::Inst* inst, oaknut::Reg reg) {
+     defined_insts.insert(inst);
+     ASSERT(!ValueLocation(inst));
++    MarkUsed(reg.is_vector(), reg.index());
+     auto& info = reg.is_vector() ? fprs[reg.index()] : gprs[reg.index()];
+     ASSERT(info.IsCompletelyEmpty());
+     info.values.push_back(inst);
+@@ -214,15 +188,24 @@ void RegAlloc::DefineAsRegister(IR::Inst* inst, oaknut::Reg reg) {
+ }
+ 
+ void RegAlloc::UpdateAllUses() {
+-    for (auto& gpr : gprs) {
+-        gpr.UpdateUses();
++    // Only the registers marked used can hold anything; one that is empty again is unmarked.
++    for (u32 mask = gprs_used; mask != 0; mask &= mask - 1) {
++        const int i = std::countr_zero(mask);
++        gprs[i].UpdateUses();
++        if (gprs[i].IsCompletelyEmpty()) {
++            gprs_used &= ~(u32{1} << i);
++        }
+     }
+-    for (auto& fpr : fprs) {
+-        fpr.UpdateUses();
++    for (u32 mask = fprs_used; mask != 0; mask &= mask - 1) {
++        const int i = std::countr_zero(mask);
++        fprs[i].UpdateUses();
++        if (fprs[i].IsCompletelyEmpty()) {
++            fprs_used &= ~(u32{1} << i);
++        }
+     }
+     flags.UpdateUses();
+-    for (auto& spill : spills) {
+-        spill.UpdateUses();
++    for (std::size_t i = 0; i < spill_high; i++) {
++        spills[i].UpdateUses();
+     }
+ }
+ 
+@@ -275,6 +258,7 @@ int RegAlloc::GenerateImmediate(const IR::Value& value) {
+     if constexpr (kind == HostLoc::Kind::Gpr) {
+         const int new_location_index = AllocateRegister(gprs, gpr_order);
+         SpillGpr(new_location_index);
++        MarkUsed(false, new_location_index);
+         gprs[new_location_index].SetupScratchLocation();
+ 
+         code.MOV(oaknut::XReg{new_location_index}, value.GetImmediateAsU64());
+@@ -283,6 +267,7 @@ int RegAlloc::GenerateImmediate(const IR::Value& value) {
+     } else if constexpr (kind == HostLoc::Kind::Fpr) {
+         const int new_location_index = AllocateRegister(fprs, fpr_order);
+         SpillFpr(new_location_index);
++        MarkUsed(true, new_location_index);
+         fprs[new_location_index].SetupScratchLocation();
+ 
+         code.MOV(Xscratch0, value.GetImmediateAsU64());
+@@ -338,6 +323,7 @@ int RegAlloc::RealizeReadImpl(const IR::Value& value) {
+             break;
+         }
+ 
++        MarkUsed(false, new_location_index);
+         gprs[new_location_index] = std::exchange(ValueInfo(*current_location), {});
+         gprs[new_location_index].realized = true;
+         return new_location_index;
+@@ -359,6 +345,7 @@ int RegAlloc::RealizeReadImpl(const IR::Value& value) {
+             break;
+         }
+ 
++        MarkUsed(true, new_location_index);
+         fprs[new_location_index] = std::exchange(ValueInfo(*current_location), {});
+         fprs[new_location_index].realized = true;
+         return new_location_index;
+@@ -377,11 +364,13 @@ int RegAlloc::RealizeWriteImpl(const IR::Inst* value) {
+     if constexpr (kind == HostLoc::Kind::Gpr) {
+         const int new_location_index = AllocateRegister(gprs, gpr_order);
+         SpillGpr(new_location_index);
++        MarkUsed(false, new_location_index);
+         gprs[new_location_index].SetupLocation(value);
+         return new_location_index;
+     } else if constexpr (kind == HostLoc::Kind::Fpr) {
+         const int new_location_index = AllocateRegister(fprs, fpr_order);
+         SpillFpr(new_location_index);
++        MarkUsed(true, new_location_index);
+         fprs[new_location_index].SetupLocation(value);
+         return new_location_index;
+     } else if constexpr (kind == HostLoc::Kind::Flags) {
+@@ -445,6 +434,7 @@ void RegAlloc::SpillGpr(int index) {
+     }
+     const int new_location_index = FindFreeSpill();
+     code.STR(oaknut::XReg{index}, SP, spill_offset + new_location_index * spill_slot_size);
++    spill_high = std::max(spill_high, static_cast<std::size_t>(new_location_index) + 1);
+     spills[new_location_index] = std::exchange(gprs[index], {});
+ }
+ 
+@@ -455,6 +445,7 @@ void RegAlloc::SpillFpr(int index) {
+     }
+     const int new_location_index = FindFreeSpill();
+     code.STR(oaknut::QReg{index}, SP, spill_offset + new_location_index * spill_slot_size);
++    spill_high = std::max(spill_high, static_cast<std::size_t>(new_location_index) + 1);
+     spills[new_location_index] = std::exchange(fprs[index], {});
+ }
+ 
+@@ -496,6 +487,7 @@ void RegAlloc::SpillFlags() {
+     const int new_location_index = AllocateRegister(gprs, gpr_order);
+     SpillGpr(new_location_index);
+     code.MRS(oaknut::XReg{new_location_index}, oaknut::SystemReg::NZCV);
++    MarkUsed(false, new_location_index);
+     gprs[new_location_index] = std::exchange(flags, {});
+ }
+ 
+@@ -558,16 +550,24 @@ void RegAlloc::LoadCopyInto(const IR::Value& value, oaknut::QReg reg) {
+ std::optional<HostLoc> RegAlloc::ValueLocation(const IR::Inst* value) const {
+     const auto contains_value = [value](const HostLocInfo& info) { return info.Contains(value); };
+ 
+-    if (const auto iter = std::find_if(gprs.begin(), gprs.end(), contains_value); iter != gprs.end()) {
+-        return HostLoc{HostLoc::Kind::Gpr, static_cast<int>(iter - gprs.begin())};
++    for (u32 mask = gprs_used; mask != 0; mask &= mask - 1) {
++        const int i = std::countr_zero(mask);
++        if (gprs[i].Contains(value)) {
++            return HostLoc{HostLoc::Kind::Gpr, i};
++        }
+     }
+-    if (const auto iter = std::find_if(fprs.begin(), fprs.end(), contains_value); iter != fprs.end()) {
+-        return HostLoc{HostLoc::Kind::Fpr, static_cast<int>(iter - fprs.begin())};
++    for (u32 mask = fprs_used; mask != 0; mask &= mask - 1) {
++        const int i = std::countr_zero(mask);
++        if (fprs[i].Contains(value)) {
++            return HostLoc{HostLoc::Kind::Fpr, i};
++        }
+     }
+     if (contains_value(flags)) {
+         return HostLoc{HostLoc::Kind::Flags, 0};
+     }
+-    if (const auto iter = std::find_if(spills.begin(), spills.end(), contains_value); iter != spills.end()) {
++    // Only the spill slots below spill_high have ever held a value in this block.
++    const auto spills_end = spills.begin() + spill_high;
++    if (const auto iter = std::find_if(spills.begin(), spills_end, contains_value); iter != spills_end) {
+         return HostLoc{HostLoc::Kind::Spill, static_cast<int>(iter - spills.begin())};
+     }
+     return std::nullopt;
+@@ -576,8 +576,10 @@ std::optional<HostLoc> RegAlloc::ValueLocation(const IR::Inst* value) const {
+ HostLocInfo& RegAlloc::ValueInfo(HostLoc host_loc) {
+     switch (host_loc.kind) {
+     case HostLoc::Kind::Gpr:
++        MarkUsed(false, host_loc.index);
+         return gprs[static_cast<std::size_t>(host_loc.index)];
+     case HostLoc::Kind::Fpr:
++        MarkUsed(true, host_loc.index);
+         return fprs[static_cast<std::size_t>(host_loc.index)];
+     case HostLoc::Kind::Flags:
+         return flags;
+@@ -590,13 +592,19 @@ HostLocInfo& RegAlloc::ValueInfo(HostLoc host_loc) {
+ HostLocInfo& RegAlloc::ValueInfo(const IR::Inst* value) {
+     const auto contains_value = [value](const HostLocInfo& info) { return info.Contains(value); };
+ 
+-    if (const auto iter = std::find_if(gprs.begin(), gprs.end(), contains_value); iter != gprs.end()) {
+-        return *iter;
+-    } else if (const auto iter = std::find_if(fprs.begin(), fprs.end(), contains_value); iter != fprs.end()) {
+-        return *iter;
+-    } else if (contains_value(flags)) {
++    for (u32 mask = gprs_used; mask != 0; mask &= mask - 1) {
++        if (auto& info = gprs[std::countr_zero(mask)]; info.Contains(value)) {
++            return info;
++        }
++    }
++    for (u32 mask = fprs_used; mask != 0; mask &= mask - 1) {
++        if (auto& info = fprs[std::countr_zero(mask)]; info.Contains(value)) {
++            return info;
++        }
++    }
++    if (contains_value(flags)) {
+         return flags;
+-    } else if (const auto iter = std::find_if(spills.begin(), spills.end(), contains_value); iter != spills.end()) {
++    } else if (const auto iter = std::find_if(spills.begin(), spills.begin() + spill_high, contains_value); iter != spills.begin() + spill_high) {
+         return *iter;
+     }
+     UNREACHABLE();
+diff --git a/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.h b/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.h
+index 93afcee0b..5201e3a97 100644
+--- a/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.h
++++ b/src/dynarmic/src/dynarmic/backend/arm64/reg_alloc.h
+@@ -148,13 +148,30 @@ struct HostLocInfo final {
+     std::size_t accumulated_uses = 0;
+     std::size_t expected_uses = 0;
+ 
+-    bool Contains(const IR::Inst*) const;
++    bool Contains(const IR::Inst* value) const {
++        for (const IR::Inst* v : values) {
++            if (v == value) {
++                return true;
++            }
++        }
++        return false;
++    }
+     void SetupScratchLocation();
+     void SetupLocation(const IR::Inst*);
+-    bool IsCompletelyEmpty() const;
+-    bool MaybeAllocatable() const;
+-    bool IsOneRemainingUse() const;
+-    void UpdateUses();
++    bool IsCompletelyEmpty() const {
++        return values.empty() && !locked && !realized && !accumulated_uses && !expected_uses && !uses_this_inst;
++    }
++    bool MaybeAllocatable() const { return !locked && !realized; }
++    bool IsOneRemainingUse() const { return accumulated_uses + 1 == expected_uses && uses_this_inst == 1; }
++    void UpdateUses() {
++        accumulated_uses += uses_this_inst;
++        uses_this_inst = 0;
++        if (accumulated_uses == expected_uses) {
++            values.clear();
++            accumulated_uses = 0;
++            expected_uses = 0;
++        }
++    }
+ };
+ 
+ class RegAlloc final {
+@@ -335,6 +352,10 @@ private:
+     std::array<HostLocInfo, 32> fprs;
+     HostLocInfo flags;
+     std::array<HostLocInfo, SpillCount> spills;
++    std::size_t spill_high = 0;  // one past the highest spill slot used in this block
++    u32 gprs_used = 0;  // registers that may hold a value, a lock or a use count
++    u32 fprs_used = 0;
++    void MarkUsed(bool vector, int index) { (vector ? fprs_used : gprs_used) |= u32{1} << index; }
+ 
+     mutable std::size_t alloc_candidate_index = 0;
+     ::Common::unordered_set<const IR::Inst*> defined_insts;
