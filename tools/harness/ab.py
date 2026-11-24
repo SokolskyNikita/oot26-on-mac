@@ -772,12 +772,25 @@ def _one_run(spec, out, attempt="1/1"):
                 # Right after the load, before Link moves: keep the game running for manual debug-server calls while
                 # this file exists (at most hold_max_s
                 # seconds): prints main's address and Link's object, which dbg.py needs.
-                hf = Path(spec["hold_file"]); hf.write_text(json.dumps({"main": hex(dbg.MAIN), "actor": hex(actor),
-                                                                        "run": str(rd)}))
+                # The file also names this Lichii and the attempt ("2/3 retry" after a crash), so a client can tell
+                # that the game it drives was restarted; if Lichii dies while held, HOLD.died says so at once.
+                hf = Path(spec["hold_file"]); died = hf.with_name(hf.name + ".died"); died.unlink(missing_ok=True)
+                hf.write_text(json.dumps({"main": hex(dbg.MAIN), "actor": hex(actor), "run": str(rd),
+                                          "lichii_pid": proc.pid, "attempt": attempt}))
                 title("held for manual calls"); print(f"{spec['label']}: held, main {dbg.MAIN:#x}, rm {hf} to go on", flush=True)
                 t_hold = time.time()
                 while hf.exists() and alive() and time.time() - t_hold < float(spec.get("hold_max_s", 900)):
                     time.sleep(1)
+                if not alive() and not killed_by_us:
+                    reports = sorted(Path.home().glob("Library/Logs/DiagnosticReports/lichii*.ips"),
+                                     key=lambda f: f.stat().st_mtime)
+                    report = next((str(f) for f in reversed(reports) if f.stat().st_mtime >= t0 - 5), None)
+                    died.write_text(json.dumps({"lichii_pid": proc.pid, "attempt": attempt, "held_s":
+                                                round(time.time() - t_hold, 1), "crash_report": report}))
+                    print(f"{spec['label']}: Lichii {proc.pid} died while held; crash report {report}", flush=True)
+                elif spec.get("after_hold") == "stop":
+                    # a manual session: nothing after the hold is wanted (the walk would use a Link that may be gone)
+                    raise HoldDone()
         res["load_s"] = round(time.time() - t0, 1); tmark(res, "load_done")
         cur = None
         if server:
@@ -991,6 +1004,8 @@ def _one_run(spec, out, attempt="1/1"):
         except Exception as e:  # scoring must never fail a run
             res["picture_error"] = str(e)
         title("done"); res["outcome"] = "completed"
+    except HoldDone:
+        title("done"); res["outcome"] = "completed (held, then stopped)"
     except Exception as e:
         res["outcome"] = "killed externally" if not alive() and not killed_by_us else f"error: {e}"
         if server and alive():
@@ -1022,6 +1037,10 @@ def _one_run(spec, out, attempt="1/1"):
     res["loadavg_after"] = os.getloadavg()
     (rd / "result.json").write_text(json.dumps(res, indent=1))
     return res
+
+
+class HoldDone(Exception):
+    """A held run with "after_hold": "stop" ends when the hold does."""
 
 
 def lichii_running():

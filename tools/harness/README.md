@@ -178,7 +178,12 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
 - `build_wait`: `false` starts even while one of this project's variant builds is compiling (for runs judged by
   picture or log; frame times are then skewed).
 - `hold_file` / `hold_max_s`: right after the load, write main's address and Link's object to that file and keep
-  the game open for manual debug-server calls until the file is removed (at most `hold_max_s`, default 900 s).
+  the game open for manual debug-server calls until the file is removed (at most `hold_max_s`, default 900 s). The
+  file also names the Lichii (`lichii_pid`) and the attempt (`"1/1 retry"` after a crash): a client that sees either
+  change is driving a new game. If Lichii dies while held, `<hold_file>.died` appears at once, with the pid, how long
+  it was held and the newest Lichii crash report.
+- `after_hold`: `"stop"` ends the run when the hold does (outcome `completed (held, then stopped)`): no settle, walk,
+  stand or picture scoring, which would use a Link that a warp may have replaced. For manual sessions.
 - `resave`: save again right after the load, for a save that is not in the library ("The save").
 
 A bounce walk that stands still for three chunks in a row (Link in an NPC dialog, or stuck where a turn does not
