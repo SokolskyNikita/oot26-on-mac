@@ -15,6 +15,7 @@ from the code. What each one led to in the pinned build is a row in [../TRACKER.
 | Native mesh shaders on Metal | [mesh-native-colours/README.md](mesh-native-colours/README.md): why native foliage was wrong | [mesh-threadgroup-memory/](mesh-threadgroup-memory/README.md), [mesh-fallback/](mesh-fallback/README.md), [metal-validation/](metal-validation/README.md) |
 | The game's shaders, extracted | [shader-extraction/README.md](shader-extraction/README.md) | |
 | The patch series on current Lichii (the pin's move of 2026-11-19) | [port-to-current-lichii/README.md](port-to-current-lichii/README.md) | |
+| The infinite jumpslash, played frame-perfect by a sloperinaGZ script | [infinite-jumpslash/README.md](infinite-jumpslash/README.md): why it works, the 50-frame loop and each value's window, the height formula | the script: [infinite_jump.txt](infinite-jumpslash/infinite_jump.txt) |
 | Alternatives to MoltenVK and to Lichii | [moltenvk-offramp/README.md](moltenvk-offramp/README.md) | [nxnative/](nxnative/README.md) |
 
 `logs/` holds two emulator logs the write-ups quote.

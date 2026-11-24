@@ -120,6 +120,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 - **Works on:** 1.0 and 1.1.1.
 - **Any% impact:** high. Hovering to the Shadow Temple entrance removed the need for the Nocturne of Shadow, and so for finishing the Forest, Fire and Water temples. It is also how child Link gets through that temple, and the Song of Time skip, Iron Boots skip, Longshot skip and Forest Escape all start with a hover.
 - **Video:** [Jumpslash Cancel Glitch Tutorial by *gymnast86*](https://www.youtube.com/watch?v=4HSZ6GMQCZk). Inputs with a hand camera: [*secondbaker*'s link](https://youtu.be/aaEfLhigIws).
+- **As a script:** [research/infinite-jumpslash](research/infinite-jumpslash/README.md): the chain at 50 frames a loop (0.69 m up each), played inside the game by sloperinaGZ, with each timing value's window and the height formula.
 
 ### Actor jump
 

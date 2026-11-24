@@ -1,0 +1,55 @@
+# Infinite jump (the frame-perfect jumpslash chain), as a sloperinaGZ remote control script.
+#
+#   python3 tools/remote.py --timeout 120 < infinite_jump.txt     (tools/remote.py is sloperinaGZ's)
+#
+# Game 1.1.1, child Link in Kokiri Forest, with settings > remote control on, the Deku Stick on ZR and the
+# Boomerang just right of the stick in the item wheel. Each loop is 50 frames and gains about 0.7 m; 60 loops
+# climb about 42 m. Change "repeat 60" for more.
+#
+# The start spot, facing the Hyrule Field exit (away from the Kokiri: next to one, ZL targets them and A talks)
+place -12.45 110.36 4.66 250
+wait 90
+# the stick in hand, whatever he held: B puts it away, ZR draws it
+input B for 2
+wait 40
+input ZR for 2
+wait 70
+# the camera behind Link
+input ZL for 6
+wait 40
+status
+# the opening jumpslash, then one loop a repeat: item wheel open, Boomerang on, wheel closed, stick back on, ZR
+input - for 3
+wait 3
+input ZL+A ls 0 32767 for 2
+wait 2
+input ZL ls 0 32767 for 2
+wait 2
+input ZL+R for 8
+wait 8
+repeat 60
+input R ls 32767 0 for 1
+wait 1
+input R for 1
+wait 1
+input - for 12
+wait 12
+input R for 8
+wait 8
+input R ls -32767 0 for 1
+wait 1
+input R for 1
+wait 1
+input - for 11
+wait 11
+input ZR for 1
+wait 1
+input - for 2
+wait 2
+input - for 4
+wait 4
+input R for 8
+wait 8
+end
+input off
+status
