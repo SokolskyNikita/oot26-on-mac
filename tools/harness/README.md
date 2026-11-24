@@ -150,6 +150,9 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
   redraws one face a frame; a value over 50 in it marks the run corrupt (`cube_max` in `picture`). It catches the
   KI-29 boots whichever way Link faces. `config.json` sets 8 for runs of the default save, and an `on_corrupt` for
   them: a GPU trace, four frame captures with sampled textures and a bug bundle (about 1 GB a capture; twelve took 21 GB).
+  When the run scores clean, its cube-check captures (about 1 GB a run) are deleted after scoring; `result.json`
+  keeps the verdict, the largest value (`cube_check.max`) and `captures_deleted_mib`.
+- `keep_cube_captures`: keep the cube check's captures of a clean run.
 - `on_corrupt`: steps like `at_end`'s, run only when the run's end picture scores as corrupted, while the game is
   still up (a GPU trace, a frame capture). Every run's `result.json` gets `picture` (`clipped_pct`, `vivid_pct`,
   `corrupt`: clipped over 15 % or vivid over 0.15 %, from `persist.picture_metrics` on `run-stand2.png`); a corrupt

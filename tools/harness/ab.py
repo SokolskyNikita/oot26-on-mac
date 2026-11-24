@@ -193,11 +193,13 @@ CUBE_MAX = 50.0   # a clean lighting cube face stays under about 1.2; the bad bo
 
 
 def cube_check(call, n):
-    """Capture n frames in a row and return the largest value in any 128x128 format-21 render target."""
-    worst = {"max": 0.0, "captures": 0, "targets": 0}
+    """Capture n frames in a row and return the largest value in any 128x128 format-21 render target. The capture
+    folders are listed under "dirs" so a passing run can delete them (prune_cube_captures)."""
+    worst = {"max": 0.0, "captures": 0, "targets": 0, "dirs": []}
     for _ in range(n):
         try:
             r = call("capture_frame", timeout=120, sampled=False)
+            worst["dirs"].append(r["directory"])
             rows = [json.loads(l) for l in (Path(r["directory"]) / "manifest.jsonl").read_text().splitlines() if l]
         except Exception as e:   # a failed capture must not fail the run
             worst["error"] = str(e); break
@@ -210,6 +212,18 @@ def cube_check(call, n):
                 if m > worst["max"]:
                     worst.update(max=m, name=row.get("name"), directory=r["directory"])
     return worst
+
+
+def prune_cube_captures(check, rd):
+    """Delete the cube check's capture folders (about 1 GB a run) once the run has scored clean; only folders inside
+    the run folder are touched. The verdict and the largest value stay in result.json."""
+    freed = 0
+    for d in check.pop("dirs", []):
+        p = Path(d).resolve()
+        if p.is_dir() and rd.resolve() in p.parents:
+            freed += sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+            shutil.rmtree(p)
+    check["captures_deleted_mib"] = freed >> 20
 
 
 def hook(cmd):
@@ -869,6 +883,9 @@ def _one_run(spec, out, attempt="1/1"):
                     res["cube_check"] = cube_check(call, int(n_cube))
                     if res["cube_check"].get("max", 0) > CUBE_MAX:
                         res["picture"].update(corrupt=True, cube_max=res["cube_check"]["max"])
+                # A clean run keeps the cube check's verdict, not its captures ("keep_cube_captures": true keeps them).
+                if n_cube and not res["picture"]["corrupt"] and not spec.get("keep_cube_captures"):
+                    prune_cube_captures(res["cube_check"], rd)
                 if res["picture"]["corrupt"]:
                     print(f"{spec['label']}: CORRUPT PICTURE {res['picture']}", flush=True)
                     steps = spec.get("on_corrupt", CONFIG.get("on_corrupt") if "save" not in spec else None)
