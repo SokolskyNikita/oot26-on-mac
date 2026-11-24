@@ -6,7 +6,8 @@ as a fixed-timing script that sloperinaGZ plays inside the game, why it works, a
 
 - **The script:** [infinite_jump.txt](infinite_jump.txt). From any spot in Kokiri Forest it puts Link on the start
   spot, draws the stick and climbs 60 loops: +42 m in 50 s.
-- **Video:** to come.
+- **Video:** [the script in the game, with sound](https://www.youtube.com/watch?v=TQp3hR4JfWk) (64 s): Link is put on the
+  start spot, gets ready and climbs 60 loops.
 - **Measured** on game 1.1.1 in this repository's pinned Lichii build, child Link, Kokiri Forest. Claims marked
   *code* were read in the game's executable; the rest were measured frame by frame.
 
