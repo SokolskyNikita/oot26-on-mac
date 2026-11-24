@@ -1,0 +1,16 @@
+[
+ {
+  "label": "lib-zl-learned",
+  "desc": "Save library check: load zl-learned (Hyrule Castle, Zelda's Lullaby) as the only save in slot_01",
+  "save": "zl-learned",
+  "phase_frames": 120,
+  "leash_m": 5,
+  "build_wait": false
+ },
+ {
+  "label": "lib-kokiri-forest",
+  "desc": "Save library check: load the default kokiri-forest save as the only save in slot_01, at its spawn",
+  "phase_frames": 120,
+  "build_wait": false
+ }
+]

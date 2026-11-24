@@ -6,6 +6,8 @@
     python3 ab.py --make-master [--home DIR] [--force]  # the master config, from qt-config.ini, checked first
     python3 ab.py --make-home DIR [--with-shader-cache]  # a private Lichii data root, copied from the real one
     python3 ab.py --print-paths [--home DIR] [SPEC.json] # what a run would read and write (launches nothing)
+    python3 ab.py --add-save NAME SLOT_DIR [--spawn X,Y,Z] [--note TEXT] [--force]  # a save into the library
+    python3 ab.py --list-saves                           # the library's saves
 
 SPEC.json is a list of runs: {"label", "cfg": {key: value}, "env": {NAME: VALUE}, "server": true,
 "app": path, "poll_hz": 0, "repeat": 1}. Each run:
@@ -14,8 +16,8 @@ SPEC.json is a list of runs: {"label", "cfg": {key: value}, "env": {NAME: VALUE}
    `cfg` (key=value plus key\\default=false); with "home" (or $OOT26_LICHII_HOME), the private data root's copies;
 2. launches the app with the verify frame hook (frames.bin, one timestamp per presented frame), the debug server
    (unless "server": false) and MVK_P60_NO_APPNAP=1;
-3. loads the save named in config.json ("save": a map name from the saves' captions; the newest save with it,
-   or an error when there is none; a spec's "save" overrides it). Each menu screen, the list's cursor, the loading
+3. loads the save named in config.json (a spec's "save" overrides it): a save of the library ("save_library"),
+   which replaces every slot of the game's save folder and is left there after the run; else a map name from the saves' captions, the newest save with it, or an error when there is none. Each menu screen, the list's cursor, the loading
    screen and the arrival in the game are read from the game's UI manager in memory, and Link must stand at
    "expect_spawn" (else: wrong save, stop). Nothing is decided from the picture. Then it waits until the log shows
    3 s without a pipeline build;
@@ -426,9 +428,89 @@ CONFIG = json.loads((HERE / "config.json").read_text())
 GUEST_CRASH_LINES = ("Unhandled guest exception", "Cannot execute instruction at unmapped address")
 
 
+SAVE_FILES = ("caption.sav", "progress.sav")   # one save: what the Load list shows, and the save itself
+LOAD_SLOT = "slot_01"   # where a library save is put; slot_00 is left empty because leaving an area autosaves there
+
+
+def caption_maps(cap):
+    """The Area/Map names in a caption.sav file."""
+    return sorted(set(m.decode() for m in re.findall(rb"[A-Za-z]+/[A-Za-z_]+", Path(cap).read_bytes()[:4096])))
+
+
+def save_library():
+    """The folder of named saves (config.json "save_library"), one folder per save. Not in this repository: saves
+    are game data."""
+    return Path(os.path.expanduser(CONFIG.get("save_library", "~/.local/share/oot26-saves")))
+
+
+def library_save(name):
+    """(folder, save.json) of the library save called `name`, or None when there is none (`name` is then a map)."""
+    if not name or "/" in name:
+        return None
+    d = save_library() / name
+    if not all((d / f).is_file() for f in SAVE_FILES):
+        return None
+    meta = d / "save.json"
+    return d, (json.loads(meta.read_text()) if meta.is_file() else {})
+
+
+def stage_save(h, src):
+    """Make library save `src` the only save in h's save folder, in LOAD_SLOT: every slot_NN is deleted first (the
+    library keeps the saves that matter), so the Load list has one entry and where the game sorts an imported save
+    does not matter. account.sav and option.sav stay the root's own (option.sav differs between game versions)."""
+    d = h.save_dir()
+    if not d.is_dir():
+        raise SystemExit(f"no saves of the game in {d} (config.json save_dir, under Lichii's data folder): boot the "
+                         "game once and make a save")
+    for sl in d.glob("slot_*"):
+        if sl.is_dir():
+            shutil.rmtree(sl)
+    (d / LOAD_SLOT).mkdir()
+    for f in SAVE_FILES:
+        shutil.copy2(src / f, d / LOAD_SLOT / f)
+
+
+def add_save(name, slot, spawn=None, note=None, force=False):
+    """Copy the save in folder `slot` (a slot_NN of the game's save folder, or a downloaded save with the same two
+    files) into the library as `name`."""
+    src = Path(slot).expanduser()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+        raise SystemExit(f"{name!r}: a library save's name is letters, digits, '.', '_' and '-'")
+    missing = [f for f in SAVE_FILES if not (src / f).is_file()]
+    if missing:
+        raise SystemExit(f"{src} has no {', '.join(missing)}")
+    d = save_library() / name
+    if d.exists() and not force:
+        raise SystemExit(f"{d} exists; add --force to replace it")
+    d.mkdir(parents=True, exist_ok=True)
+    for f in SAVE_FILES:
+        shutil.copy2(src / f, d / f)
+    meta = {"maps": caption_maps(d / "caption.sav"), "expect_spawn": spawn, "source": str(src.absolute()),
+            "added": time.strftime("%Y-%m-%d %H:%M"), "note": note}
+    (d / "save.json").write_text(json.dumps(meta, indent=1) + "\n")
+    print(f"added {d}: {json.dumps(meta)}")
+
+
+def list_saves():
+    lib = save_library()
+    rows = sorted(p for p in lib.glob("*/") if library_save(p.name)) if lib.is_dir() else []
+    print(f"{lib}: {len(rows)} saves")
+    for p in rows:
+        m = library_save(p.name)[1]
+        print(f"  {p.name:24} {', '.join(m.get('maps') or caption_maps(p / 'caption.sav'))}  spawn {m.get('expect_spawn')}"
+              + (f"  ({m['note']})" if m.get("note") else ""))
+
+
+def is_default_save(spec):
+    """A run of config.json's save: its picture checks (end_white_max, cube_check, on_corrupt) apply."""
+    return spec.get("save", CONFIG["save"]) == CONFIG["save"]
+
+
 def resolve_save(name):
-    """List position of the newest save whose caption names map `name` (Area/Map or Map). The Load list is newest
-    first, which is the order of the slots' file times. Errors out when no save has that map."""
+    """List position of the newest save whose caption names map `name` (Area/Map or Map), for a `save` that is not
+    in the library. The Load list is newest first, taken here as the order of the slots' file times; an imported
+    save keeps the date it was made inside its caption, so this order can be wrong for one (use the library).
+    Errors out when no save has that map."""
     d = HOME.save_dir()
     if not d.is_dir():
         raise SystemExit(f"no saves of the game in {d} (config.json save_dir, under Lichii's data folder): boot the "
@@ -436,15 +518,15 @@ def resolve_save(name):
     slots = sorted((x for x in d.glob("slot_*") if (x / "caption.sav").exists()),
                    key=lambda x: (x / "caption.sav").stat().st_mtime, reverse=True)
     for i, sl in enumerate(slots):
-        cap = (sl / "caption.sav").read_bytes()[:4096]
-        maps = set(re.findall(rb"[A-Za-z]+/[A-Za-z_]+", cap))
-        if any(m.decode() == name or m.decode().split("/")[1] == name for m in maps):
-            return i, sl.name, sorted(m.decode() for m in maps)
-    raise SystemExit(f"no save with map {name!r} in {d}. The saves there, newest first (the Load list's order): " + (", ".join(
-        f"{sl.name}={sorted(set(m.decode() for m in re.findall(rb'[A-Za-z]+/[A-Za-z_]+', (sl / 'caption.sav').read_bytes()[:4096])))}"
-        for sl in slots) or "none") + ". Make a save there in the game, or set \"save\" (a map name above), "
-        "\"expect_spawn\" (where Link stands after loading it, or null) and/or \"save_index\" (a Load-list position, "
-        "0 = newest) in config.json or in the spec")
+        maps = caption_maps(sl / "caption.sav")
+        if any(m == name or m.split("/")[1] == name for m in maps):
+            return i, sl.name, maps
+    raise SystemExit(f"no library save {name!r} in {save_library()} and no save with map {name!r} in {d}. The "
+        "saves there, newest first (the Load list's order): " + (", ".join(
+        f"{sl.name}={caption_maps(sl / 'caption.sav')}" for sl in slots) or "none") + ". Add a save to the library "
+        f"(python3 {HERE / 'ab.py'} --add-save NAME SLOT_DIR, --list-saves lists them), or set \"save\" (a library "
+        "name or a map above), \"expect_spawn\" (where Link stands after loading it, or null) and/or \"save_index\" "
+        "(a Load-list position, 0 = newest) in config.json or in the spec")
 
 
 def ui_screens():
@@ -506,6 +588,15 @@ def one_run(spec, out, attempt="1/1"):
                   "frame times will be skewed", flush=True)
     if w > 0:
         print(f"{spec['label']}: waited {w} s for builds", flush=True)
+    # A library save: it becomes the game's only save (and stays so after the run; what the run saved is lost
+    # with the next run).
+    lib = library_save(spec.get("save", CONFIG["save"]))
+    if lib:
+        stage_save(run_home(spec), lib[0])
+    return _cold_or_warm(spec, out, attempt)
+
+
+def _cold_or_warm(spec, out, attempt):
     if not spec.get("cold_metal_cache"):
         return _one_run(spec, out, attempt)
     hold = METAL_CACHE.with_name("com.apple.metal.real-hold")
@@ -646,7 +737,12 @@ def _one_run(spec, out, attempt="1/1"):
         if server:
             save = spec.get("save", CONFIG["save"]); spawn = spec.get("expect_spawn", CONFIG.get("expect_spawn"))
             fixed = spec.get("save_index", CONFIG.get("save_index"))
-            if fixed is not None:                     # fallback: a fixed Load-list position (0 = newest)
+            lib = library_save(save)
+            if lib:                                   # staged by one_run: the only entry in the Load list
+                idx = 0; spawn = spec.get("expect_spawn", lib[1].get("expect_spawn"))
+                res["save"] = {"name": save, "library": str(lib[0]), "slot": LOAD_SLOT, "list_index": 0,
+                               "maps": lib[1].get("maps")}
+            elif fixed is not None:                   # fallback: a fixed Load-list position (0 = newest)
                 idx = int(fixed); res["save"] = {"list_index": idx, "by": "save_index"}
             else:
                 idx, slot, maps = resolve_save(save); res["save"] = {"name": save, "slot": slot, "list_index": idx}
@@ -870,14 +966,14 @@ def _one_run(spec, out, attempt="1/1"):
                 # "end_white_max" (a spec key, or config.json's for runs of the default save): a lower limit on
                 # clipped-white pixels than picture_metrics' 15 %, for scenes known to have none (the canopy
                 # shards of KNOWN-ISSUES KI-29 score 2.6-2.8 % where a clean Kokiri Forest scene scores 0.0).
-                limit = spec.get("end_white_max", CONFIG.get("end_white_max") if "save" not in spec else None)
+                limit = spec.get("end_white_max", CONFIG.get("end_white_max") if is_default_save(spec) else None)
                 if limit is not None and res["picture"]["clipped_pct"] > float(limit):
                     res["picture"].update(corrupt=True, over_end_white_max=float(limit))
                 # "cube_check" (a spec key, or config.json's for runs of the default save): N frame captures in a
                 # row, read for the 128x128 lighting cube the game redraws one face a frame. In a boot with the
                 # canopy shards of KNOWN-ISSUES KI-29 a face holds values in the thousands where a clean boot stays
                 # near 1, whichever way Link faces, so the end picture's view does not matter.
-                n_cube = spec.get("cube_check", CONFIG.get("cube_check") if "save" not in spec else 0)
+                n_cube = spec.get("cube_check", CONFIG.get("cube_check") if is_default_save(spec) else 0)
                 if n_cube:
                     title("cube check")
                     res["cube_check"] = cube_check(call, int(n_cube))
@@ -888,7 +984,7 @@ def _one_run(spec, out, attempt="1/1"):
                     prune_cube_captures(res["cube_check"], rd)
                 if res["picture"]["corrupt"]:
                     print(f"{spec['label']}: CORRUPT PICTURE {res['picture']}", flush=True)
-                    steps = spec.get("on_corrupt", CONFIG.get("on_corrupt") if "save" not in spec else None)
+                    steps = spec.get("on_corrupt", CONFIG.get("on_corrupt") if is_default_save(spec) else None)
                     if steps:
                         import speckhunt
                         speckhunt.at_end(steps, rd, res, call, lambda n: wait_frames(n, alive), title)
@@ -1040,6 +1136,7 @@ def print_paths(h, spec=None):
     """What a run with data root h would read and write; launches nothing."""
     out = {"home": str(h.root) if h.root else None, "env": h.env(), "config": str(h.cfg), "master": str(h.master),
            "master_exists": h.master.exists(), "log": str(h.log), "save_dir": str(h.save_dir()),
+           "save_library (shared by every root)": str(save_library()),
            "metal_cache (macOS's, shared by every root)": str(METAL_CACHE), "hook": str(HOOK), "game": str(GAME),
            "app_default": str(DEFAULT_APP)}
     if h.root:
@@ -1048,7 +1145,8 @@ def print_paths(h, spec=None):
         out["real_paths_in_config"] = h.real_paths_in(h.cfg) + h.real_paths_in(h.master)
     if spec:
         out["runs"] = {s["label"]: {"home": str(run_home(s).root) if run_home(s).root else None,
-                                    "app": str(s.get("app", DEFAULT_APP))} for s in spec}
+                                    "app": str(s.get("app", DEFAULT_APP)), "save": s.get("save", CONFIG["save"]),
+                                    "library_save": bool(library_save(s.get("save", CONFIG["save"])))} for s in spec}
     print(json.dumps(out, indent=1))
 
 
@@ -1064,6 +1162,9 @@ def preflight(spec):
         if not (app / "Contents/MacOS/lichii").exists():
             raise SystemExit(f"{s['label']}: no app at {app}" + (" (build it with ./build.sh)" if app == DEFAULT_APP else ""))
         run_home(s).check(launching=False)
+        if library_save(s.get("save", CONFIG["save"])) and s.get("resave"):
+            raise SystemExit(f"{s['label']}: \"resave\" with library save {s.get('save', CONFIG['save'])!r}: the next "
+                             "run replaces the save folder, so keep a save with --add-save instead")
         if s.get("jsdbg") and not (JSDBG / "jsdbg.py").exists():
             raise SystemExit(f"{s['label']}: \"jsdbg\" needs the lldb logger jsdbg.py, which is in the glitch-research "
                              f"repository, not here; set OOT26_JSDBG_DIR to its folder (looked in {JSDBG}). "
@@ -1080,6 +1181,15 @@ def main():
         return make_master(Home(opt("--home") or os.environ.get("OOT26_LICHII_HOME")), force="--force" in argv)
     if "--make-home" in argv:
         return make_home(opt("--make-home"), with_shader_cache="--with-shader-cache" in argv)
+    if "--add-save" in argv:
+        i = argv.index("--add-save")
+        if len(argv) < i + 3:
+            raise SystemExit("usage: ab.py --add-save NAME SLOT_DIR [--spawn X,Y,Z] [--note TEXT] [--force]")
+        sp = opt("--spawn")
+        return add_save(argv[i + 1], argv[i + 2], [float(v) for v in sp.split(",")] if sp else None, opt("--note"),
+                        "--force" in argv)
+    if "--list-saves" in argv:
+        return list_saves()
     # "${REPO}" in a spec stands for the repository folder, so specs carry no machine-specific paths
     load = lambda f: json.loads(Path(f).read_text().replace("${REPO}", str(REPO)))
     if "--print-paths" in argv:

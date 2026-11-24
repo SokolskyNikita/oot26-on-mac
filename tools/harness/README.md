@@ -7,7 +7,7 @@ Tools for running the game unattended in Lichii and A/B-testing settings, builds
 | --- | --- |
 | `ab.py` | The harness: one run per spec entry (waits for this project's builds, boots, loads the save, settles 3 s, walks with turns at walls, stands, measures), results in `runs/`. Also makes the master config (`--make-master`) and private data roots (`--make-home`) |
 | `queue.sh` | `./queue.sh A.json B.json …`: several spec files back to back, each under the emulator lock; `touch PAUSE` makes queues wait (outside the lock) to leave the emulator to other work |
-| `config.json` | Defaults: which save to load (`save` by map name, or `save_index`), where Link must stand after it, where the saves are, the session name in the window title |
+| `config.json` | Defaults: which save to load (`save`: a name in the save library, `save_library`), where the game's saves are (`save_dir`), the session name in the window title |
 | `persist.py` | `picture_metrics(png)`, the corruption score every run's end picture gets (`picture` in `result.json`); `python persist.py BURST_DIR…`: in how many frames of a burst each pixel is white |
 | `dbg.py` | Minimal client for Lichii's debug server (`python3 dbg.py status`, or `from dbg import call`) |
 | `uisig.py`, `uiscan.py` | Print the game's UI-manager screens and scene (how the menu states were mapped) |
@@ -39,8 +39,9 @@ One-time steps, from the repository root:
    ([`config/README.md`](../../config/README.md)). Player 1 must be connected (`player_0_connected=true`, Lichii's
    default): the debug server's input goes to player 1, or to the handheld controller when player 1 is off. No
    controller binding is needed for the harness (see "Input" below).
-4. **Have the save**: in the game, make a save in Kokiri Forest as child Link at the spawn point the default
-   `config.json` expects (see "The save").
+4. **Have the save**: in the game, make a save in Kokiri Forest as child Link at the spawn point by his house, and
+   add it to the save library as `kokiri-forest` with `python3 ab.py --add-save kokiri-forest SLOT_DIR --spawn
+   X,Y,Z` (see "The save").
 5. **Make the master config**, with Lichii closed: `cd tools/harness && python3 ab.py --make-master`. It checks
    `qt-config.ini` against `config/settings.txt` (through `config/apply-settings.py --check`), refuses if any
    setting differs, and copies it to `~/.config/lichii/qt-config.ini.harness-master`. The harness puts this copy
@@ -77,28 +78,45 @@ and stops it afterwards. That needs player 1 bound to the DSU controller in Lich
 
 ## The save
 
-The default `config.json` loads the newest save whose caption (`caption.sav`) names the map `KokiriForest_Child`
-and checks that Link then stands at `expect_spawn` (x −17.297, y 109.946, z −1.843, within 0.5 m: the Kokiri
-Forest spawn point by Link's house, where every number in this repository was measured). The saves are found in
-`save_dir`, the game's save folder in Lichii's NAND (`~/.local/share/lichii/nand/user/save/…/0400486024DEC000`,
-one `slot_NN/` per save; the profile folder name differs per machine, so set yours). The menus are read from the
-game's memory: the harness presses A on the title screen, opens the Load list, moves the cursor to that save and
-loads it.
+A run loads one save by name from the **save library**, `save_library` in `config.json`
+(`~/.local/share/oot26-saves`, outside this repository because saves are game data). Each save is a folder:
 
-To use another save, set in `config.json` (all runs) or in a spec entry (one run):
+```
+~/.local/share/oot26-saves/<name>/caption.sav    what the game's Load list shows (map, picture, date)
+                                  progress.sav   the save itself
+                                  save.json      maps, expect_spawn, source, note
+```
 
-- `save`: a map name as the captions spell it, `Area/Map` or `Map` (for example `GerudoValley_Child`); the error
-  message when none matches lists the map of every save there.
-- `expect_spawn`: where Link stands after loading it (`spawn_pos` in any run's `result.json`), or `null` to skip
-  the check.
-- `save_index`: a Load-list position (0 = newest) instead of looking up `save` by name.
+Before the boot, the harness deletes every `slot_NN/` of the game's save folder (`save_dir`, in Lichii's NAND:
+`~/.local/share/lichii/nand/user/save/…/0400486024DEC000`) and copies that save into `slot_01`; the root's own
+`account.sav` and `option.sav` stay. `slot_00` stays empty: leaving an area autosaves there. The Load list then has
+one entry, so where the game sorts an imported save does not matter. The menus are read from the game's memory: the
+harness presses A on the title screen, opens the Load list, takes its only entry and loads it, and checks that Link
+stands within 0.5 m of the save's `expect_spawn` (none when it is `null`). The save folder is left as the run left
+it, and the next run replaces it: **a save that matters belongs in the library**, never only in the game's folder
+(`--add-save` below copies one in from a slot).
 
-**Keep the forest save on top.** The game's Load list is newest first, and every default run loads
-`KokiriForest_Child`. After a session that saved somewhere else, load the forest save and save again at once, so it
-does not sink down the list. A spec with `"resave": true` does it right after the load: Plus (pause menu), R
-(System tab, Save is its first entry), A (Save dialog, Cancel selected), Up, A (saves over the slot that was
-loaded), B. The run fails if the slot's `caption.sav` did not change. Leaving an area autosaves into slot_00, which
-also pushes the forest save down.
+The default is `kokiri-forest`: the Kokiri Forest spawn point by Link's house (x −17.297, y 109.946, z −1.843),
+where every number in this repository was measured. `config.json`'s picture checks (`end_white_max`,
+`cube_check`, `on_corrupt`) apply to runs of this save only. Set `"save": "<name>"` in a spec entry for another,
+and `expect_spawn` there to override the library's.
+
+| Command | What it does |
+|---|---|
+| `python3 ab.py --list-saves` | The library's saves, with their maps and spawns |
+| `python3 ab.py --add-save NAME SLOT_DIR [--spawn X,Y,Z] [--note TEXT] [--force]` | Copies the two files of `SLOT_DIR` (a `slot_NN/` of the game's save folder, or a downloaded save) into the library as `NAME`; the maps are read from its caption. Take the spawn from the first run's `spawn_pos` in `result.json` |
+A save from another game version may not load: `option.sav` differs between 1.0 and 1.1.1, and every run here
+is 1.1.1 (below). Saves shared by players are collected in
+[tustin2121/OoTR-saveTree](https://github.com/tustin2121/OoTR-saveTree) (1.1.1).
+
+**A save that is not in the library.** A `save` name that has no library folder is taken as a map name as the
+captions spell it, `Area/Map` or `Map` (for example `GerudoValley_Child`), and the newest save of the game's own
+folder with that map is loaded, with `config.json`'s `expect_spawn` unless the spec gives one; `save_index` picks
+a Load-list position (0 = newest) instead. Those saves are used as they are. "Newest" is taken from the slots' file
+times, while the game sorts the list by the save's date (so the save tree's README says; not checked here), so a
+save copied in by hand can be in another place than the harness expects; that is what the library avoids. After a
+library run the folder holds only that run's save. `"resave": true` (Plus, R, A, Up, A, B right after the load:
+save over the slot that was loaded) only works on these saves, and a library run refuses it.
 
 ## The game version
 
@@ -127,7 +145,7 @@ a reported step after which another taker may evict it; default 30, 5 to 90; see
 measuring), `walk` (`bounce`, the default: run in 30-frame chunks and turn round when stuck (two quarter turns: left
 stick right, then a right-stick click to put the camera behind Link; then forward again); `route`: the old fixed
 route), `stand_first` (add a standing phase before the walk), `cold_metal_cache` (boot from an empty Metal cache, the
-real one held aside and restored), `save` / `expect_spawn` / `save_index` (another save, see above), `home` (a private
+real one held aside and restored), `save` / `expect_spawn` / `save_index` (another save, see "The save"), `home` (a private
 data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `capture`, and these, each off unless set:
 
 - `stand_frames`: length of the stand after the walk (default `phase_frames`).
@@ -161,7 +179,7 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
   picture or log; frame times are then skewed).
 - `hold_file` / `hold_max_s`: right after the load, write main's address and Link's object to that file and keep
   the game open for manual debug-server calls until the file is removed (at most `hold_max_s`, default 900 s).
-- `resave`: save again right after the load (above).
+- `resave`: save again right after the load, for a save that is not in the library ("The save").
 
 A bounce walk that stands still for three chunks in a row (Link in an NPC dialog, or stuck where a turn does not
 free him) is marked: `walk_stalled` in `result.json` and in the run's line, and `WALK STALLED` printed, because its

@@ -1,6 +1,6 @@
 {
- "_doc": "Harness defaults. save: the map name in a save's caption (caption.sav), as Area/Map or just Map; the newest save with it is loaded (the Load list is newest first). expect_spawn: where Link must stand after the load, or null to skip the check. save_index: set to a number (0 = newest) to pick that Load-list position instead of looking up save by name. session_name: shown in the Lichii window title with the scenario, attempt and step. end_white_max: for runs of this save, the share of clipped-white pixels (percent of the scene outside the HUD) above which the end picture counts as corrupted; a spec's own end_white_max overrides it, and runs of another save use only the spec's.",
- "save": "KokiriForest_Child",
+ "_doc": "Harness defaults. save: the name of a save in save_library (one folder per save: caption.sav, progress.sav, save.json with its expect_spawn); before the boot every slot of the game's save folder is deleted and that save is copied into slot_01, and the folder is left so (keep saves that matter in the library). A save not in the library is taken as the map name in a save's caption (caption.sav), as Area/Map or just Map; the newest save with it is loaded (the Load list is newest first). expect_spawn: for a map name, where Link must stand after the load, or null to skip the check (a library save has its own in save.json). save_index: set to a number (0 = newest) to pick that Load-list position instead of looking up a map name. session_name: shown in the Lichii window title with the scenario, attempt and step. end_white_max: for runs of this save, the share of clipped-white pixels (percent of the scene outside the HUD) above which the end picture counts as corrupted; a spec's own end_white_max overrides it, and runs of another save use only the spec's.",
+ "save": "kokiri-forest",
  "expect_spawn": [
   -17.297,
   109.946,
@@ -11,5 +11,6 @@
  "on_corrupt": [{"call": "trace_record", "params": {"presents": 60}, "timeout": 120, "save": "corrupt_trace"}, {"call": "capture_frame", "params": {"sampled": true, "timeout_s": 300}, "timeout": 320, "save": "corrupt_frame00"}, {"call": "capture_frame", "params": {"sampled": true, "timeout_s": 300}, "timeout": 320, "save": "corrupt_frame01"}, {"call": "capture_frame", "params": {"sampled": true, "timeout_s": 300}, "timeout": 320, "save": "corrupt_frame02"}, {"call": "capture_frame", "params": {"sampled": true, "timeout_s": 300}, "timeout": 320, "save": "corrupt_frame03"}, {"call": "capture_bundle", "params": {"description": "corrupt picture", "size_limit_mib": 60}, "timeout": 120, "save": "corrupt_bundle"}],
  "save_dir": "~/.local/share/lichii/nand/user/save/0000000000000000/4E58D07E7FD3B1E83B5D83EADCD2EBC8/0400486024DEC000",
  "save_index": null,
+ "save_library": "~/.local/share/oot26-saves",
  "session_name": "emu-options"
 }
