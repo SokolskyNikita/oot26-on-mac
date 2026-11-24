@@ -76,46 +76,65 @@ Sorted by discovery date.
 | 23 Nov | Saria's Song without Darunia | Saria teaches the song without the talk with Darunia first | *bradyONE* and *Plyd* | low |  |
 | 24 Nov | Mido skip without Saria's Song | Jumpslash cancels over the invisible walls past the meadow's Mido | *zfg* | none | 1.0 + 1.1.1 |
 
-## How the route got here
+## Any% progression history
 
-### The normal game
+### The first run (6 Nov, 4:28:55)
+
+The baseline is the first run uploaded, [4:28:55 by *gymnast86*](https://www.youtube.com/watch?v=cmtJQD3y_nY). It uses no glitches: it plays the normal game in order, and its only saving is skipping the Lens of Truth by knowing where the hidden things are.
 
 1. **Child:** Deku Tree, meet Zelda, Dodongo's Cavern, Jabu-Jabu. The Goron's Ruby and Zora's Sapphire trigger Zelda's escape, which gives the Ocarina of Time and the Song of Time. The song and all three stones open the Door of Time, and pulling the Master Sword makes Link an adult.
 2. **Adult:** Hookshot from Dampé, then the Forest Temple (bow), Fire Temple (Megaton Hammer), Ice Cavern (Iron Boots) and Water Temple (Longshot). Finishing Forest, Fire and Water unlocks the Nocturne of Shadow, the warp to the Shadow Temple. The Spirit Temple needs a trip back to childhood.
 3. **End:** the Shadow and Spirit medallions trigger the Light Arrow cutscene and the bridge to Ganondorf's Castle. Then six trials, Ganondorf, the tower collapse (which needs the Longshot) and Ganon.
 
-### The route around 9 Nov (about 3:02)
+### The route around 9 Nov (about 3 hours)
 
-Still all three child dungeons, the Door of Time and the Master Sword. The savings were all on the adult side:
+Still all three child dungeons, the Door of Time and the Master Sword. Jumpslash cancels, found on 7 Nov, were already used all through the run, and the savings were mostly on the adult side. This is the route of [*Linkus7*'s breakdown](https://www.youtube.com/watch?v=OUd8RQ_zd2Q) of 9 Nov, which puts the record then at "right around 3 hours":
 
-- **Shadow Temple without the Nocturne.** An actor jump or jumpslash cancel reaches the entrance directly, so the Forest, Fire and Water temples no longer had to be finished.
-- **Those temples were still entered** for their items: bow, hammer and Longshot. The Ice Cavern was still needed for the Iron Boots.
+- **Shadow Temple without the Nocturne.** Actor and bean jumps first, then hammer jumpslash cancels, reach the entrance directly, so the Forest, Fire and Water temples no longer had to be finished.
+- **Those temples were still entered** for their items: bow, hammer and Longshot. The Ice Cavern was still needed for the Iron Boots. The Longshot and Iron Boots were needed only for one gap in the tower collapse.
+- **Gerudo Fortress skipped** by a hover out of bounds past the guards.
 - **Spirit Temple from the adult side only**, jumping straight to the Mirror Shield.
 
 ### What changed after that
 
-- **Shadow Temple as a child (in runs by 12 Nov, 2:51).** The puberty skip had been known since 6 Nov but needed a way to get child Link through the temple, which jumpslash cancels gave. It replaced the Door of Time, the Master Sword cutscenes and the walk there. All three child dungeons stayed, because the Song of Time was still needed for one block in the Forest Temple.
-- **Song of Time skip (12 Nov, 2:29).** With that block passable, the song was not needed at all. Dodongo's Cavern is now entered only for the bomb bag, and Jabu-Jabu is skipped. About 20 minutes.
-- **Longshot and Iron Boots skips (14 Nov, 2:16).** The Longshot was needed for the tower collapse, the Fire trial and the Spirit Temple boss door, and all three got skips. The Iron Boots were needed to enter the Water Temple. After the Song of Time skip they were also needed inside the Forest Temple, which does not need them in a normal playthrough. The skip brings Link into the east courtyard first. The switch that drains the well is in the west courtyard, whose doors are barred from the outside, so the well was still flooded and the boots were the only way through it. The Iron Boots skip bypasses the well. Runs also used the boots for the underwater shortcut between Zora's River and the Lost Woods, but only to save travel. The Ice Cavern and Water Temple dropped out. About 20 minutes.
-- **Slingshot skip and the Deku Tree cutscene skip (16 to 17 Nov; the record fell to 2:01:34).** The slingshot was used on Gohma, a Bongo Bongo hand and the skull check in the Shadow Temple, and each has a replacement: sticks and nuts, bombs, bombs. *Bananiidani* put the saving at about 50 seconds at the Deku Tree, less by the end of the Shadow Temple. Skipping the Deku Tree cutscene also removes the Gerudo Valley intro, which checks that cutscene's flag: 28 seconds together, timed by *nozzly*.
+- **Shadow Temple as a child (9 Nov, 2:59:10).** *Rick Schmidty*'s record that day, the first under 3 hours, already did this. The puberty skip had been known since 6 Nov but needed a way to get child Link through the temple, which jumpslash cancels gave. It replaced the Door of Time, the Master Sword cutscenes and the walk there. All three child dungeons stayed, because the Song of Time was still needed for one block in the Forest Temple.
+- **Song of Time skip (12 Nov, 2:26:30).** With that block passable, the song was not needed at all. Dodongo's Cavern is now entered only for the bomb bag, and Jabu-Jabu is skipped. About 20 minutes.
+- **Longshot and Iron Boots skips (14 Nov, 2:09:35).** The Longshot's three uses (the tower collapse, the Fire trial and the Spirit Temple boss door) all got skips, and the [Iron Boots skip](#iron-boots-skip-invalid-respawn) removed the boots' last use, the flooded well in the Forest Temple. The Ice Cavern and Water Temple dropped out. About 20 minutes.
+- **Slingshot skip and the Deku Tree cutscene skip (16 to 17 Nov; the record fell to 2:01:34).** The slingshot was used on Gohma, a Bongo Bongo hand and the skull check in the Shadow Temple, and each has a replacement: sticks and nuts, bombs, bombs. *Bananiidani* put the saving at about 50 seconds at the Deku Tree, less by the end of the Shadow Temple. The Deku Tree cutscene skip is worth 28 seconds ([Cutscene skips](#cutscene-skips)).
 - **No more title-screen resets for jump height (18 Nov).** Runners place ordinary jumps where the stored height is enough for the next hover: one in Hyrule Field, one on the way to the Sacred Forest Meadow, one after Dodongo's Cavern and one on a Kakariko roof, which covers the whole Shadow Temple. A reset cost about 13 seconds.
-- **Fire maze skip (18 Nov, 1.0 only).** A hookshot storage clip in the Fire Temple skips three small keys on the way to the hammer. Runners measured between 1:06 and 1:46 saved.
-- **Forest first (19 Nov).** *minimini352*'s argument settled it: the magic refill after the Shadow Temple goes on the Forest Stalfos with Din's Fire, and the one after Spirit covers the trials. The grove hookshot storage left the sheet with it.
-- **Bottle Out of Bounds (22 Nov).** With [chest minigame storage](#chest-minigame-storage) set up after Zelda's Lullaby, a stored potion-shop quest clips Link from Dead Hand's room onto Bongo Bongo, which skips most of the child Shadow Temple. Estimates of the saving: a little over 5 minutes net (*CrypticJacknife*), 6 to 8 (*Edd*); *nozzly* saved 8 in a run. Chest storage needs night, so the Hyrule Field owl is watched again, and the Market bottle is replaced by the potion shop's. The Hover Boots are back in, since Dead Hand's room is on the way.
-- **Forest Escape to Hyrule Field (23 to 24 Nov).** A save/load through a tree gets Link out of Kokiri Forest with the Kokiri Sword in about 2:30, which replaces the Deku Tree, Gohma, the Deku Shield and the slingshot. *Edd* put the net saving at about 3 minutes after a slower Bongo Bongo, and called it faster on 24 Nov. His sheet still shows the old route until a reliable chest storage setup without a shield exists.
+- **[Fire maze skip](#fire-maze-skip) (18 Nov, 1.0 only).** A hookshot storage clip skips three small keys on the way to the hammer, for 1 to 2 minutes.
+- **Forest first (19 Nov).** *minimini352*'s argument settled it: the magic refill after the Shadow Temple goes on the Forest Stalfos with Din's Fire, and the one after Spirit covers the trials. The [grove hookshot storage](#smaller-finds) was dropped from the route sheet then: it saved about 2 seconds, and with Forest first Link would still be holding the storage in the Forest Temple, where he could not use the hookshot (*Photon*, *jakezsr*): firing it would release the storage on another map, which crashes the game.
+- **[Bottle Out of Bounds](#bottle-out-of-bounds-boob) (22 Nov, 1:55:22).** With [chest minigame storage](#chest-minigame-storage) set up after Zelda's Lullaby, a stored potion-shop quest clips Link from Dead Hand's room onto Bongo Bongo, which skips most of the child Shadow Temple: 5 to 8 minutes. Chest storage needs night, so the Hyrule Field owl is watched again, and the Market bottle is replaced by the potion shop's. The Hover Boots are back in, since Dead Hand's room is on the way.
+- **[Forest Escape](#forest-escape) to Hyrule Field (23 to 24 Nov).** A save/load through a tree gets Link out of Kokiri Forest in about 2:30, in place of the Deku Tree, for about 3 minutes net. *Edd* called it faster on 24 Nov, but his sheet keeps the old route until chest storage has a reliable setup without a shield.
 
 ### The route now (24 Nov)
 
-- **Fastest run:** a 1:55 was reported on 22 November (*niro*), apparently by *Rick Schmidty* on stream; no video was linked. The last linked record is [2:01:34 by *Rick Schmidty*](https://www.youtube.com/watch?v=WqqWSPnmpeU) (17 November, 1.0). *Edd* expects sub 1:50 to be possible.
-- **Child:** Kokiri rupees, then either the Deku Tree (cutscene skip, B1 skip, no slingshot, Gohma with sticks and nuts, no heart container) or the new [Forest Escape](#forest-escape) from the sword chest. Ocarina from Saria, the Hyrule Field owl, Zelda's Lullaby, chest storage at night, the potion shop bottle by day (Link dies to the cuccos inside), Saria's Song (no talk with Darunia needed), the 50-rupee chest in the Goron City boulder room, a bug bought in Goron City for 30 rupees, Goron's Bracelet, bomb bag from Dodongo's Cavern, magic and Din's Fire. Shadow Temple: Dead Hand in one cycle, Hover Boots, then BOoB from Dead Hand's room onto Bongo Bongo, two or three cycles. The blue warp makes Link adult.
-- **Adult:** unchanged. Hookshot, Goron Tunic, Fire Temple as far as the hammer (with the fire maze skip on 1.0, now on a faster left-hand path), Bolero of Fire to leave, Forest Temple for the bow (Song of Time skip, Iron Boots skip, warp out), Gerudo Fortress through the jail, Mirror Shield, Spirit Temple and Twinrova, Light Arrow cutscene, six trials, Ganondorf, the collapse with the Longshot skip, Ganon.
+- **Fastest run:** [1:51:25 by *AxelLarsen*](https://www.youtube.com/watch?v=MOwkUHugVwM), 23 November, on a 1.0 cartridge ([Record progression](#record-progression)). *Edd* expects sub 1:50 to be possible.
+- **Child:** Kokiri rupees, then either the Deku Tree (cutscene skip, B1 skip, no slingshot, Gohma with sticks and nuts, no heart container) or the new [Forest Escape](#forest-escape) from the sword chest. Ocarina from Saria, the Hyrule Field owl, Zelda's Lullaby, chest storage at night, the potion shop bottle by day (Link dies to the cuccos inside), Saria's Song, the 50-rupee chest in the Goron City boulder room, a bug bought in Goron City for 30 rupees, Goron's Bracelet, bomb bag from Dodongo's Cavern, magic and Din's Fire. Shadow Temple: Dead Hand in one cycle, Hover Boots, then BOoB from Dead Hand's room onto Bongo Bongo, two or three cycles. The blue warp makes Link adult.
+- **Adult** (unchanged since Forest first on 19 Nov): Hookshot, Goron Tunic, Fire Temple as far as the hammer (with the fire maze skip on 1.0, now on a faster left-hand path), Bolero of Fire to leave, Forest Temple for the bow (Song of Time skip, Iron Boots skip, warp out), Gerudo Fortress through the jail, Mirror Shield, Spirit Temple and Twinrova, Light Arrow cutscene, six trials, Ganondorf, the collapse with the Longshot skip, Ganon.
 - **Where BOoB goes:** it works once per file. The Shadow Temple use beats the [trials skip](#trials-skip) because the Hover Boots make the trials fast. An entry from above the Shadow Temple's first door, without Din's Fire or the Hover Boots, was still being timed.
 - **Still required:** all six trials, the ocarina (it gates too many flags), bombs (the Spirit trial bombchu) and so Zelda's Lullaby and the bracelet, a bottle, and the Light Arrow cutscene.
 - **Version differences:** 1.1.1 was about 4 minutes behind 1.0 on 22 Nov (*Edd*), the hookshot storage tricks being the difference. It still needs the Hover Boots for the Fire Temple boulder maze.
-- **Not adopted:** the [HoFF route](#spirit-and-shadow-temple-skip), 15 to 20 minutes behind by *Edd*'s count; the Bolero and Goron Tunic skips (the route now has at most four hearts, and the tunic skip needs about five).
+- **Not adopted:** the [HoFF route](#spirit-and-shadow-temple-skip), 15 to 20 minutes behind by *Edd*'s count; the [Bolero and Goron Tunic skips](#bolero-skip-and-goron-tunic-skip).
 - **Being researched:** a consistent chest storage setup without a shield (the same saved position gives different results, so a hidden variable is involved), a two-cycle Bongo Bongo after the Forest Escape (only one stick can be bought before Mido), and a Mido or Saria's Song skip.
-- **Route sheets:** [*Edd*'s](https://docs.google.com/spreadsheets/d/1auZa0EjOcMyq6_auf2xWGbtDjQ7K2WaOL1UvZ0Kl7ts) and [*yume*'s route calculator](https://docs.google.com/spreadsheets/d/1lYlgyrrJ5qzdUDk2soTDEwY7WCFnEYTSuZM6xhnUUaY). ZSR route pages: [1.0](https://www.zsr.gg/oot2026/route/any-1) and [current patch](https://www.zsr.gg/oot2026/route/any-current-patch) (in progress).
+- **Route sheets:** [*Edd*'s](https://docs.google.com/spreadsheets/d/1auZa0EjOcMyq6_auf2xWGbtDjQ7K2WaOL1UvZ0Kl7ts) and [*yume*'s route calculator](https://docs.google.com/spreadsheets/d/1lYlgyrrJ5qzdUDk2soTDEwY7WCFnEYTSuZM6xhnUUaY). ZSR route pages: [1.0](https://www.zsr.gg/oot2026/route/any) and [current patch](https://www.zsr.gg/oot2026/route/any-current-patch) (in progress).
 - **Leaderboard rules:** not settled. Runners expect separate 1.0 and current-patch boards. Proposals for "no HoFF" or "no storage" categories were not decided. Submissions to the route sheet that are not from runs must be listed console recordings (*Edd*, 20 Nov).
+
+### Record progression
+
+Each row is a new fastest Any% run and what changed since the row before. There is no leaderboard yet, so these are the runners' own uploads, dated by upload unless the run date is known. Left out: more than one record a day (only the day's best is kept), and any record that brings no new glitch or route change, crosses no milestone (3 h, 2:30, 2 h, then every 15 minutes) and saves under 10 minutes on the row before (5 minutes below 2 h). The current record is always listed. A record with no video is replaced by the best one with a video from the same day, if that still beats the day before.
+
+| Date | Time | Saved | Runner | What changed |
+| --- | --- | --- | --- | --- |
+| 6 Nov | [4:28:55](https://www.youtube.com/watch?v=cmtJQD3y_nY) | | *gymnast86* | The [baseline](#the-first-run-6-nov-42855): the normal game with no glitches, the Lens of Truth skipped. |
+| 7 Nov | [3:47:02](https://www.youtube.com/watch?v=3Ohv5MYSwI8) | 41:53 | *Rick Schmidty* | [Actor and bean jumps](#actor-jump) reach the Shadow Temple without the Nocturne, so the Forest, Fire and Water temples are entered only for their items. The intro is skipped too. |
+| 9 Nov | [2:59:10](https://www.youtube.com/watch?v=Wb0JouxfMms) | 47:52 | *Rick Schmidty* | First under 3 hours. [Jumpslash cancels](#jumpslash-cancel) and the [puberty skip](#puberty-skip): the child Shadow Temple replaces the Door of Time and the Master Sword. |
+| 12 Nov | [2:26:30](https://www.youtube.com/watch?v=4dvA015m6Rk) | 32:40 | *Rick Schmidty* | First under 2:30 (finished late on 12 Nov, uploaded on 13 Nov). The [Song of Time skip](#song-of-time-skip) removes two child dungeons; no Hover Boots. |
+| 14 Nov | [2:09:35](https://www.youtube.com/watch?v=3eW5Vod5RPg) | 16:55 | *jakezsr* | The [Iron Boots](#iron-boots-skip-invalid-respawn) and [Longshot](#collapse-longshot-skip) skips, found that day, remove the Ice Cavern and the Water Temple. |
+| 17 Nov | [2:01:34](https://www.youtube.com/watch?v=WqqWSPnmpeU) | 8:01 | *Rick Schmidty* | The slingshot skip. The time includes 24 seconds he added because digital 1.0 loads faster than a cartridge. |
+| 19 Nov | [1:59:00](https://www.youtube.com/watch?v=fF5ONeZjOrY) | 2:34 | *minimini352* | First under 2 hours. Route changes since the last row: the Deku Tree cutscene skip, no title-screen resets for jump height, the [fire maze skip](#fire-maze-skip) on 1.0. |
+| 22 Nov | [1:55:22](https://www.youtube.com/watch?v=0YIUkEsAHPE) | 3:38 | *Rick Schmidty* | [BOoB](#bottle-out-of-bounds-boob) skips most of the child Shadow Temple; the Hover Boots come back. |
+| 23 Nov | [1:51:25](https://www.youtube.com/watch?v=MOwkUHugVwM) | 3:57 | *AxelLarsen* | The current record. No new skip identified. On a 1.0 cartridge. |
 
 ## High impact
 
@@ -161,7 +180,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 - **Found by:** *oussama* and *tvbrayden*, per the ZSR wiki. *kittenchilly* mentioned it on 6 Nov and *tvbrayden* wrote it up on 7 Nov.
 - **Works on:** 1.0 and 1.1.1.
 - **Any% impact:** high. On its own it replaced the Door of Time and Master Sword sequence. With it in the route the Spiritual Stones had one use left, the Song of Time, which is why the Song of Time skip could remove two child dungeons.
-- **Video:** the [2:01:34 run](https://www.youtube.com/watch?v=WqqWSPnmpeU).
+- **Video:** any Any% run since 9 Nov, for example the [1:51:25 record](https://www.youtube.com/watch?v=MOwkUHugVwM).
 
 ### Save/load respawn manipulation
 
@@ -186,7 +205,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 ### Song of Time skip
 
 - **Also known as:** SoT skip, SoT block skip.
-- **What it does:** the bow is in the Forest Temple, behind a block that only the Song of Time removes. This skip reaches the east courtyard without the song. Hover to the top of a column in the main room, save, do the bomb T-pose to wedge Link into the corner, save again and reload: Link loads into the courtyard on the other side of the wall. The bow is reached from the west courtyard, across a flooded well.
+- **What it does:** the bow is in the Forest Temple, behind a block that only the Song of Time removes. This skip reaches the east courtyard without the song. Hover to the top of a column in the main room, save, do the bomb T-pose to wedge Link into the corner, save again and reload: Link loads into the courtyard on the other side of the wall. The bow was then reached from the west courtyard, across a flooded well; the [Iron Boots skip](#iron-boots-skip-invalid-respawn) now goes straight to it.
 - **Found by:** *Ultraspeed7* found the save/load spot (11 Nov), *Pasty* the T-pose, and *ontrigger* posted the first full clip on 12 Nov. Later setups by *Lid*, *Layz*, *jakezsr* and *CrypticJacknife* cut the hover from about 60 cancels to under 20, and a "zero-lineup" setup needs about 6 early-timed cancels.
 - **Works on:** 1.0 and 1.1.1.
 - **Any% impact:** high. Learning the song takes the Goron's Ruby and Zora's Sapphire, and this block was its only use, so Dodongo's Cavern and Jabu-Jabu no longer have to be finished. *gymnast86* put the saving at about 20 minutes.
@@ -198,7 +217,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 - **What it does:** goes from the east courtyard, where the Song of Time skip leaves Link, straight into the Stalfos room that holds the bow. The flooded well and the Iron Boots it needs are never used. Playing the ocarina in a ceiling corner of the east courtyard sets the respawn point there. A bomb at the centre of that spot makes the game treat it as occupied (it does not have to touch Link), and voiding out (which does not despawn bombs, unlike a reload) moves Link to the next valid place, inside the Stalfos room. Once Link has the bow he can warp out at once: the eye switch does not have to be shot, because the flag that blocks warping is set by walking through the door (*Modern* and *Zwaf*, 16 Nov).
 - **Found by:** *Ultraspeed7*, 14 Nov. Bomb-throw lineup by *DrDiabeteus*. The setup with shield turns and a single bomb throw is by *sva* (15 Nov). *Fat Albert* called it the most consistent of the setups tried, and *CrypticJacknife* and *squimmie* endorsed it. Setups without a shield followed on 16 Nov: a bomb throw by *minimini352* and a Kokiri Sword lineup by *karterfreak*. *rqzz* found a faster void (20 Nov): after the throw, move into a back corner and sidehop left. The respawn point stores Link's facing, and facings in the 150s fail (*rqzz*, *Chevy*). [Final setup video](https://www.youtube.com/watch?v=PuthKyzdZU4).
 - **Works on:** 1.0 and 1.1.1.
-- **Any% impact:** high. The Iron Boots come from the Ice Cavern and were also needed to enter the Water Temple for the Longshot. With the Longshot skip, both places drop out of the route. *gymnast86* put the saving at another 20 minutes.
+- **Any% impact:** high. The Iron Boots come from the Ice Cavern and were needed to enter the Water Temple for the Longshot, and, after the Song of Time skip, for the Forest Temple well: the switch that drains it is in the west courtyard, whose doors are barred from the outside. With the Longshot skip, both places drop out of the route. *gymnast86* put the saving at another 20 minutes.
 - **Video:** [Iron Boots Skip from Actor Jump](https://www.youtube.com/watch?v=pyZic3Uyp08). Without Hookshot: [Song of Time Skip (No Iron Boots / Hookshot) by *karterfreak*](https://www.youtube.com/watch?v=RyWAgiSeS9M). Shieldless setup: [Bomb throw setup by *minimini352*](https://www.youtube.com/watch?v=8xscphRUG_A).
 
 ### Collapse Longshot skip
@@ -274,9 +293,8 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
   - *Forest:* *Dusty_Carpet* and *Ultraspeed7*, 11 Nov. It works with the well still flooded and with the plain Hookshot, and without the Silver Scale; [shieldless setup by *brotender*](https://youtu.be/Bv0THBkslYI). A version without hookshot storage that works at either age and on 1.1.1 is [below](#forest-temple-boss-key-skip-any-age).
   - *Fire:* *NathanLoto*, 11 Nov, with a better path by *Ultraspeed7*.
   - *Spirit:* *Dusty_Carpet*, 11 Nov; a cleaner setup by *minimini352*, 14 Nov. *bewildebeest* showed a faster line from the upper moving-wall room (17 Nov), which *minimini352* recommends to everyone: it has no void planes, and is a few seconds faster with the Lizalfos nutted.
-  - *Shadow:* the child route reaches Bongo Bongo with [BOoB](#bottle-out-of-bounds-boob) instead.
+  - *Shadow:* *Zas*, *NathanLoto*, *GlitchesAndStuff* and *Dusty_Carpet*, 12 Nov. The child route now reaches Bongo Bongo with [BOoB](#bottle-out-of-bounds-boob) instead.
   - *Ganondorf* cannot be skipped: he spawns only when his door is opened (*NathanLoto*, 20 Nov).
-  - *Shadow:* *Zas*, *NathanLoto*, *GlitchesAndStuff* and *Dusty_Carpet*, 12 Nov.
 - **Works on:** 1.0 only. A Fire Temple version using the Yiga Warp exists but needs NG+.
 - **Any% impact:** medium. Only the Spirit skip is in the route, because Spirit is the only one of the four temples still finished as an adult. It goes straight to Twinrova's room, so it also skips the Nabooru fight. *gymnast86* put it at about 1:20 saved and *Vespher* timed 1:43.
 - **Video:** [Spirit Temple BK skip by *minimini352*](https://www.youtube.com/watch?v=irhpbegsgSc). Others: [Forest](https://www.youtube.com/watch?v=1ZHPVLBWiP0), [Fire](https://www.youtube.com/watch?v=Uhi7EqcHS4g), [Shadow](https://www.youtube.com/watch?v=QO6Mk7i-o6I).
@@ -330,7 +348,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 - **What it does:** hovering over trigger zones skips the Mido conversation, the Deku Tree cutscene and the Hyrule Field owl.
 - **Found by:** *dannyb* (field owl, 8 Nov), *Wolfram* (Hyrule Field intro, 9 Nov), *Karstix* (Mido talk, 9 Nov), *pit142857* (Mido, 9 Nov) and *you-pk_off* (Deku Tree, 14 Nov).
 - **Works on:** 1.0 and 1.1.1.
-- **Side effect:** the day and night cycle only starts once the Hyrule Field owl cutscene has been watched. Skipping it freezes time at early morning for the whole game, which rules the skip out for 100%: the Sun's Song does nothing (*Photon*) and *Lidemi* could not enter the Hall of Fallen Foes. Since 22 Nov Any% needs night for chest storage, so the owl is watched again. Only Malon or Zelda's Lullaby removes the owl's trigger (*nozzly*, *Edd*).
+- **Side effect:** the day and night cycle only starts once the Hyrule Field owl cutscene has been watched and Link has met Zelda (*Tustin2121*, *blackmars*). Skipping it freezes time at early morning for the whole game, which rules the skip out for 100%: the Sun's Song does nothing (*Photon*) and *Lidemi* could not enter the Hall of Fallen Foes. Since 22 Nov Any% needs night for chest storage, so the owl is watched again. Only Malon or Zelda's Lullaby removes the owl's trigger (*nozzly*, *Edd*).
 - **Any% impact:** low. The Deku Tree skip is worth 28 seconds, because the Gerudo Valley intro cutscene checks the Deku Tree cutscene's flag and is skipped with it (18.4 and 9.7 seconds, timed by *nozzly*). The others are seconds each.
 
 ### Fast songs
@@ -346,7 +364,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
 
 - **What it does:** faster boss fights: one- and two-cycle child bosses, Din's Fire to open Bongo Bongo, hammer jump cancels for damage, a two-cycle Twinrova.
 - **Found by:** *bradyONE* (child bosses, 5 Nov), *Vidya James* (hammer cancel damage), *Calebhart42* (two-cycle Bongo Bongo) and *karterfreak* (Twinrova).
-- **Since 16 Nov:**
+- **Newer kills, since 16 Nov:**
   - *Bongo Bongo in two cycles as child* (*dannyb*, 18 Nov): Din's Fire and Deku Stick jump slashes, six sticks and full magic. About 15 to 25 seconds.
   - *Gohma without the slingshot:* four sticks and a nut (*nozzly*), with variants by *Crimson* and *sep*.
   - *Dead Hand in one cycle:* three bombs and Din's Fire with no sticks (*nozzly*, *Edd*); a four-bomb version by *Fuzzyness*; a version without jumping, which keeps the stored jump height, by *Zelduh*.
@@ -354,7 +372,7 @@ Still all three child dungeons, the Door of Time and the Master Sword. The savin
   - *Ganondorf in three cycles* (*yua*, 16 Nov): a bombchu or bomb, a Light Arrow while he charges, hammer and Master Sword hits.
   - *Iron Knuckle without jumping* (*minimini352*, 17 Nov; *Zelduh*): hammer and Kokiri Sword, keeping the stored jump height. *Torje*'s [faster hammer kill](https://www.youtube.com/watch?v=HvZZjc2bJuk) (21 Nov) does exactly the Knuckle's 34 HP: while getting up it takes at most 4 per hit after the first. [Double Iron Knuckles by *Torje*](https://www.youtube.com/watch?v=0k-_oX1vUWE).
   - *Flare Dancer out of its flip* (*Crimson*, 21 Nov): the hookshot hits it straight out of the flip, so no bombs are needed, and it always jumps away from Link, which steers it into the door trap ([video](https://youtu.be/__48irNFex0)).
-  - *Since 19 Nov, smaller:* Bongo Bongo in two cycles with 5 sticks and 3 Din's (*resin*) or 2 Din's and 6 sticks (*vCheriba*); Gohma with 2 sticks and 2 nuts ([*jakezsr*](https://www.youtube.com/watch?v=GN_BJQpdCLs)); Dead Hand with one Din's and four bombs (*zfg*); Ganondorf in three cycles with four bombchus (*DallasH24*); [fast Volvagia](https://www.youtube.com/watch?v=UaEB2o3E9RQ) (*sera18171*); [Morpha in one cycle](https://www.youtube.com/watch?v=WQTmX0GTXBM) (*Iceblue*); Din's Fire on Barinade underground skips a phase (*PancakeTurtle*).
+  - *Smaller ones, since 19 Nov:* Bongo Bongo in two cycles with 5 sticks and 3 Din's (*resin*) or 2 Din's and 6 sticks (*vCheriba*); Gohma with 2 sticks and 2 nuts ([*jakezsr*](https://www.youtube.com/watch?v=GN_BJQpdCLs)); Dead Hand with one Din's and four bombs (*zfg*); Ganondorf in three cycles with four bombchus (*DallasH24*); [fast Volvagia](https://www.youtube.com/watch?v=UaEB2o3E9RQ) (*sera18171*); [Morpha in one cycle](https://www.youtube.com/watch?v=WQTmX0GTXBM) (*Iceblue*); Din's Fire on Barinade underground skips a phase (*PancakeTurtle*).
   - *Damage rules* (*NathanLoto*, *nozzly*, *Photon* and others, 20 to 23 Nov): stun hits count as damage on Twinrova and Volvagia but a nut stun on Gohma does not; Twinrova's second phase has 48 HP and a barrier break does 4; Bongo Bongo has 56 HP and ignores bombs more than 2.5 units from his eye; Ganondorf has 70 HP and Light Arrows do 2; bombs do 2.
 - **Any% impact:** low.
 - **Video:** [Child Boss Quick-kill Methods by *bradyONE*](https://www.youtube.com/watch?v=cdgZDQoIeqw). [Bongo 2 Cycle as Child by *dannyb*](https://youtu.be/txOLOjkewyA), [Gohma with 4 sticks and 1 nut by *nozzly*](https://www.youtube.com/watch?v=eiPEvvKwKNM), [Dead Hand with 3 bombs by *nozzly*](https://www.youtube.com/watch?v=oEEiWBuEybw), [Flare Dancer with 2 bombs by *sep*](https://youtu.be/wPKjQgbpzSE).
@@ -420,7 +438,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 - **What it does:** HoFF item smuggling into the Ganon rematch gives the Light Arrows, hammer, Mirror Shield and the other late-game items without beating the Shadow or Spirit temples. *Plyd* had the Light Arrows on a 1.1.1 console on 19 Nov.
 - **Why it works** (*SleepiPanda* from the code, *Xin*, *光LightFire*, 19 to 20 Nov): the trials run on a boss counter shared between them. Dying mid-trial in chest storage and coming back skips the current fight, so a trial can be pushed on to fight 9 (Ganondorf) and 10 and 11 (Ganon). Beating Ganon's first phase raises his kill count, which unlocks the master trial. Entering by a main boss statue during a rush keeps the inventory. The Mirror Shield is the only item that merges back into the real inventory.
 - **Variants:** a faster first gauntlet that dies to the solo Phantom Ganon (*SleepiPanda*), an ocarina-keeping entry by the Gohma statue (*SleepiPanda*, *Xin*), and [fishing storage](#fishing-storage) to carry the boss counters into the gauntlet, which skips nine fights (*Plyd*).
-- **Found by:** *Plyd*, 20 Nov, with *SleepiPanda*, *Xin*, *varnish017* and *光LightFire*.
+- **Found by:** *Plyd* (Light Arrows on 19 Nov, thread on 20 Nov), with *SleepiPanda*, *Xin*, *varnish017* and *光LightFire*.
 - **Works on:** 1.0 and 1.1.1.
 - **Any% impact:** none. *Plyd*'s best sum of segments was 1:49:25 before BOoB moved the main route ahead; by 24 Nov *Edd* put it 15 to 20 minutes behind. It needs the Prelude, so the Forest Temple and a way past the Door of Time, plus a wallet and bombs. *Plyd* thinks a child Forest finish with a bombless boss key skip could make it faster.
 - **Video:** [*Plyd*](https://youtu.be/0gAKzhICBQw). Thread: [Spirit and Shadow Temple Skip](https://discord.com/channels/1513960405364375593/1573206335875584120). Sheets: [*Plyd*'s](https://docs.google.com/spreadsheets/d/1Be5MAzgoIdNUsmZsAiNTUhlHFQ7aYpAR1EvvO2Fu6YQ) and the HoFF tab of *Edd*'s.
@@ -496,9 +514,9 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 
 ### Hitstop launches
 
+- **Also known as:** hitstop actor jump, enemy-hit launches.
 - **What it does:** landing a hit freezes Link for a few frames. Doing an actor jump during that freeze, for example hitting a Poe with the hammer while standing on a moving gravestone, gives a much larger launch. *RoboRotembo* posted it in *Heather!*'s thread about earlier unexplained launches off Stalfos and Iron Knuckles.
 - **How:** stand on an actor and hit an enemy. During the freeze, swap items through the wheel or the pause menu, hold ZL and jump on the first frame out of the menu. The hammer, a Deku Stick, the bow and the sword all work. The height depends on which frame of the attack connects and how close the enemy is.
-- **Also known as:** hitstop actor jump, enemy-hit launches.
 - **Found by:** the first clip, by *RoyArashi*, was shared on 5 Nov and *Heather!* opened a thread on 7 Nov. *RoboRotembo* tied it to hitstop on 16 Nov, refining a streamer's Forest Temple elevator clip posted on Twitter.
 - **Works on:** 1.0 and 1.1.1, both confirmed on console.
 - **Any% impact:** none. It gives height with no limit, but the collision above is closed wherever it was tried, and no route use had been found by 24 Nov.
@@ -508,6 +526,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 
 - **What it does:** child Link holding the Biggoron Sword or the Giant's Knife at low health, facing a wall, is launched a long way by a bomb blast. *CaspianFS* says it needs one fairy and recommends two. Getting the sword onto child Link takes an age change with it equipped, which is why it has no use in a run. The state can be set up on one file and carried to another by loading it. The [actor despawn](#actor-despawn) starts from the same setup.
 - **Found by:** *CaspianFS*, 11 Nov.
+- **Any% impact:** none.
 - **Video:** [No IJSC shadow entrance by *caspian*](https://www.youtube.com/watch?v=IZfIzqN-IjU).
 
 ### Ocarina push and dive
@@ -516,6 +535,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 - **What it does:** Link can be pushed while playing the ocarina and passes through void planes in that state. Bombs dropped against a corner before opening the ocarina can push him out of bounds.
 - **Found by:** *panchosteve*, 10 Nov. *Benjamin Datum* confirmed it underwater.
 - **Works on:** 1.0 and 1.1.1.
+- **Any% impact:** none.
 
 ### Cucco teleport
 
@@ -530,6 +550,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 
 - **What it does:** the speed of a moving platform is kept after leaving it, as long as Link lands only on certain ground types. Jumpslash cancels and Hover Boots inherit it. A comparison of the two versions' code by *oussama* (AI-assisted, not tested in game) says 1.1 caps the speed Link takes from a moving surface and 1.0 does not.
 - **Found by:** *ontrigger*, 11 Nov.
+- **Any% impact:** none.
 - **Video:** [platform momentum storage by *ontrigger*](https://www.youtube.com/watch?v=AnZz7z6EUVE).
 
 ### Smaller finds
@@ -545,7 +566,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 - **Heat invulnerability** (*Olra*, 12 Nov), also called the heat shield: no heat timer in Death Mountain Crater until Link touches another spawn point. Tagged 1.1.1. It does not carry into the Fire Temple: the warp platform or the entrance ends it (*Stooges*, *Benjamin Datum*). *Stooges* still did the Fire Temple as a child with it and BOoB ([video](https://www.youtube.com/watch?v=hwunCdUqF4M)).
 - **No Slip Condition** (*Splarff*, 13 Nov): on ice or in Hover Boots, cancel a roll's start with a jump a few frames later to turn with no speed loss.
 - **Flare Dancer room skip** (*PancakeTurtle* and *NathanLoto*, 18 Nov): a hookshot storage clip in the Fire Temple hammer room leads out of bounds to the torch slug room, where Farore's Wind can be set, and from there past Flare Dancer's room. 1.0 only, and of use for 100% and all Gold Skulltulas. [Video](https://youtu.be/_5g6casVf7s).
-- **Grove hookshot storage** (*jakezsr*, 16 Nov, from an idea by *gns*): a storage set before the Minuet of Forest pulls Link up the Sacred Forest Meadow ladder wall. One or two seconds, 1.0 only. [Video](https://www.youtube.com/watch?v=CTAsGbNcvhk).
+- **Grove hookshot storage** (*jakezsr*, 16 Nov, from an idea by *gns*): a storage set before the Minuet of Forest pulls Link up the Sacred Forest Meadow ladder wall. One or two seconds, 1.0 only; dropped from the route with Forest first (19 Nov). [Video](https://www.youtube.com/watch?v=CTAsGbNcvhk).
 - **Ruto's Letter freeze** (*Slipper*, 18 Nov): taking out the letter as an adult locks Link in his current animation and freezes NPCs and enemies. He can still be pushed.
 - **Quicksand fall-through** (*eidenfir*, 16 Nov): with the Hover Boots, Link can fall through the Haunted Wasteland sand pit and void out. Reproduced on 1.0 by rolling (*Dusty_Carpet*).
 - **Bombs without the bracelet:** Link pulls a bomb out for one frame, and an enemy touching him on that frame sets it off (*RoboRotembo*, 18 Nov).
@@ -572,7 +593,7 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 - **BK:** boss key.
 - **BOoB:** Bottle Out of Bounds. **CMS:** chest minigame storage.
 - **DoT:** Door of Time. **ToT:** Temple of Time. **SoT:** Song of Time.
-- **HoFF:** Hall of Fallen Foes, the boss rematch mode. It opens after the Forest Temple, for child Link.
+- **HoFF:** Hall of Fallen Foes, the boss rematch mode. It opens for child Link at night once he knows the Prelude of Light, which comes after the Forest Temple.
 - **HS:** hookshot storage.
 - **JSC / IJSC:** jumpslash cancel, and a chain of them.
 - **LACS:** the Light Arrow cutscene.
@@ -582,13 +603,14 @@ None of these is in the fresh-file Any% route. They need NG+, are slower than th
 
 ## Sources
 
-- **[ZSR wiki, Ocarina of Time 2026](https://www.zsr.gg/oot2026):** the community wiki, with technique pages and tricks filed by area, dungeon and boss. Its fullest pages are [Jumpslash Cancel](https://www.zsr.gg/oot2026/tech/jumpslash-cancel), [Puberty Skip](https://www.zsr.gg/oot2026/tech/puberty-skip) and [Progression Triggers](https://www.zsr.gg/oot2026/general/progression-triggers).
+- **[ZSR wiki, Ocarina of Time 2026](https://www.zsr.gg/oot2026):** the community wiki, with technique pages and tricks filed by area, dungeon and boss. Its fullest pages are [Jumpslash Cancel](https://www.zsr.gg/oot2026/tech/jumpslash-cancel), [Puberty Skip](https://www.zsr.gg/oot2026/player-state-glitches/puberty-skip) and [Progression Triggers](https://www.zsr.gg/oot2026/general/progression-triggers). Since 22 Nov it has a "player state glitches" section with [Shopkeeper Storage](https://www.zsr.gg/oot2026/player-state-glitches/shopkeeper-storage) (BOoB) and [HoFF Smuggle](https://www.zsr.gg/oot2026/player-state-glitches/hoff-smuggle), written routes for [Any% on 1.0](https://www.zsr.gg/oot2026/route/any), [Any% on the current patch](https://www.zsr.gg/oot2026/route/any-current-patch) and [100% on 1.0](https://www.zsr.gg/oot2026/route/100), and a [resources page](https://www.zsr.gg/oot2026/general/misc-resources) with Any% practice saves and strat-video channels.
 - **[StratDB](https://www.stratdb.app/search?game=155):** a searchable index of strat videos, tagged by location, items, age, patch and difficulty.
-- **[speedrun.com leaderboard](https://www.speedrun.com/oot26):** rules and runs.
+- **[speedrun.com leaderboard](https://www.speedrun.com/oot26):** still no runs and no rules on 24 Nov; only a "Pending" catch-all board is open. ZSR's own [leaderboard](https://www.zsr.gg/leaderboards/oot2026) has no verified record yet either.
 - **[Ocarina of Time 2026 Discord](https://www.zsr.gg/discords):** where finds are posted first. The per-glitch threads in its speedrunning-videos forum are the primary source for most entries here.
 - **[Object map viewer](https://objmap-oot.zeldamods.org/):** maps, actors and collision for every area.
-- **[sloperina](https://github.com/PracticeROM/sloperina):** the practice tool, with a jump-height watch, frame advance, an input display, saved positions and a save manager.
+- **[sloperinaGZ](https://github.com/PracticeROM/sloperina):** the practice tool, for emulators only so far. [Version 0.0.10](https://github.com/PracticeROM/sloperina/releases/tag/v0.0.10) (22 Nov) has every feature on both 1.0 and 1.1.1: a jump-height watch, frame advance, an input display, saved positions, a save manager, save states in memory (memfiles), story stages set through the game's quest manager, watches for what a minigame or fight is blocking (the "game safety" state behind chest storage), and switches that give the bomb T-pose and, on 1.0, hookshot storage without setting them up.
 - **[Void grid viewer by *ontrigger*](https://ontrigger.github.io/zoot26-voidgrid/):** the void cells of every map.
 - **[File changes between 1.0 and 1.1.1](https://docs.google.com/spreadsheets/d/1Z1dnYDH_D5AlGDu1Fmv9L2XbVqTF0P45ZHVVKgP8CHI/edit?gid=133163809):** a community spreadsheet.
 - **[ZSR combat page](https://www.zsr.gg/oot2026/general/combat):** damage values.
-- **Tutorials:** [Jumpslash Cancel by *gymnast86*](https://www.youtube.com/watch?v=4HSZ6GMQCZk) and [Actor Jumping by *Kethaldo*](https://www.youtube.com/watch?v=Rop0oeZVk24).
+- **Tutorials:** [Jumpslash Cancel by *gymnast86*](https://www.youtube.com/watch?v=4HSZ6GMQCZk), [Actor Jumping by *Kethaldo*](https://www.youtube.com/watch?v=Rop0oeZVk24), and [*Linkus7*'s glitch tutorial](https://www.youtube.com/watch?v=tdn56-NfIpM) (hovers, the T-pose, hookshot storage, actor jumps, the Longshot skip).
+- **Route breakdowns by *Linkus7*:** commentated runs that explain the route of the day, [under 3 hours](https://www.youtube.com/watch?v=OUd8RQ_zd2Q) (9 Nov) and [under 2 hours](https://www.youtube.com/watch?v=V8RP5ZyaHA0) (19 Nov).
