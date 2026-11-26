@@ -17,6 +17,8 @@ from the code. What each one led to in the pinned build is a row in [../TRACKER.
 | The patch series on current Lichii (the pin's move of 2026-11-19) | [port-to-current-lichii/README.md](port-to-current-lichii/README.md) | |
 | The infinite jumpslash, played frame-perfect by a sloperinaGZ script | [infinite-jumpslash/README.md](infinite-jumpslash/README.md): why it works, the 50-frame loop and each value's window, the height formula | the script: [infinite_jump.txt](infinite-jumpslash/infinite_jump.txt) |
 | Alternatives to MoltenVK and to Lichii | [moltenvk-offramp/README.md](moltenvk-offramp/README.md) | [nxnative/](nxnative/README.md) |
+| What patch 1.1.1 changed against 1.0.0 | [patch-1.1.1/README.md](patch-1.1.1/README.md): the glitch fixes and how each works, Master Quest groundwork, Zelda Notes; read from code and data, not tested in game | |
+| Master Quest mode: what the game already contains | [master-quest/README.md](master-quest/README.md): the mirrored mode, the add-on check, the thirteen dungeons, recovered event names; from code and data, not tested | |
 
 `logs/` holds two emulator logs the write-ups quote.
 
