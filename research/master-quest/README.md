@@ -75,29 +75,82 @@ the per-room progress behind Navi's dungeon hints (inferred).
 
 ## What the event names give away
 
-*Data.* 1.1.1 adds 88 "this event has played" flags, all of them Master Quest events. The game stores only a
-hash of each name. 83 names were recovered by guessing from the game's own naming scheme
-(`<Dungeon>_MQ_<Room>_<Thing><number>`). Each one matches two independent hashes and falls in the right place in
-the alphabetically sorted list, so none is a chance match.
+*Data; the readings are inferred.* The game keeps a flag for each scripted moment it should show only once: the
+camera cutting to a door that opens, a chest appearing, a short cutscene. 1.1.1 adds 88 of these flags, all for
+Master Quest dungeons. Only a hash of each name is stored. 83 of the names were recovered by guessing from the
+game's naming scheme and checking each guess against two hashes and the list's alphabetical order.
 
-| Dungeon | Named | Recovered events |
-| --- | ---: | --- |
-| Fire Temple | 24 of 24 | 20 switches, in rooms 01, 04 (two), 05, 07, 08 (two), 10, 11 (two), 13 (two), 14, 15, 16 (four), 18 and 24; two torch switches in room 01; a shutter in room 02; a second meeting with Darunia |
-| Jabu-Jabu | 27 of 27 | "all enemies defeated" in rooms 09, 12, 13 and 14; cow switches in rooms 00, 01 (three), 02 (two), 03, 04, 05, 06 and 17 (three); step switches in rooms 03 and 07; a spider web in room 07; a "hit switch" event; two cows, each with "give milk" and "put milk in a bottle" events |
-| Water Temple | 21 of 21 | "Longshot obtained" in room 17; "all candles lit" in room 01; "hook appeared" in rooms 05 (two) and 18; a first switch in rooms 00, 04, 08, 10 and 20; switches in rooms 11 and 12; candle fires in rooms 03, 08 and 15; a chest appearing in room 16; rooms 02 and 14 cleared; a shutter in room 00; water-level and camera events in rooms 06 and 17 |
-| Deku Tree | 8 of 8 | a falling ladder in room C; a candle fire and a water-level drop in room G; switches in rooms B and F; a chest appearing in room D; rooms B and H cleared |
-| Spirit Temple | 3 of 8 | ocarina events in rooms 08, 15 and 29 |
+Because every flag is one scripted moment in one room, the names are a partial list of what happens where. Five
+dungeons have them so far.
 
-What this suggests (inferred):
+### Inside Jabu-Jabu's Belly (27 flags, all named)
 
-- **Jabu-Jabu** is built around the cows in the walls as switches, as in the original Master Quest: thirteen cow
-  switches over eight rooms, and the cows can be milked.
-- **The Fire Temple** is the most switch-heavy: 22 switch events over thirteen rooms.
-- **The Water Temple** still gives the Longshot and adds hookshot targets that appear when something is done.
-- Two more Deku Tree events (a candle and spider web, a candle stick in room D) were already listed in 1.0.0.
+| Flag names | What they are |
+| --- | --- |
+| `InsideJabuJabuBelly_MQ_Room_00_CowSwitch`, the same for rooms 03, 04, 05, 06 and 17, `Room_01_CowSwitch1` to `3`, `Room_02_CowSwitch1` and `2`, `Room_17_CowSwitch2` and `3` | thirteen cow switches in eight rooms |
+| `Animal_Cow_MQ_InsideJabuJabuBelly_GiveMilk`, `…_PushToBottleMilk`, `…_D_T` and the same three with `_Switch` | the cow's usual events (it gives milk, the milk goes in a bottle, a talk), once for a plain cow and once for a cow that is a switch |
+| `InsideJabuJabuBelly_MQ_Room_09_DefeatAllEnemy`, the same for rooms 12, 13 and 14 | four rooms that react when every enemy is dead |
+| `…_Room_03_StepSwitch`, `…_Room_07_StepSwitch`, `…_Room_07_SpiderNet`, `…_MQ_HitSwitch` | two floor switches, a spider web, a switch that is hit |
 
-Five names are still unknown, all in the Spirit Temple; they are known only by their position in the sorted
-list. The other seven dungeons have no event flags yet, only room records.
+The original Master Quest filled this dungeon with cows set into the walls that work as switches when shot. The
+remake keeps that: cow switches are the largest group of flags in any dungeon. The milk events say these cows
+are real cow actors, so Link can play Epona's Song to them and fill a bottle inside Jabu-Jabu.
+
+### Fire Temple (24 flags, all named)
+
+| Flag names | What they are |
+| --- | --- |
+| `FireTemple_MQ_Room01_Switch02`, `Room04_Switch00` and `01`, `Room05_Switch00` and so on through rooms 07, 08, 10, 11, 13, 14, 15, 16 (`Switch00` to `03`), 18 and 24 | twenty switches in thirteen rooms |
+| `FireTemple_MQ_Room01_TorchSwitch00` and `01` | two switches in room 01 that are torches |
+| `FireTemple_MQ_OpenShutter_Room02` | a barred door opening in room 02 |
+| `Demo_FireTemple_MQ_MeetAgainDarniaEvent` | the meeting with Darunia inside the temple, which the normal game also has |
+
+Each switch has its own flag here. The normal Fire Temple's flags are mostly named after what the camera shows
+(`FireTemple_SwitchFireCamera_Room04`). Twenty-two numbered switches read like a dungeon rebuilt around
+switches, with room 16 (four of them) as the busiest room, and two of the switches in room 01 are torches to
+light.
+
+### Water Temple (21 flags, all named)
+
+| Flag names | What they are |
+| --- | --- |
+| `WaterTemple_MQ_Room17_LongHookGet` | Link gets the Longshot in room 17 |
+| `WaterTemple_MQ_Room18_HookAppeared`, `Room05_HookAppeared_01` and `_02` | hookshot targets that appear, one in room 18 and two in room 05 |
+| `WaterTemple_MQ_Room01_AllCandleFire`, `Room03_CandleFire`, `Room08_CandleFire`, `Room15_CandleFire` | torches lit in four rooms; in room 01 all of them must be lit |
+| `Room00_FirstSwitch01`, the same for rooms 04, 08, 10 and 20; `Room11_Switch01`, `Room12_Switch01` | switches in seven rooms |
+| `Room02_Cleared`, `Room14_Cleared`, `Room16_TBoxAppeared`, `Gimmick_OpenShutter_Room00` | two rooms cleared of enemies, a chest appearing, a barred door opening |
+| `Room06_Waterlevelrise_FocusOnGimmick`, `Room17_FocusOnGimmick` | camera cuts when the water rises in room 06 and to a mechanism in room 17 |
+
+The Longshot is still this dungeon's item, in room 17. In the normal dungeon the flag near it is
+`WaterTemple_Room07_LongHook_FocusOnGimmick`, so the item's room number changed. Hookshot targets
+appear on cue in two rooms. Four rooms have torches to light, in a temple full of water, as the original Master
+Quest Water Temple did; no normal dungeon in this game has a `CandleFire` flag.
+
+### Inside the Deku Tree (8 new flags, all named, plus 2 older ones)
+
+| Flag names | What they are |
+| --- | --- |
+| `InsideTheDekuTree_MQ_RoomC_FallingLadder` | a ladder that falls in room C |
+| `InsideTheDekuTree_MQ_Gimmick_RoomG_WaterLevelDrop`, `RoomG_CandleFire` | the water draining in room G and a torch lit there |
+| `RoomB_Switch01`, `RoomF_Switch01`, `RoomD_TreasureBoxAppeared` | two switches and a chest that appears |
+| `RoomB_Cleared`, `RoomH_Cleared` | two rooms cleared of enemies |
+| `InsideTheDekuTree_MQ_Gimmick_CandleAndSpiderWeb_01`, `Gimmick_RoomD_CandleStick` (both already in 1.0.0) | burning a web with a lit stick and a torch stand in room D |
+
+These follow the normal dungeon closely. It has `InsideTheDekuTree_Gimmick_FallingLadder` and
+`Gimmick_RoomG_WaterLevelDrop` too, so the falling ladder and the draining basement survive, with the puzzles
+around them changed. The two flags from 1.0.0 suggest the Deku Tree was the first Master Quest dungeon worked on.
+
+### Spirit Temple (8 flags, 3 named)
+
+`SpiritTemple_MQ_Level_Room_08_Ocarina`, `Room_15` and `Room_29`: three rooms where a song has to be played. The
+normal game uses the same name pattern for its song spots (`BottomOfTheWell_Level_Room_01_Ocarina`). The other
+five names did not come out, so they probably use words the rest of the game's flags do not.
+
+### The other eight dungeons
+
+Dodongo's Cavern, the Forest and Shadow Temples, the Bottom of the Well, the Ice Cavern, the Gerudo Training
+Ground and both Ganon's Castle scenes have no event flags yet. The five dungeons above are the ones whose
+scripting had started by 1.1.1.
 
 ## Other traces
 
@@ -113,4 +166,4 @@ list. The other seven dungeons have no event flags yet, only room records.
 
 - What the mode-select screen is, when the add-on is released and what it costs.
 - Whether item locations or rewards differ.
-- Enemy and puzzle placement in the seven dungeons that have no event flags yet.
+- Enemy and puzzle placement in the eight dungeons that have no event flags yet.
