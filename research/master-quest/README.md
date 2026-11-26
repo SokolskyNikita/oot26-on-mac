@@ -14,14 +14,14 @@ It comes from the comparison of the two versions in [../patch-1.1.1/README.md](.
 
 *Code, the same in both versions unless noted.*
 
-- **One setting per account.** It is stored in the account's save file, not in a save slot, so it applies to
-  every slot of that user.
+- **One setting per account.** It is stored in the account's save file, so it applies to every save slot of
+  that user.
 - **The world is mirrored.** With the setting on, the game flips the stick, the camera input and Link's
-  movement, sets a graphics flag, and swaps the left and right audio channels (the audio part is inferred).
+  movement, sets a graphics flag and swaps the left and right audio channels (the audio part is inferred).
 - **Separate saves.** The setting selects a second set of save slots, so Master Quest files do not overwrite
   normal ones.
-- **Separate dungeon maps.** A scene change appends `_MQ` to the scene name, so each Master Quest dungeon is its
-  own map and not a variation of the normal one.
+- **Separate dungeon maps.** A scene change appends `_MQ` to the scene name, so each Master Quest dungeon is a
+  separate map.
 - **Screens.** In 1.1.1 the map screen is mirrored in every map mode (1.0.0 mirrored it in one), and the
   pause-menu and inventory models of Link are no longer mirrored.
 
@@ -40,8 +40,8 @@ It comes from the comparison of the two versions in [../patch-1.1.1/README.md](.
 
 **With an edited save file (inferred, untested).** In 1.0.0, setting the value by hand would boot the game in
 mirrored mode with the second set of save slots, and entering a dungeon would ask for a map that does not exist.
-1.1.1 clears the value at boot when the add-on is not owned. Whether that check always finishes before the mode
-is first applied was not determined.
+1.1.1 clears the value at boot when the add-on is not owned. It is not known whether that check always finishes
+before the mode is first applied.
 
 ## Which places get a Master Quest version
 
@@ -98,7 +98,7 @@ What this suggests (inferred):
 - **Jabu-Jabu** is built around the cows in the walls as switches, as in the original Master Quest: thirteen cow
   switches over eight rooms, and the cows can be milked.
 - **The Fire Temple** is the most switch-heavy: 22 switch events over thirteen rooms.
-- **The Water Temple** still gives the Longshot, and adds hookshot targets that appear when something is done.
+- **The Water Temple** still gives the Longshot and adds hookshot targets that appear when something is done.
 - Two more Deku Tree events (a candle and spider web, a candle stick in room D) were already listed in 1.0.0.
 
 Five names are still unknown, all in the Spirit Temple; they are known only by their position in the sorted
@@ -108,7 +108,7 @@ list. The other seven dungeons have no event flags yet, only room records.
 
 - **About a thousand new per-object save flags** (1,029) belong to objects that are not in the shipped maps. By
   location: Jabu-Jabu 159, Kakariko 40, Zora's Fountain 28, Deku Tree 18, Ganon's Castle 10, Zora's Domain 9.
-  Their keys are object ids, not names, so nothing more can be read from them (data).
+  Their keys are object ids, which carry no name, so nothing more can be read from them (data).
 - **A cow switch for Jabu-Jabu** exists in the code as a parameter class, the only Master Quest object named in
   the executable (code).
 - **Light rigs** for four `_MQ` actors are in the graphics settings (data).
@@ -116,7 +116,6 @@ list. The other seven dungeons have no event flags yet, only room records.
 
 ## What is not known
 
-- Anything about enemy, item or puzzle placement beyond the event names above.
-- Five of the 88 event names (Spirit Temple).
-- What the mode-select screen is, when the add-on is released, and what it costs.
+- What the mode-select screen is, when the add-on is released and what it costs.
 - Whether item locations or rewards differ.
+- Enemy and puzzle placement in the seven dungeons that have no event flags yet.
