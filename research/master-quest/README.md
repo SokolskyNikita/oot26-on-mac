@@ -47,15 +47,10 @@ before the mode is first applied.
 
 *Code and data.* Thirteen scene names get the `_MQ` suffix:
 
-| | |
-| --- | --- |
-| Inside the Deku Tree | Shadow Temple |
-| Dodongo's Cavern | Spirit Temple |
-| Inside Jabu-Jabu's Belly | Bottom of the Well |
-| Forest Temple | Ice Cavern |
-| Fire Temple | Gerudo Training Ground |
-| Water Temple | Inside Ganon's Castle |
-| | Collapsing Ganon's Castle |
+- **Child dungeons:** Inside the Deku Tree, Dodongo's Cavern, Inside Jabu-Jabu's Belly.
+- **Temples:** Forest, Fire, Water, Shadow and Spirit.
+- **Smaller dungeons:** Bottom of the Well, Ice Cavern, Gerudo Training Ground.
+- **Ganon's Castle:** Inside Ganon's Castle and Collapsing Ganon's Castle.
 
 Hyrule Castle, the outside of Ganon's Castle and the final battle are explicitly exempt. The overworld has no
 second version: it is the same maps, mirrored.
