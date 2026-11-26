@@ -234,11 +234,12 @@ repository). A spec that asks for it when it is not there stops before the first
 ## The practice tool
 
 The game in this setup has the practice tool sloperinaGZ installed ([PracticeROM/sloperina](https://github.com/PracticeROM/sloperina),
-0.0.13 since 2026-11-26, built from tag `v0.0.13`; its files are in Lichii's `load/0400486024DEC000/sloperinaGZ` and
+0.0.14 since 2026-11-26, built from tag `v0.0.14`; its files are in Lichii's `load/0400486024DEC000/sloperinaGZ` and
 `sdmc/sloperinaGZ`, installed as its INSTALLATION.md says, with the build line in `sloperinaGZ/subsdk9-build.txt`).
-The 2026-11-19 build it replaced is kept in `~/.local/share/oot26-backups/` (not under `load/`, where Lichii would
-take it for a mod). The smoke test with 0.0.13 (run ab-20261126-080917) walked at 18.6 ms and stood at 16.9 ms, as
-the 2026-11-19 runs with 0.0.9 did. 0.0.13 reads the owner's `settings.ini` (version 1) and updates it in memory at
+The builds it replaced (2026-11-19, and 0.0.13) are kept in `~/.local/share/oot26-backups/` (not under `load/`,
+where Lichii would take them for mods). The smoke test with 0.0.14 (run ab-20261126-112724) walked at 18.9 ms and
+stood at 17.5 ms; with 0.0.13 (run ab-20261126-080917) it was 18.6 and 16.9 ms, and the 2026-11-19 runs with 0.0.9
+gave the same. sloperinaGZ reads the owner's `settings.ini` (version 1) and updates it in memory at
 each boot; the harness puts the file back after each run as before. The harness reads game state from memory and does not need it, except for `variants` (its
 position save and restore, R + D-pad up / down) and `flicker` (which hides its watch panel). `../verify/verify.py
 run` needs it: it finds the spawn point from the tool's watch panel. The numbers in this repository were measured
