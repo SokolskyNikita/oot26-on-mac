@@ -98,7 +98,7 @@ it, and the next run replaces it: **a save that matters belongs in the library**
 
 The default is `kokiri-forest`: the Kokiri Forest spawn point by Link's house (x −17.297, y 109.946, z −1.843),
 where every number in this repository was measured. `config.json`'s picture checks (`end_white_max`,
-`cube_check`, `on_corrupt`) apply to runs of this save only. Set `"save": "<name>"` in a spec entry for another,
+`cube_check`) apply to runs of this save only. Set `"save": "<name>"` in a spec entry for another,
 and `expect_spawn` there to override the library's.
 
 | Command | What it does |
@@ -166,13 +166,14 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
   Lichii (two a second raised walk p95 by about 3 ms and p99 by 5-13 ms), so not beside a timing run.
 - `cube_check`: N frame captures in a row after the end picture, read for the 128x128 lighting cube the game
   redraws one face a frame; a value over 50 in it marks the run corrupt (`cube_max` in `picture`). It catches the
-  KI-29 boots whichever way Link faces. `config.json` sets 8 for runs of the default save, and an `on_corrupt` for
-  them: a GPU trace, four frame captures with sampled textures and a bug bundle (about 1 GB a capture; twelve took 21 GB).
+  KI-29 boots whichever way Link faces. `config.json` sets 8 for runs of the default save.
   When the run scores clean, its cube-check captures (about 1 GB a run) are deleted after scoring; `result.json`
   keeps the verdict, the largest value (`cube_check.max`) and `captures_deleted_mib`.
 - `keep_cube_captures`: keep the cube check's captures of a clean run.
-- `on_corrupt`: steps like `at_end`'s, run only when the run's end picture scores as corrupted, while the game is
-  still up (a GPU trace, a frame capture). Every run's `result.json` gets `picture` (`clipped_pct`, `vivid_pct`,
+- `on_corrupt`: evidence collected only when the run's end picture scores as corrupted, while the game is still
+  up. Off unless the spec sets it: `true` runs `config.json`'s steps (a GPU trace, four frame captures with sampled
+  textures and a bug bundle: about 2.5 minutes a run and about 1 GB a capture; twelve took 21 GB), a list runs
+  those steps (the same kinds as `at_end`'s). Every run's `result.json` gets `picture` (`clipped_pct`, `vivid_pct`,
   `corrupt`: clipped over 15 % or vivid over 0.15 %, from `persist.picture_metrics` on `run-stand2.png`); a corrupt
   one is also printed as `CORRUPT PICTURE`.
 - `build_wait`: `false` starts even while one of this project's variant builds is compiling (for runs judged by

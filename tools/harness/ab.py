@@ -502,7 +502,7 @@ def list_saves():
 
 
 def is_default_save(spec):
-    """A run of config.json's save: its picture checks (end_white_max, cube_check, on_corrupt) apply."""
+    """A run of config.json's save: its picture checks (end_white_max, cube_check) apply."""
     return spec.get("save", CONFIG["save"]) == CONFIG["save"]
 
 
@@ -968,9 +968,9 @@ def _one_run(spec, out, attempt="1/1"):
             import speckhunt
             speckhunt.at_end(spec["at_end"], rd, res, call, lambda n: wait_frames(n, alive), title,
                              pos=lambda: pos(actor))
-        # Every run: score its end picture for corruption (persist.picture_metrics). "on_corrupt": steps (the same
-        # kinds as at_end) run only when it is corrupted, while the game is still up: a GPU trace, a frame capture,
-        # whatever can be studied offline afterwards. A fault that shows in one boot in ten is caught this way.
+        # Every run: score its end picture for corruption (persist.picture_metrics). "on_corrupt" (a spec key, off
+        # unless set): steps (the same kinds as at_end) run only when it is corrupted, while the game is still up:
+        # a GPU trace, a frame capture, whatever can be studied offline afterwards.
         try:
             import persist
             shot = rd / "run-stand2.png"
@@ -997,7 +997,11 @@ def _one_run(spec, out, attempt="1/1"):
                     prune_cube_captures(res["cube_check"], rd)
                 if res["picture"]["corrupt"]:
                     print(f"{spec['label']}: CORRUPT PICTURE {res['picture']}", flush=True)
-                    steps = spec.get("on_corrupt", CONFIG.get("on_corrupt") if is_default_save(spec) else None)
+                    # Evidence is collected only when the spec asks: "on_corrupt": true runs config.json's
+                    # steps, a list runs those. It costs about 2.5 minutes and several GB a run.
+                    steps = spec.get("on_corrupt")
+                    if steps is True:
+                        steps = CONFIG.get("on_corrupt")
                     if steps:
                         import speckhunt
                         speckhunt.at_end(steps, rd, res, call, lambda n: wait_frames(n, alive), title)
