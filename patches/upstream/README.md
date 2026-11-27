@@ -5,7 +5,7 @@ request from here.
 
 | File | What it is | Applies to |
 | --- | --- | --- |
-| `dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | One A64 code cache shared by a process's cores on arm64, with tests | Lichii PR #2101's head `72ff982a3c` |
+| `dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | One A64 code cache shared by a process's cores on arm64, with tests | Lichii PR #2101's head `f27f16c247` |
 | `02-moltenvk-mesh-cull-mode-pr2842-b93bdef3.patch` | The pipeline's cull mode applied to mesh draws | MoltenVK PR #2842's head `b93bdef3` |
 | `moltenvk-mesh-cull-mode.patch` | The same fix as first made, a plain diff | the pinned MoltenVK tree |
 | `maxPushDescriptors-16.patch` | `maxPushDescriptors` reported as 16 | MoltenVK `main` `5189f8de` |

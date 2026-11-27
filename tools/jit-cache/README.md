@@ -7,7 +7,7 @@ The cache is in the pinned build, switched on by `EDEN_NX2_SHARED_JIT_CACHE=512`
 | File | What |
 | --- | --- |
 | `patches/lichii/0007-dynarmic-arm64-one-A64-code-cache-shared-by-a-proces.patch` | The port as it is in the pinned build, with the review fixes |
-| `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same port in the PR-2101 tree (`zortos293/Lichii` `72ff982a3`), with all tests (`jit_shared_cache_tests`, the dynarmic block-table and replay tests) |
+| `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` | The same port in the PR-2101 tree (`zortos293/Lichii` `f27f16c247`), with all tests (`jit_shared_cache_tests`, the dynarmic block-table and replay tests) |
 | `specs/shared-cache-128.json` | The pinned build at 512 MiB against 128 MiB, where the cache fills and is cleared during a load: the test for the full-clear path (run with `tools/harness/queue.sh`). The specs of the development rounds are not kept; their runs' `result.json` files hold them |
 
 Switches (in the emulator): `EDEN_NX2_SHARED_JIT_CACHE=<MiB>` (multiples of 128, 128–2048; unset = private caches),
@@ -23,7 +23,7 @@ code) from an every-frame stutter trace (`EDEN_NX2_STUTTER_ALL_FRAMES=1`), and `
 ## Building and running the tests
 
 Apply `patches/upstream/dynarmic-pr2101-tree-shared-jit-cache-with-tests.patch` to a checkout of the PR #2101 tree
-(`zortos293/Lichii` at `72ff982a3`), then, in that checkout:
+(`zortos293/Lichii` at `f27f16c247`), then, in that checkout:
 
 ```bash
 cmake -S . -B build/jit -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=ON -DLICHII_TESTS=ON -DDYNARMIC_TESTS=ON -DDYNARMIC_IGNORE_ASSERTS=OFF -DENABLE_QT=OFF -DLICHII_CMD=OFF -DLICHII_ROOM=OFF -DLICHII_ROOM_STANDALONE=OFF -DENABLE_WEB_SERVICE=OFF -DENABLE_UPDATE_CHECKER=OFF -DUSE_DISCORD_PRESENCE=OFF -DENABLE_WERROR=OFF -DVulkanHeaders_FORCE_BUNDLED=ON -DVulkanUtilityLibraries_FORCE_BUNDLED=ON "-DCMAKE_PREFIX_PATH=$(brew --prefix zlib)" "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" -DLICHII_BUILD_PLATFORM=macos-arm64
