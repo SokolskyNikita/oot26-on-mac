@@ -71,6 +71,27 @@ class TestApps(unittest.TestCase):
             self.make("a")
         self.make("a", force=True)
 
+    def test_ensure_follows_the_pinned_app(self):
+        kw = dict(pinned=self.pinned, apps=self.apps, user_cache=self.uc, do_sign=False, cache_id="04ac9bef")
+        app, what = ta.ensure("play", **kw)
+        self.assertEqual(what, "made"); self.assertTrue(ta.current(app, self.pinned))
+        self.assertEqual(ta.ensure("play", **kw)[1], "kept")
+        own = make_cache(self.uc, mc.LICHII_ID + ".play", NEW, 2000)          # its cache, after a boot
+        (self.pinned / "Contents/Frameworks/libMoltenVK.dylib").write_bytes(b"a new MoltenVK 04ac9bef")
+        self.assertFalse(ta.current(app, self.pinned))
+        self.assertEqual(ta.ensure("play", **kw)[1], "remade")
+        self.assertEqual((app / "Contents/Frameworks/libMoltenVK.dylib").read_bytes(), b"a new MoltenVK 04ac9bef")
+        self.assertEqual(mc.bundle_id(app), mc.LICHII_ID + ".play"); self.assertTrue(own.exists())
+        (self.pinned / "Contents/MacOS/nx2_switches.txt").write_text("A=1")   # a file the copy lacks
+        self.assertEqual(ta.ensure("play", **kw)[1], "remade")
+
+    def test_ensure_leaves_an_app_with_its_own_binaries(self):
+        binary = Path(self.tmp.name) / "lichii.new"; binary.write_bytes(b"new binary")
+        self.make("pr", lichii=binary)
+        app, what = ta.ensure("pr", pinned=self.pinned, apps=self.apps, user_cache=self.uc, do_sign=False)
+        self.assertEqual(what, "own binaries")
+        self.assertEqual((app / "Contents/MacOS/lichii").read_bytes(), b"new binary")
+
     def test_names(self):
         for bad in ("", "Play", "a b", "../x", ".hidden", "x" * 40):
             with self.assertRaises(SystemExit, msg=bad):

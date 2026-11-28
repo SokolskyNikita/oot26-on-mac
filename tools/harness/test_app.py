@@ -2,6 +2,7 @@
 """Test apps: copies of the pinned app with their own bundle id, for runs of anything that is not the pinned build.
 
     python3 test_app.py make NAME [--lichii BINARY] [--moltenvk DYLIB] [--home] [--force]
+    python3 test_app.py ensure NAME
     python3 test_app.py list
     python3 test_app.py clean NAME
 
@@ -13,6 +14,9 @@ make   copies build/app/lichii.app to build/test-apps/NAME/lichii.app, puts the 
        everything again (measured: 2,719 compiles with the copy, 2,724 without). --home also makes the private
        data root build/test-apps/NAME/home (ab.py --make-home --with-shader-cache). Name both in a spec: "app"
        and "home".
+ensure makes NAME as a plain copy of the pinned app when there is none, and makes it again when the pinned app has
+       changed since (./build.sh install): for an app that stands for the pinned build under another bundle id,
+       such as the one hand play runs on. An app made with its own binary or library is left as it is.
 list   every Lichii bundle id that has a Metal cache on this Mac: size, last written, stale or not, and its app.
 clean  removes build/test-apps/NAME and the Metal cache of its bundle id. An id whose app is gone is cleaned the
        same way (the names `list` prints).
@@ -21,6 +25,7 @@ The pipeline file in a data root is valid only for a MoltenVK with the pinned ca
 versions.lock): make says so when the library given does not carry it, and the first boot is then cold.
 """
 import argparse
+import filecmp
 import json
 import plistlib
 import re
@@ -127,6 +132,41 @@ def make(name, pinned=PINNED, apps=APPS, user_cache=None, lichii=None, moltenvk=
     return made
 
 
+PARTS = ("Contents/MacOS/lichii", "Contents/Frameworks/libMoltenVK.dylib", "Contents/MacOS/nx2_switches.txt")
+
+
+def current(app, pinned=PINNED):
+    """Whether a plain copy of the pinned app still is one: the binary, the MoltenVK library and the switches file
+    are the pinned app's."""
+    app, pinned = Path(app), Path(pinned)
+    for rel in PARTS:
+        a, b = app / rel, pinned / rel
+        if a.exists() != b.exists() or (b.exists() and not filecmp.cmp(a, b, shallow=False)):
+            return False
+    return True
+
+
+def ensure(name, pinned=PINNED, apps=APPS, user_cache=None, do_sign=True, cache_id=None):
+    """The test app NAME as a plain copy of the pinned app, made (again) when it is missing or the pinned app has
+    changed. Returns (app, what): what is "kept", "made", "remade", or "own binaries" (left alone)."""
+    check_name(name)
+    folder = Path(apps) / name
+    app = folder / "lichii.app"
+    if not app.exists():
+        make(name, pinned, apps, user_cache, do_sign=do_sign, cache_id=cache_id)
+        return app, "made"
+    try:
+        info = json.loads((folder / INFO).read_text())
+    except (OSError, ValueError):
+        info = {}
+    if info.get("lichii", "pinned") != "pinned" or info.get("moltenvk", "pinned") != "pinned":
+        return app, "own binaries"
+    if current(app, pinned):
+        return app, "kept"
+    make(name, pinned, apps, user_cache, force=True, do_sign=do_sign, cache_id=cache_id)
+    return app, "remade"
+
+
 def listing(apps=APPS, user_cache=None):
     """One row per Lichii bundle id with a Metal cache, plus test apps that have none yet."""
     uc = Path(user_cache or metalcache.user_cache_dir())
@@ -172,6 +212,7 @@ def main():
     m.add_argument("--lichii", type=Path); m.add_argument("--moltenvk", type=Path)
     m.add_argument("--home", action="store_true")
     m.add_argument("--force", action="store_true")
+    e = sub.add_parser("ensure"); e.add_argument("name")
     sub.add_parser("list")
     c = sub.add_parser("clean"); c.add_argument("name")
     a = ap.parse_args()
@@ -186,6 +227,9 @@ def main():
             subprocess.run([sys.executable, str(HERE / "ab.py"), "--make-home", str(home), "--with-shader-cache"], check=True)
         print(f'in a spec: "app": "{made["app"]}"' + (f', "home": "{home}"' if home.exists() else
               f'  (no data root yet: --home makes {home})'))
+    elif a.cmd == "ensure":
+        app, what = ensure(a.name)
+        print(f"{what}: {app}")
     elif a.cmd == "list":
         rows = listing()
         print(f"{'name':16} {'Metal cache':>11}  {'written':16}  {'stale':5}  app")
