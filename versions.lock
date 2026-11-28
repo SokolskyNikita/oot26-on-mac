@@ -44,5 +44,8 @@ TOOL_CCACHE=4.14.3
 TOOL_BREW="qt=6.12.0 ffmpeg=9.0.2_1 boost=1.92.0_1 openssl@3=3.5.9 fmt=12.2.1 lz4=1.11.1 sdl3=3.4.20 zlib=1.4 libusb=1.0.30 brotli=1.2.1 zstd=1.5.7_1 opus=1.6.1 nlohmann-json=3.12.0"
 
 # The installed build these pins were taken from (sha1). A rebuild gives the same source, not the same bytes.
+# Since 2026-11-27 the installed app holds the Lichii binary built on 2026-11-19 (GOLD_LICHII_SHA1) and the MoltenVK
+# library built on 2026-11-27 with clang 2100.4.1.1 on macOS 27.2.1; `build.sh app` would pair that library with a
+# Lichii recompiled by the newer compiler, which has not been compared with the installed one.
 GOLD_LICHII_SHA1=59bfe412d2f80940182ba95d7c79656d3ea05b8a
 GOLD_MOLTENVK_SHA1=6ee8696dff616b5375f8979f39730c51c61adc6a
