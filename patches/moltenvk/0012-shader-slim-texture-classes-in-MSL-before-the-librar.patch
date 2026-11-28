@@ -1,0 +1,522 @@
+From 5b078e17658536ccc7570351a3ab3279c299a759 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Fri, 27 Nov 2026 20:19:02 -0800
+Subject: [PATCH] shader: slim texture classes in MSL before the library
+ compile
+
+The Metal compiler instantiates every member of a texture class the first time a source
+names the type (409 member functions for texture2d<float> at MSL 4.0, about 40 ms per type
+per library). Give each library its own explicit specializations with only the methods it
+calls, read from the installed standard library headers. A library that does not compile
+with them is compiled as generated. MVK_P60_NO_SLIM_TEXTURES=1 turns the pass off.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ .../MoltenVK/GPUObjects/MVKShaderModule.mm    |  44 +-
+ .../Utility/MVKSlimTextureClasses.cpp         | 375 ++++++++++++++++++
+ .../MoltenVK/Utility/MVKSlimTextureClasses.h  |  40 ++
+ 3 files changed, 458 insertions(+), 1 deletion(-)
+ create mode 100644 MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.cpp
+ create mode 100644 MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.h
+
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 7c544bb3..f17538a9 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -17,6 +17,8 @@
+  */
+ 
+ #include "MVKShaderModule.h"
++#include "MVKSlimTextureClasses.h"
++#include <atomic>
+ #include "MVKPipeline.h"
+ #include "MVKFoundation.h"
+ #include <sys/stat.h>
+@@ -708,6 +710,19 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ #pragma mark -
+ #pragma mark MVKShaderLibraryCompiler
+ 
++// MVK_P60_NO_SLIM_TEXTURES=1 compiles every library from the source as generated.
++static bool mvkSlimTextureClassesEnabled() {
++	static const bool on = !getenv("MVK_P60_NO_SLIM_TEXTURES");
++	return on;
++}
++
++// Counts the libraries that did not compile with slim texture classes. A source that compiles as
++// generated but not with them points at a standard library the pass does not fit.
++static uint32_t mvkSlimTextureClassesFailed() {
++	static std::atomic<uint32_t> failures{0};
++	return ++failures;
++}
++
+ id<MTLLibrary> MVKShaderLibraryCompiler::newMTLLibrary(NSString* mslSourceCode,
+ 													   const SPIRVToMSLConversionResultInfo& shaderConversionResults,
+ 													   const vector<pair<MSLSpecializationMacroInfo, MVKShaderMacroValue>>& specializationMacroDef) {
+@@ -733,9 +748,36 @@ static uint32_t getWorkgroupDimensionSize(const SPIRVWorkgroupSizeDimension& wgD
+ 				}
+ 				logCompilation(mtlCompileOptions);
+ 
+-				[mtlDev newLibraryWithSource: mslSourceCode
++				// Compile with slim texture classes when the source uses any (MVKSlimTextureClasses.h),
++				// and with the source as generated if that fails to compile.
++				NSString* slimSourceCode = nil;
++				if (mvkSlimTextureClassesEnabled()) {
++					MTLLanguageVersion mslVer = mtlCompileOptions.languageVersion;
++					std::string slimSource;
++					if (mvkSlimTextureClasses(mslSourceCode.UTF8String, uint32_t((mslVer >> 16) * 100 + (mslVer & 0xffff) * 10), slimSource)) {
++						slimSourceCode = @(slimSource.c_str());
++					}
++				}
++
++				[mtlDev newLibraryWithSource: (slimSourceCode ? slimSourceCode : mslSourceCode)
+ 									options: mtlCompileOptions
+ 						completionHandler: ^(id<MTLLibrary> mtlLib, NSError* error) {
++							if ( !mtlLib && slimSourceCode ) {
++								uint32_t failures = mvkSlimTextureClassesFailed();
++								if (failures == 1) {
++									MVKLogInfo("Slim texture classes did not compile; using the MSL as generated for this library. First error:\n%s",
++											   error.localizedDescription.UTF8String);
++								} else if ((failures & (failures - 1)) == 0) {
++									MVKLogInfo("Slim texture classes did not compile for %u libraries so far.", failures);
++								}
++								[mtlDev newLibraryWithSource: mslSourceCode
++													options: mtlCompileOptions
++										completionHandler: ^(id<MTLLibrary> mtlLibAsGenerated, NSError* errorAsGenerated) {
++											bool isLate = compileComplete(mtlLibAsGenerated, errorAsGenerated);
++											if (isLate) { destroy(); }
++										}];
++								return;
++							}
+ 							bool isLate = compileComplete(mtlLib, error);
+ 							if (isLate) { destroy(); }
+ 						}];
+diff --git a/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.cpp b/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.cpp
+new file mode 100644
+index 00000000..e3929cbf
+--- /dev/null
++++ b/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.cpp
+@@ -0,0 +1,375 @@
++/*
++ * MVKSlimTextureClasses.cpp
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "MVKSlimTextureClasses.h"
++
++#include <cctype>
++#include <cstring>
++#include <fstream>
++#include <map>
++#include <mutex>
++#include <set>
++#include <sstream>
++#include <vector>
++#include <glob.h>
++#include <TargetConditionals.h>
++
++namespace {
++
++// The classes covered: sampled float colour textures, and the depth classes SPIRV-Cross reaches
++// through spvDepthCast().
++struct Kind { const char* name; const char* depthOf; };
++const Kind kKinds[] = {
++	{ "texture2d", nullptr }, { "texture3d", nullptr }, { "texture2d_array", nullptr }, { "texturecube", nullptr },
++	{ "depth2d", "texture2d" }, { "depth2d_array", "texture2d_array" }, { "depthcube", "texturecube" },
++};
++
++struct Method {
++	std::string name;	// the member function's name
++	std::string text;	// its declaration and body, as in the header
++};
++
++struct KindInfo {
++	std::string handleType;			// the builtin handle member's type, such as __metal_texture_2d_t
++	std::vector<Method> methods;	// const thread and const constant member functions
++};
++
++struct Library {
++	bool usable = false;
++	std::map<std::string, KindInfo> kinds;
++};
++
++bool isIdent(char c) { return isalnum((unsigned char)c) || c == '_'; }
++
++std::string readFile(const std::string& path) {
++	std::ifstream f(path, std::ios::binary);
++	if ( !f ) { return {}; }
++	std::ostringstream s;
++	s << f.rdbuf();
++	return s.str();
++}
++
++std::vector<std::string> splitLines(const std::string& text) {
++	std::vector<std::string> lines;
++	size_t pos = 0;
++	while (pos <= text.size()) {
++		size_t nl = text.find('\n', pos);
++		if (nl == std::string::npos) { nl = text.size(); }
++		lines.emplace_back(text, pos, nl - pos);
++		pos = nl + 1;
++	}
++	return lines;
++}
++
++std::string trimmed(const std::string& s) {
++	size_t b = s.find_first_not_of(" \t");
++	if (b == std::string::npos) { return {}; }
++	size_t e = s.find_last_not_of(" \t\r");
++	return s.substr(b, e - b + 1);
++}
++
++// Evaluates the conditions these headers use: defined(X), !defined(X), X == N, joined by && or ||.
++// Anything else makes the whole library unusable.
++struct Preprocessor {
++	std::map<std::string, long> macros;
++	bool failed = false;
++
++	bool term(const std::string& e, size_t& i) {
++		while (i < e.size() && e[i] == ' ') { i++; }
++		bool neg = false;
++		if (i < e.size() && e[i] == '!') { neg = true; i++; }
++		size_t s = i;
++		while (i < e.size() && isIdent(e[i])) { i++; }
++		std::string id = e.substr(s, i - s);
++		bool val;
++		if (id == "defined") {
++			while (i < e.size() && (e[i] == ' ' || e[i] == '(')) { i++; }
++			s = i;
++			while (i < e.size() && isIdent(e[i])) { i++; }
++			val = macros.count(e.substr(s, i - s)) > 0;
++			while (i < e.size() && (e[i] == ' ' || e[i] == ')')) { i++; }
++		} else {
++			while (i < e.size() && e[i] == ' ') { i++; }
++			if (id.empty() || e.compare(i, 2, "==") != 0) { failed = true; return false; }
++			i += 2;
++			char* end = nullptr;
++			long n = strtol(e.c_str() + i, &end, 10);
++			if (end == e.c_str() + i) { failed = true; return false; }
++			i = end - e.c_str();
++			auto m = macros.find(id);
++			val = m != macros.end() && m->second == n;
++		}
++		return neg ? !val : val;
++	}
++
++	bool evaluate(const std::string& e) {
++		size_t i = 0;
++		bool val = term(e, i);
++		while ( !failed ) {
++			while (i < e.size() && e[i] == ' ') { i++; }
++			if (i >= e.size() || e.compare(i, 2, "//") == 0) { break; }
++			bool isAnd = e.compare(i, 2, "&&") == 0;
++			if ( !isAnd && e.compare(i, 2, "||") != 0 ) { failed = true; break; }
++			i += 2;
++			bool rhs = term(e, i);
++			val = isAnd ? (val && rhs) : (val || rhs);
++		}
++		return val;
++	}
++
++	// Returns the lines that survive the conditionals. Records #define lines when defining is set.
++	std::vector<std::string> run(const std::string& text, bool defining) {
++		std::vector<std::string> out;
++		std::vector<int> stack;		// per open conditional: 0 = skipping, 1 = active, 2 = an outer one is off
++		bool active = true;
++		for (auto& line : splitLines(text)) {
++			std::string t = trimmed(line);
++			if (t.empty() || t[0] != '#') { if (active) { out.push_back(line); } continue; }
++			size_t i = 1;
++			while (i < t.size() && t[i] == ' ') { i++; }
++			size_t s = i;
++			while (i < t.size() && isalpha((unsigned char)t[i])) { i++; }
++			std::string dir = t.substr(s, i - s), rest = trimmed(t.substr(i));
++			if (dir == "if" || dir == "ifdef" || dir == "ifndef") {
++				if ( !active ) { stack.push_back(2); continue; }
++				bool v;
++				if (dir == "if") { v = evaluate(rest); }
++				else {
++					size_t e = 0;
++					while (e < rest.size() && isIdent(rest[e])) { e++; }
++					v = macros.count(rest.substr(0, e)) > 0;
++					if (dir == "ifndef") { v = !v; }
++				}
++				stack.push_back(v ? 1 : 0);
++				active = v;
++			} else if (dir == "else") {
++				if (stack.empty()) { failed = true; break; }
++				if (stack.back() != 2) { stack.back() = stack.back() ? 0 : 1; active = stack.back() == 1; }
++			} else if (dir == "elif") {
++				failed = true; break;
++			} else if (dir == "endif") {
++				if (stack.empty()) { failed = true; break; }
++				stack.pop_back();
++				active = true;
++				for (int st : stack) { if (st != 1) { active = false; } }
++			} else if (dir == "define" && active && defining) {
++				size_t e = 0;
++				while (e < rest.size() && isIdent(rest[e])) { e++; }
++				std::string val = trimmed(rest.substr(e));
++				macros[rest.substr(0, e)] = val.empty() ? 1 : strtol(val.c_str(), nullptr, 10);
++			}
++			// #include, #pragma and anything else are dropped: only class bodies are wanted.
++		}
++		if ( !stack.empty() ) { failed = true; }
++		return out;
++	}
++};
++
++std::string headerDirectory() {
++	// The compiler that MTLCompilerService runs is the framework's current version.
++	glob_t g;
++	std::string dir;
++	if (glob("/System/Library/PrivateFrameworks/GPUCompiler.framework/Versions/Current/Libraries/lib/clang/*/include/metal",
++			 0, nullptr, &g) == 0 && g.gl_pathc > 0) {
++		dir = g.gl_pathv[0];
++	}
++	globfree(&g);
++	return dir;
++}
++
++bool startsWith(const std::string& s, const char* prefix) { return s.compare(0, strlen(prefix), prefix) == 0; }
++
++bool loadKind(const std::string& dir, Preprocessor& pp, const char* kind, KindInfo& info) {
++	std::string text = readFile(dir + "/__bits/metal_" + kind);
++	if (text.empty()) { return false; }
++	// The header's include guard must not look defined, and its #defines must not leak.
++	auto lines = pp.run(text, false);
++	if (pp.failed) { return false; }
++
++	std::string classStart = std::string("struct ") + kind + " :";
++	std::string specStart = std::string("struct ") + kind + "<";
++	size_t end = lines.size();
++	for (size_t i = 0; i < lines.size(); i++) {
++		if (startsWith(lines[i], classStart.c_str()) || startsWith(lines[i], specStart.c_str())) { end = i; break; }
++	}
++	if (end == lines.size()) { return false; }
++
++	for (size_t i = end; i < lines.size(); i++) {
++		std::string t = trimmed(lines[i]);
++		if (startsWith(t, "__metal_") && t.size() > 5 && t.compare(t.size() - 5, 5, "_t t;") == 0) {
++			info.handleType = t.substr(0, t.size() - 3);
++			break;
++		}
++	}
++	if (info.handleType.empty()) { return false; }
++
++	for (size_t i = 0; i < end; i++) {
++		const std::string& l = lines[i];
++		if ( !startsWith(l, "  METAL_FUNC ") ) { continue; }
++		std::string decl = trimmed(l);
++		if (decl.back() == ';') { continue; }
++		size_t j = i + 1;
++		while (j < end && lines[j] != "  }") { j++; }
++		if (j >= end) { return false; }
++
++		// The qualifiers follow the parameter list, before any METAL_..._ARG(...) annotations.
++		const std::string& head = decl;
++		size_t open = head.find('(');
++		if (open == std::string::npos) { i = j; continue; }
++		size_t close = open;
++		for (int depth = 0; close < head.size(); close++) {
++			if (head[close] == '(') { depth++; }
++			else if (head[close] == ')' && --depth == 0) { break; }
++		}
++		if (close >= head.size()) { i = j; continue; }
++		std::string qual = head.substr(close + 1);
++		size_t annotation = qual.find(" METAL_");
++		if (annotation != std::string::npos) { qual.erase(annotation); }
++		qual = trimmed(qual);
++		if (qual == "const thread" || qual == "const constant") {
++			size_t ne = open, ns = open;
++			while (ns > 0 && isIdent(head[ns - 1])) { ns--; }
++			Method m;
++			m.name = head.substr(ns, ne - ns);
++			if (i > 0 && startsWith(lines[i - 1], "  template")) { m.text = lines[i - 1] + "\n"; }
++			for (size_t k = i; k <= j; k++) { m.text += lines[k]; m.text += '\n'; }
++			// sampler's handle is private, and readable only by the standard library's own classes.
++			for (size_t p = 0; (p = m.text.find("s.val", p)) != std::string::npos; ) {
++				bool word = (p == 0 || !isIdent(m.text[p - 1])) && (p + 5 >= m.text.size() || !isIdent(m.text[p + 5]));
++				if (word) { m.text.replace(p, 5, "_mvkSamplerHandle::val(s)"); p += 25; } else { p += 5; }
++			}
++			if ( !m.name.empty() ) { info.methods.push_back(std::move(m)); }
++		}
++		i = j;
++	}
++	return !info.methods.empty();
++}
++
++const Library& library(uint32_t mslVersion) {
++	static std::mutex lock;
++	static std::map<uint32_t, Library> libraries;
++	std::lock_guard<std::mutex> guard(lock);
++	auto found = libraries.find(mslVersion);
++	if (found != libraries.end()) { return found->second; }
++
++	Library& lib = libraries[mslVersion];
++	std::string dir = headerDirectory();
++	std::string config = dir.empty() ? std::string() : readFile(dir + "/metal_config");
++	if (config.empty()) { return lib; }
++
++	Preprocessor pp;
++	pp.macros["__METAL_VERSION__"] = mslVersion;
++#if defined(TARGET_OS_OSX) && !TARGET_OS_OSX
++	pp.macros["__METAL_IOS__"] = 1;
++#else
++	pp.macros["__METAL_MACOS__"] = 1;
++#endif
++	pp.run(config, true);
++	// The explicit specializations name the memory coherence parameter the classes have from MSL 3.2.
++	if (pp.failed || !pp.macros.count("__HAVE_DEVICE_COHERENT_READ_WRITE_TEXTURES__")) { return lib; }
++
++	for (auto& k : kKinds) {
++		KindInfo info;
++		if (loadKind(dir, pp, k.name, info)) { lib.kinds[k.name] = std::move(info); }
++		if (pp.failed) { lib.kinds.clear(); return lib; }
++	}
++	lib.usable = !lib.kinds.empty();
++	return lib;
++}
++
++// Whether the source names KIND<float> or KIND<float, access::sample>.
++bool usesKind(const std::string& src, const std::string& kind) {
++	std::string needle = kind + "<float";
++	for (size_t p = 0; (p = src.find(needle, p)) != std::string::npos; p += needle.size()) {
++		if (p > 0 && isIdent(src[p - 1])) { continue; }
++		size_t e = p + needle.size();
++		if (src.compare(e, 1, ">") == 0 || src.compare(e, 17, ", access::sample>") == 0) { return true; }
++	}
++	return false;
++}
++
++// Whether the source calls spvDepthCast(), as opposed to only declaring it.
++bool callsDepthCast(const std::string& src) {
++	static const char needle[] = "spvDepthCast(";
++	for (size_t p = 0; (p = src.find(needle, p)) != std::string::npos; ) {
++		p += sizeof(needle) - 1;
++		if (src.compare(p, 7, "texture") != 0) { return true; }
++	}
++	return false;
++}
++
++}	// namespace
++
++bool mvkSlimTextureClasses(const std::string& mslSource, uint32_t mslVersion, std::string& slimSource) {
++	static const char anchor[] = "using namespace metal;\n";
++	size_t insertAt = mslSource.find(anchor);
++	if (insertAt == std::string::npos) { return false; }
++	insertAt += sizeof(anchor) - 1;
++
++	const Library& lib = library(mslVersion);
++	if ( !lib.usable ) { return false; }
++
++	std::set<std::string> wanted;
++	for (auto& k : kKinds) {
++		if ( !k.depthOf && lib.kinds.count(k.name) && usesKind(mslSource, k.name) ) { wanted.insert(k.name); }
++	}
++	if (callsDepthCast(mslSource)) {
++		for (auto& k : kKinds) {
++			if (k.depthOf && lib.kinds.count(k.name) && usesKind(mslSource, k.depthOf)) { wanted.insert(k.name); }
++		}
++	}
++	for (auto& k : kKinds) {
++		if (k.depthOf && lib.kinds.count(k.name) && usesKind(mslSource, k.name)) { wanted.insert(k.name); }
++	}
++	if (wanted.empty()) { return false; }
++
++	std::string prelude =
++		"#pragma METAL internals : enable\n"
++		"namespace metal {\n"
++		"template <> struct _texture2d_sample<char, access::read, __memory_coherence_threadgroup, void>\n"
++		"{\n"
++		"  static METAL_FUNC __metal_sampler_t val(sampler s) { return s.val; }\n"
++		"};\n"
++		"using _mvkSamplerHandle = _texture2d_sample<char, access::read, __memory_coherence_threadgroup, void>;\n";
++
++	std::map<std::string, bool> called;		// method name -> whether the source calls it
++	for (auto& kindName : wanted) {
++		const KindInfo& info = lib.kinds.at(kindName);
++		std::string self = kindName + "<float, access::sample, memory_coherence_threadgroup, void>";
++		prelude += "template <> struct " + self + "\n{\n"
++			"  using T = float;\n"
++			"  static constexpr constant access a = access::sample;\n"
++			"  static constexpr constant __memory_coherence c = __memory_coherence_threadgroup;\n"
++			"  using __derived_t = " + self + ";\n"
++			"  " + info.handleType + " t;\n";
++		for (auto& m : info.methods) {
++			auto c = called.find(m.name);
++			if (c == called.end()) {
++				c = called.emplace(m.name, mslSource.find("." + m.name + "(") != std::string::npos).first;
++			}
++			if (c->second) { prelude += m.text; }
++		}
++		prelude += "};\n";
++	}
++	prelude += "}\n#pragma METAL internals : disable\n";
++
++	slimSource.clear();
++	slimSource.reserve(mslSource.size() + prelude.size());
++	slimSource.append(mslSource, 0, insertAt);
++	slimSource += prelude;
++	slimSource.append(mslSource, insertAt, std::string::npos);
++	return true;
++}
+diff --git a/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.h b/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.h
+new file mode 100644
+index 00000000..4cc9c7b7
+--- /dev/null
++++ b/MoltenVK/MoltenVK/Utility/MVKSlimTextureClasses.h
+@@ -0,0 +1,40 @@
++/*
++ * MVKSlimTextureClasses.h
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#pragma once
++
++#include <string>
++
++/**
++ * The Metal compiler instantiates every member of a texture class the first time MSL source
++ * names the type: 409 member functions for texture2d<float> at MSL 4.0, about 40 ms per distinct
++ * type per library, whatever the shader calls. This pass gives the source its own explicit
++ * specialization of each sampled float texture and depth class it uses, holding only the methods
++ * it calls, so the compiler has almost nothing to instantiate. The method bodies are read from the
++ * Metal standard library headers installed with the compiler, so they are the ones the compiler
++ * would have used, and the generated GPU code is the same.
++ *
++ * Returns true and sets slimSource when at least one class was replaced. Returns false, leaving
++ * slimSource untouched, when the source uses no class this covers, when the headers cannot be read
++ * or are not in the expected shape, or for an MSL version before 3.2.
++ *
++ * The specializations rely on the standard library's internal names. A source that does not
++ * compile with them must be compiled again as it was.
++ *
++ * mslVersion is major * 100 + minor * 10, as __METAL_VERSION__ (400 for MSL 4.0).
++ * Thread-safe.
++ */
++bool mvkSlimTextureClasses(const std::string& mslSource, uint32_t mslVersion, std::string& slimSource);
+-- 
+2.54.0 (Apple Git-157)
+

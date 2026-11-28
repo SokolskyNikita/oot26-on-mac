@@ -13,8 +13,8 @@ LICHII_FORK_BRANCH=oot26-on-mac-d2ca32974d
 # MoltenVK: upstream base, then the series in patches/moltenvk/
 MOLTENVK_URL=https://github.com/KhronosGroup/MoltenVK.git
 MOLTENVK_BASE=5189f8de86ec365860f63bf1da736815cfaea5cd
-MOLTENVK_TREE=6a305b718c149230f02c281b72a876ef3bb0685d
-MOLTENVK_COMMIT=dc964d4011302f189e91b52d3b759cdf2a0878eb
+MOLTENVK_TREE=b14374aeb4933aebfdbff585feab860ed563a5fb
+MOLTENVK_COMMIT=5b078e17658536ccc7570351a3ab3279c299a759
 MOLTENVK_DYLIB=libMoltenVK.1.4.3.dylib
 # Informational: the series as commits on a public fork branch (pushed 2026-11-19); build.sh still builds from patches/
 MOLTENVK_FORK=https://github.com/SokolskyNikita/MoltenVK.git
@@ -25,8 +25,11 @@ MOLTENVK_FORK_BRANCH=oot26-on-mac
 # MOLTENVK_CACHE_INPUTS is a hash of the files that decide generated shader source; build.sh refuses to build when
 # they differ from it. To accept a change: set MOLTENVK_CACHE_ID to a new value (the new commit's first 8 digits)
 # and MOLTENVK_CACHE_INPUTS to the hash `build.sh verify` prints.
+# Patch 0012 (slim texture classes) changed MVKShaderModule.mm, so the inputs hash moved, but not the generated
+# source: the pass rewrites a library's MSL only as it is handed to the Metal compiler, after the pipeline cache has
+# stored it. The cache id is therefore kept.
 MOLTENVK_CACHE_ID=04ac9bef
-MOLTENVK_CACHE_INPUTS=67a426dac8939354
+MOLTENVK_CACHE_INPUTS=51243d50fa83e87c
 
 # Pinned inside the MoltenVK series (ExternalRevisions/SPIRV-Cross_repo_revision)
 SPIRV_CROSS=98cbb7c02be35364ecacc23dc0c038d2360b0ed0
