@@ -10,7 +10,7 @@ func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
 func ms(_ a: UInt64, _ b: UInt64) -> Double { Double(b - a) / 1e6 }
 
 var args = Array(CommandLine.arguments.dropFirst())
-var jobs = 1, reps = 1, quiet = false, optSize = false, libOnly = false, extraArgs: String? = nil, kv: [(String, String)] = [], forcedName: String? = nil, metallib: String? = nil, fixedName = false, forceMode = false, lang = MTLLanguageVersion.version4_0
+var jobs = 1, reps = 1, quiet = false, optSize = false, libOnly = false, pipeKV: [(String, String, String)] = [], archivePath: String? = nil, extraArgs: String? = nil, kv: [(String, String)] = [], forcedName: String? = nil, metallib: String? = nil, fixedName = false, forceMode = false, lang = MTLLanguageVersion.version4_0
 let langs: [String: MTLLanguageVersion] = ["2_0": .version2_0, "2_2": .version2_2, "2_4": .version2_4, "3_0": .version3_0, "3_1": .version3_1, "3_2": .version3_2, "4_0": .version4_0]
 while let a = args.first, a.hasPrefix("-") {
     args.removeFirst()
@@ -20,6 +20,8 @@ while let a = args.first, a.hasPrefix("-") {
     case "-opt": optSize = args.removeFirst() == "size"
     case "-q": quiet = true
     case "-libonly": libOnly = true
+    case "-archive": archivePath = args.removeFirst()
+    case "-pipekv": let p = args.removeFirst().split(separator: ":", maxSplits: 1); let q = p[1].split(separator: "=", maxSplits: 1); pipeKV.append((String(p[0]), String(q[0]), String(q[1])))
     case "-args": extraArgs = args.removeFirst()
     case "-kv": let p = args.removeFirst().split(separator: "=", maxSplits: 1); kv.append((String(p[0]), String(p[1])))
     case "-name": forcedName = args.removeFirst()
@@ -79,6 +81,17 @@ func one(_ path: String) -> Result {
             d.colorAttachments[idx].pixelFormat = ty.hasPrefix("uint") ? .rgba32Uint : ty.hasPrefix("int") ? .rgba32Sint : .rgba16Float
         }
         d.depthAttachmentPixelFormat = .depth32Float
+        for (dict, k, v) in pipeKV {
+            let val: Any = v == "true" ? true : v == "false" ? false : (Int(v) as Any? ?? v)
+            if dict == "self" { d.setValue(val, forKey: k) } else { d.setValue([k: val], forKey: dict) }
+        }
+        if let ap = archivePath {
+            let ad = MTLBinaryArchiveDescriptor()
+            let ar = try dev.makeBinaryArchive(descriptor: ad)
+            try ar.addRenderPipelineFunctions(descriptor: d)
+            try? FileManager.default.removeItem(atPath: ap)
+            try ar.serialize(to: URL(fileURLWithPath: ap))
+        }
         let t2 = now()
         _ = try dev.makeRenderPipelineState(descriptor: d, options: [], reflection: nil)
         r.pipe = ms(t2, now())
