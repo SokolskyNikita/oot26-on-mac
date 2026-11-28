@@ -75,14 +75,16 @@ makes a cold compile faster without changing results.
 | Option properties | 16 | none faster; `tracingEnabled` 45× slower, `debuggingEnabled` +22% | `data/value-and-pipeline-sweep.tsv` |
 | `driverCompilerOptions`, `gpuCompilerSPIOptions` on the pipeline descriptor | 171 guessed keys each | no effect on time or code; the real keys are not known | same |
 | In-source pragmas and attributes | 30 variants | none within 5%; `optnone` and `noinline` behave like `-O0` and `-fno-inline` | – |
-| User-defaults keys, feature flags, forced internal-build gate (client process) | 20 | none faster | – |
+| User-defaults keys, feature flags, forced internal-build gate (client process); `UseGlobalISel` in the service | 21 | none faster | – |
 | Metal 4 compiler (`MTL4Compiler`, `tools/bench4.swift`) | same shaders, 1 to 64 tasks, its options | equal to the older calls within 2% at every task count | – |
 
 Why most switches do nothing: every `AGC_` name and about a dozen `MTL_` names are read only when
 `os_variant_has_internal_diagnostics` is true, in the app and again inside `MTLCompilerService`. `MTLGetEnvDefault`
 reads the environment only. `MTLCompilerService` can also read the `com.apple.Metal` preferences domain; the one key
-found there that acts on the back end is `UseGlobalISel` (AGXCompilerCore, no gate). It is untested: setting it means
-writing the user's `com.apple.Metal` domain, which applies to every Metal app.
+found there that acts on the back end is `UseGlobalISel` (AGXCompilerCore, no gate). Set to 1 and to 0 with
+`defaults write com.apple.Metal UseGlobalISel -int N`, it changed neither the times (front end 54.6 ms, back end
+59.7–59.9 ms against 55.2 and 60.0) nor the GPU code (22,306 bytes). Whether the service read the key was not
+confirmed. The key and the domain were deleted afterwards.
 
 Other things these runs showed:
 
@@ -161,7 +163,6 @@ Build the Swift tools with `swiftc -O NAME.swift -o NAME` and `dumpopts.m` with
   parameter in `read`-style methods; `sample_compare` overloads), add the fallback, compare rendered output.
 - A translator from Lichii's IR (or SPIR-V) to Apple's bitcode with LLVM 15, using DXMT's `airconv` as the worked
   example for the container and metadata. The ceiling is about 3× on a median shader.
-- `UseGlobalISel` in `com.apple.Metal`: set, time, compare code, delete.
 - Run-time speed and identical output of the variants that change the code (`-disable-lifetime-markers`, LLVM 15
   `-O2` on the bitcode), with `fsx.swift` from `../shader-metal-analysis/shader-compare/`.
 - The `sampler` type's 6 ms per library: it is not a template, so it cannot be specialised the same way.
