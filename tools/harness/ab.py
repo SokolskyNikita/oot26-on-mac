@@ -1097,6 +1097,8 @@ def _one_run(spec, out, attempt="1/1"):
         time.sleep(1)
         if LOG.exists():
             (rd / "eden_log.txt").write_bytes(LOG.read_bytes())
+            # Whether this boot built the pipeline file's pipelines, or skipped them after an interrupted boot
+            res["pipeline_boot"] = metalcache.pipeline_boot(LOG.read_text(errors="replace"))
         CFG.write_text(MASTER.read_text())
         tool_binds_restore(h)
         # Cold or warm, measured: what Metal's compiler was asked to build for this Lichii, during boot and load
@@ -1345,7 +1347,13 @@ def warm(argv):
         if app:
             s["app"] = str(Path(app).expanduser().resolve())
         spec.append(s)
-    run_batch(spec, None)
+    # A boot that follows an interrupted one builds no cached pipeline (Lichii's guard) and so warms nothing:
+    # boot that root once more.
+    again = [dict(s, label=s["label"] + "-again") for s, r in zip(spec, run_batch(spec, None))
+             if (r.get("pipeline_boot") or {}).get("skipped")]
+    if again:
+        print("booting again: " + ", ".join(s["label"] for s in again) + " (the first boot built no pipelines)", flush=True)
+        run_batch(again, None)
 
 
 def run_batch(spec, only):
@@ -1358,6 +1366,7 @@ def run_batch(spec, only):
     # The window title counts the batch's runs: "3/9" is the third of nine (repeats included), "3/9 retry" its retry.
     total = sum(s.get("repeat", 1) for s in spec if not only or s["label"] in only)
     number = 0
+    results = []
     for s in spec:
         if only and s["label"] not in only:
             continue
@@ -1379,6 +1388,8 @@ def run_batch(spec, only):
                 row["walk_stalled"] = True
             if r.get("blowout"):
                 row["BLOWOUT"] = True
+            if (r.get("pipeline_boot") or {}).get("skipped"):   # a fast boot that built nothing: the next one is slow
+                row["PIPELINES NOT BUILT"] = "the boot before this one was interrupted; the next boot builds them"
             if r.get("cold"):                         # boot, load and stutter numbers are not a warm run's
                 row["COLD"] = "; ".join(r["cold_reasons"])
             for a, _ in r.get("phases") or []:
@@ -1387,6 +1398,8 @@ def run_batch(spec, only):
             if r.get("flicker"):
                 row["flicker"] = {k: f"{v['total']}/{v['max']}" for k, v in r["flicker"].items() if k.startswith("thr")}
             print(s2["label"], json.dumps(row), "load", [round(x, 1) for x in r["loadavg_before"]], flush=True)
+            results.append(r)
+    return results
 
 
 if __name__ == "__main__":

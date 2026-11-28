@@ -10,7 +10,8 @@ next boot of each app compiles all its shaders again, with nothing in Lichii's l
 
 A boot is called cold when the spec asked for an empty cache, the cache is empty, its stamp is stale (another
 Lichii app's cache, written later, carries a different one) or changed during the run, or Metal's compiler was
-asked for more than COLD_REQUESTS builds during the boot and load. Every function here takes its paths as
+asked for more than COLD_REQUESTS builds during the boot and load. pipeline_boot() reads from Lichii's log whether
+the boot built the pipeline file's pipelines at all. Every function here takes its paths as
 arguments and launches nothing, so tests/test_metalcache.py checks them without the emulator.
 """
 import json
@@ -151,6 +152,18 @@ def verdict(before, after, requests_boot, spec_cold=False):
     if requests_boot is not None and requests_boot > COLD_REQUESTS:
         reasons.append(f"{requests_boot:,} shaders compiled during boot and load")
     return {"cold": bool(reasons), "reasons": reasons}
+
+
+def pipeline_boot(log_text):
+    """What Lichii's log says about the pipeline file at boot: {"in_file": N, "built": n, "skipped": bool}.
+    skipped: Lichii built none of the cached pipelines because the boot before this one ended while it was
+    building them (its guard against a pipeline that crashes the boot). Such a boot is fast and compiles nothing,
+    and it is the NEXT boot that builds everything: it has not warmed anything."""
+    total = re.findall(r"Total Pipeline Count: (\d+)", log_text)
+    built = re.findall(r"boot load: [\d.]+ s, (\d+) of \d+ compute and (\d+) of \d+ graphics pipelines built", log_text)
+    return {"in_file": int(total[-1]) if total else None,
+            "built": sum(map(int, built[-1])) if built else None,
+            "skipped": "building none at boot this time" in log_text}
 
 
 def progress_text(stderr_tail):

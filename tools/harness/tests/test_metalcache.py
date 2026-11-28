@@ -118,6 +118,38 @@ class Log(unittest.TestCase):
         self.assertEqual(mc.count_requests([], "lichii_1"), 0)
 
 
+class PipelineBoot(unittest.TestCase):
+    built = "LoadPipelinesV2: Total Pipeline Count: 14950\nx\nLoadPipelinesV2: Shader cache v2 boot load: 423.6 s, " \
+            "876 of 876 compute and 14074 of 14074 graphics pipelines built (the used list)\n"
+    skipped = "LoadDiskResources: Shader cache v2: the last boot ended while building cached pipelines; building " \
+              "none at boot this time\nLoadPipelinesV2: Total Pipeline Count: 0\nLoadPipelinesV2: Shader cache v2 " \
+              "boot load: 0.7 s, 0 of 0 compute and 0 of 0 graphics pipelines built\n"
+
+    def test_built(self):
+        self.assertEqual(mc.pipeline_boot(self.built), {"in_file": 14950, "built": 14950, "skipped": False})
+
+    def test_skipped_after_an_interrupted_boot(self):
+        self.assertEqual(mc.pipeline_boot(self.skipped), {"in_file": 0, "built": 0, "skipped": True})
+
+    def test_no_such_lines(self):
+        self.assertEqual(mc.pipeline_boot("nothing"), {"in_file": None, "built": None, "skipped": False})
+
+    def test_recorded_runs(self):
+        logs = sorted((HARNESS / "runs").glob("ab-*/*/eden_log.txt"))[-150:]
+        if not logs:
+            self.skipTest("no recorded runs on this machine (tools/harness/runs is local data)")
+        seen = {"built": 0, "skipped": 0}
+        for log in logs:
+            b = mc.pipeline_boot(log.read_text(errors="replace"))
+            if b["skipped"]:
+                seen["skipped"] += 1; self.assertIn(b["built"], (0, None), log)
+            elif b["in_file"] and b["built"] is not None:
+                seen["built"] += 1; self.assertLessEqual(b["built"], b["in_file"], log)   # some boots build only the used ones
+        self.assertGreater(seen["built"], 0)
+        print(f"({len(logs)} recorded logs: {seen['built']} built their pipelines, {seen['skipped']} skipped them) ",
+              end="", file=sys.stderr)
+
+
 class Progress(unittest.TestCase):
     def test_made_up_tail(self):
         tail = "x (12 mesh shaders so far)\npipeline cache load 3900 libraries, 40%\n(57 mesh shaders so far)\n" \

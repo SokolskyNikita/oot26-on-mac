@@ -265,6 +265,12 @@ of the three is below 1.0, and no picture scored as corrupt. A percentile whose 
 the target and is not scored, which is why the stand in Kokiri Forest cannot be used. Three pairs settle a large
 effect; add pairs only when a mean is above 1.1 and its bound is not.
 
+A boot that follows an interrupted one is the opposite trap: Lichii then builds none of the pipeline file's
+pipelines (its guard against a pipeline that crashes the boot; the log says "building none at boot this time"). It
+reaches the title in seconds and compiles nothing, so it looks warm, and the boot after it builds everything.
+`result.json` records it as `pipeline_boot` (`in_file`, `built`, `skipped`) and the run's line prints
+`PIPELINES NOT BUILT`; `--warm` boots such a root a second time.
+
 After a macOS update, or with a new build, have the cold boot outside any measurement:
 `python3 ab.py --warm [--app APP] [HOME …]` boots each data root once (none named: the real folders) with profile
 `boot`, under the emulator lock, which it takes itself. `./build.sh install` runs it after installing.
