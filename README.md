@@ -80,7 +80,8 @@ pinned source, builds both, and assembles `build/app/lichii.app`. It installs no
 ./build.sh install
 ```
 
-copies the app to `/Applications/lichii.app` and keeps the app that was there as `lichii.app.before-<time>`.
+copies the app to `/Applications/lichii.app`, keeps the app that was there as `lichii.app.before-<time>`, and boots
+the new one once so that its shader caches are built (`OOT26_NO_WARM=1` skips the boot).
 `./build.sh versions` compares the tools on your machine with the ones the pinned build was made with. The app links
 Homebrew's libraries, so it runs on the machine that built it and is not a redistributable bundle.
 

@@ -9,6 +9,10 @@ Tools for running the game unattended in Lichii and A/B-testing settings, builds
 | `queue.sh` | `./queue.sh A.json B.json …`: several spec files back to back, each under the emulator lock; `touch PAUSE` makes queues wait (outside the lock) to leave the emulator to other work |
 | `config.json` | Defaults: which save to load (`save`: a name in the save library, `save_library`), where the game's saves are (`save_dir`), the session name in the window title |
 | `persist.py` | `picture_metrics(png)`, the corruption score every run's end picture gets (`picture` in `result.json`); `python persist.py BURST_DIR…`: in how many frames of a burst each pixel is white |
+| `test_app.py` | Test apps, for anything that is not the pinned build: `make NAME [--lichii BINARY] [--moltenvk DYLIB] [--home]` copies the pinned app to `build/test-apps/NAME/` with bundle id `io.github.zortos293.lichii.NAME` (so its own Metal cache) and, with `--home`, its private data root; `list` shows every Lichii bundle id with a Metal cache (size, last written, stale); `clean NAME` removes an app and its cache |
+| `runplan.py` | What a run will do, worked out from its spec: the profiles, each step and where it comes from, and the spec keys the harness knows. `python3 runplan.py` lists the profiles and keys. Launches nothing |
+| `metalcache.py` | The Metal shader cache of a Lichii app (macOS keeps one per bundle id) and whether a boot from it is cold; `python3 metalcache.py [APP …]` prints each app's cache size, stamps and what to expect. Takes paths, launches nothing |
+| `tests/` | Offline tests of the parts that only read files (the Metal cache, run plans and spec keys, test apps), on made-up folders, on every spec file in the repository and on this machine's recorded runs: `python3 -m unittest discover -s tools/harness/tests` (no emulator, under a second) |
 | `dbg.py` | Minimal client for Lichii's debug server (`python3 dbg.py status`, or `from dbg import call`) |
 | `uisig.py`, `uiscan.py` | Print the game's UI-manager screens and scene (how the menu states were mapped) |
 | [`../diag/`](../diag/README.md) | Readers of a run folder's diagnostic output: `frames.py` (p50 / p90 / p95 / p99 / max per phase from `frames.bin`, bands, segments), `stutter.py` (the stutter trace by phase), `gpu.py` (frame profiler and sync trace), `stats.py` (periodic statistics), `jit.py` (JIT recordings); the catalogue of diagnostic switches and capture specs |
@@ -138,6 +142,19 @@ cd tools/harness
 Every run edits Lichii's `qt-config.ini` from the master copy (`qt-config.ini.harness-master`) plus the spec's `cfg`
 and puts the master back afterwards. A missing master stops the batch with the `--make-master` command to run.
 
+Each run has a profile (`"profile"` in its spec entry), which decides its steps:
+
+| Profile | Steps | For |
+| --- | --- | --- |
+| `measure` (the default) | boot, load the save, settle, walk, stand, score the end picture | frame times, A/B comparisons |
+| `load` | boot, load the save, settle, score one picture (`run-end.png`), stop | checking a build, a save or the harness itself: no frame times |
+| `boot` | boot to the title screen, stop; the save folder is left as it is | warming the shader caches (`--warm`), boot times |
+
+`python3 ab.py --plan SPEC.json` prints each run's steps in order without launching anything, and every batch
+prints the same line per run before its first boot. A step that `config.json` adds says so: for runs of its save it
+adds the clipped-white limit, and the cube check when that is turned on there (see `cube_check` below). A spec with a key the harness does not
+know, or a key its profile has no step for, is refused before anything boots.
+
 A spec is a JSON list of runs: `label`, `desc`, `cfg` (config keys), `env` (`{rd}` = the run folder), `app`
 (default `${REPO}/build/app/lichii.app`; `${REPO}` stands for this repository's folder in any spec), `args`,
 `repeat`, `phase_frames`, `variants`, `server_calls`, `lock_minutes` (the lock's lease for this run: minutes without
@@ -145,8 +162,8 @@ a reported step after which another taker may evict it; default 30, 5 to 90; see
 measuring), `walk` (`bounce`, the default: run in 30-frame chunks and turn round when stuck (two quarter turns: left
 stick right, then a right-stick click to put the camera behind Link; then forward again); `route`: the old fixed
 route), `stand_first` (add a standing phase before the walk), `cold_metal_cache` (boot from an empty Metal cache, the
-real one held aside and restored), `save` / `expect_spawn` / `save_index` (another save, see "The save"), `home` (a private
-data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `capture`, and these, each off unless set:
+run's app's own one held aside and restored), `save` / `expect_spawn` / `save_index` (another save, see "The save"), `home` (a private
+data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `capture`, `profile` (above), and these, each off unless set:
 
 - `stand_frames`: length of the stand after the walk (default `phase_frames`).
 - `leash_m`: in a bounce walk, also turn round when Link is that far from where the walk began and still moving
@@ -166,7 +183,15 @@ data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `captur
   Lichii (two a second raised walk p95 by about 3 ms and p99 by 5-13 ms), so not beside a timing run.
 - `cube_check`: N frame captures in a row after the end picture, read for the 128x128 lighting cube the game
   redraws one face a frame; a value over 50 in it marks the run corrupt (`cube_max` in `picture`). It catches the
-  KI-29 boots whichever way Link faces. `config.json` sets 8 for runs of the default save.
+  corrupted-lighting boots of [KNOWN-ISSUES](../../KNOWN-ISSUES.md) KI-29 whichever way Link faces: the end
+  picture alone flags such a boot only when it shows the big tree at the spawn (two of the four bad boots seen
+  scored 0.0 % white). **Off by default** (`"cube_check": 0` in `config.json`): it adds about a minute and 1 GB of
+  captures to every run, and the fault was seen in 4 of about 120 boots, all on 2026-11-19. Turn it on again:
+  - for every run of the default save, with `"cube_check": 8` in `config.json`, when a corrupted-lighting boot is
+    seen again (white or multicoloured shards in the canopy, grass lit bright yellow, or an end picture over the
+    clipped-white limit), and for as long as that fault is being chased;
+  - for one batch, with `"cube_check": 8` in its spec entries, when a comparison must not include a corrupt boot
+    (validating a change to the pinned build) or when lighting or texture corruption is what is being debugged.
   When the run scores clean, its cube-check captures (about 1 GB a run) are deleted after scoring; `result.json`
   keeps the verdict, the largest value (`cube_check.max`) and `captures_deleted_mib`.
 - `keep_cube_captures`: keep the cube check's captures of a clean run.
@@ -196,6 +221,31 @@ outcome `error: guest crashed` and is retried once.
 Each run folder holds `result.json` (frame statistics per phase, boot and load times, build counts, positions, the
 picture score), the per-present clock `frames.bin`, `eden_log.txt`, screenshots, and on failure a stack sample or
 screenshot.
+
+### Cold boots
+
+A boot is cold when Metal has to compile the shaders again instead of reading them from its cache: minutes instead
+of seconds, and stutter while the rest compile. Its boot, load and frame-time numbers are not a warm run's, so each
+run says which it was. `result.json` gets `cold` (true or false), `cold_reasons`, and `metal_cache`: the macOS
+build, the cache of the app that booted before and after the run (bundle id, folder, size, stamps), and how many
+builds Metal's compiler did for this Lichii during boot and load (`compile_requests_boot_load`) and over the whole
+run (`compile_requests_run`), counted from the system log. The run's line prints `COLD` with the reasons, and when
+the cold boot is known before it starts the window title says so from the first second. The reasons:
+
+- `empty Metal cache`: the app never ran, or the spec set `cold_metal_cache`. A new test app's first boot is always
+  this: its bundle id has no cache yet, and a copy of the pinned app's cache does not help (Metal compiled 2,719
+  shaders with the copy against 2,724 without, run ab-20261127-194647, local run data, not tracked). Its second
+  boot is warm.
+- `Metal cache reset (macOS update)`: a macOS update changes the stamp in the cache's `.list` files and Metal drops
+  every entry written under the old one. The harness sees it beforehand when another Lichii app's cache, written
+  later, carries a different stamp, and afterwards when the stamp changed during the run.
+- `N shaders compiled during boot and load`: more than 500 compiler builds, whatever the cause.
+
+`python3 metalcache.py [APP …]` prints the same check for an app without booting it.
+
+After a macOS update, or with a new build, have the cold boot outside any measurement:
+`python3 ab.py --warm [--app APP] [HOME …]` boots each data root once (none named: the real folders) with profile
+`boot`, under the emulator lock, which it takes itself. `./build.sh install` runs it after installing.
 
 ### A private data root
 

@@ -6,6 +6,10 @@
     python3 ab.py --make-master [--home DIR] [--force]  # the master config, from qt-config.ini, checked first
     python3 ab.py --make-home DIR [--with-shader-cache]  # a private Lichii data root, copied from the real one
     python3 ab.py --print-paths [--home DIR] [SPEC.json] # what a run would read and write (launches nothing)
+    python3 ab.py --plan SPEC.json                       # each run's steps and where they come from (launches nothing)
+    python3 ab.py --warm [--app APP] [HOME ...]          # one warm-up boot of each data root (default: the real
+                                                         # folders), under the emulator lock: after a macOS update
+                                                         # or a new build, so the cold boot is not a measured one
     python3 ab.py --add-save NAME SLOT_DIR [--spawn X,Y,Z] [--note TEXT] [--force]  # a save into the library
     python3 ab.py --list-saves                           # the library's saves
 
@@ -43,6 +47,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(1, str(REPO / "tools/speckcheck"))   # speckhunt, whitecount: at_end, walk_shots, on_corrupt
 sys.path.insert(2, str(REPO / "tools/verify"))       # emulock: the emulator lock and its lease
 import emulock  # noqa: E402
+import metalcache  # noqa: E402
+import runplan  # noqa: E402
 
 
 class Home:
@@ -253,30 +259,20 @@ def wait_frames(n, alive):
         time.sleep(0.05)
 
 
-METAL_CACHE = Path(subprocess.run(["getconf", "DARWIN_USER_CACHE_DIR"], capture_output=True, text=True).stdout.strip()) \
-    / "io.github.zortos293.lichii" / "com.apple.metal"
 _boot_cache0 = {}
 
 
-def boot_progress(t0, rd):
-    """Title text while no frame has arrived: shader compile progress. A cold Metal cache grows as MoltenVK
-    recompiles the pipeline file one library at a time; warm boots barely touch it."""
-    try:
-        size = sum(f.stat().st_size for f in METAL_CACHE.glob("*/*.data"))
-    except OSError:
-        size = 0
+def boot_progress(t0, rd, cache):
+    """Title text while no frame has arrived: shader compile progress. cache is the Metal cache of the app that is
+    booting (metalcache.cache_dir): a cold one grows as MoltenVK recompiles the pipeline file one library at a
+    time; warm boots barely touch it."""
+    size = metalcache.data_size(cache)
     base = _boot_cache0.setdefault(str(rd), size)
     parts = [f"booting {time.time() - t0:.0f} s"]
     if size - base > 1 << 20:
         parts.append(f"compiling shaders: Metal cache +{(size - base) >> 20} MB")
     try:
-        err = (rd / "stderr.log").read_bytes()[-4096:].decode(errors="replace")
-        m = re.findall(r"\((\d+) mesh shaders so far\)", err)
-        if m:
-            parts.append(f"{m[-1]} mesh")
-        m = re.findall(r"pipeline cache load (\d+) libraries, (\d+)%", err)
-        if m:
-            parts.append(f"pipeline cache {m[-1][1]}% ({int(m[-1][0]):,} libraries)")
+        parts += metalcache.progress_text((rd / "stderr.log").read_bytes()[-4096:].decode(errors="replace"))
     except OSError:
         pass
     return " \u00b7 ".join(parts)
@@ -576,8 +572,8 @@ def navigate_menus(rd, res, save_index, spawn, limit_s=150):
 
 
 def one_run(spec, out, attempt="1/1"):
-    """One run; with "cold_metal_cache": true, from an empty Metal shader cache (the real one held aside under the
-    emulator lock and put back afterwards, also on errors). Waits first for this project's builds to finish, unless
+    """One run; with "cold_metal_cache": true, from an empty Metal shader cache (the app's own one held aside under
+    the emulator lock and put back afterwards, also on errors). Waits first for this project's builds to finish, unless
     the spec says "build_wait": false (for runs judged by picture or log, not by frame times)."""
     if spec.get("build_wait", True):
         w = wait_for_builds(spec["label"])
@@ -591,7 +587,7 @@ def one_run(spec, out, attempt="1/1"):
     # A library save: it becomes the game's only save (and stays so after the run; what the run saved is lost
     # with the next run).
     lib = library_save(spec.get("save", CONFIG["save"]))
-    if lib:
+    if lib and runplan.profile(spec) != "boot":       # a boot-only run loads nothing: the save folder stays as it is
         stage_save(run_home(spec), lib[0])
     return _cold_or_warm(spec, out, attempt)
 
@@ -599,16 +595,20 @@ def one_run(spec, out, attempt="1/1"):
 def _cold_or_warm(spec, out, attempt):
     if not spec.get("cold_metal_cache"):
         return _one_run(spec, out, attempt)
-    hold = METAL_CACHE.with_name("com.apple.metal.real-hold")
+    cache = metalcache.cache_dir(Path(spec.get("app", DEFAULT_APP)))   # the cache of the app this run boots
+    hold = cache.with_name("com.apple.metal.real-hold")
     if hold.exists():
         raise SystemExit(f"{hold} exists: a previous cold run did not put the real cache back; restore it first")
-    METAL_CACHE.rename(hold)
+    had = cache.exists()                              # an app that never ran has none: already cold
+    if had:
+        cache.rename(hold)
     try:
         return _one_run(spec, out, attempt)
     finally:
-        if METAL_CACHE.exists():
-            shutil.rmtree(METAL_CACHE)
-        hold.rename(METAL_CACHE)
+        if had:
+            if cache.exists():
+                shutil.rmtree(cache)
+            hold.rename(cache)
 
 
 def my_builds():
@@ -650,6 +650,13 @@ def _one_run(spec, out, attempt="1/1"):
         env["EDEN_NX2_HVF_CTL"] = str(rd / "hvf_ctl.txt")
     app = Path(spec.get("app", DEFAULT_APP))
     res = {"label": spec["label"], "spec": spec, "loadavg_before": os.getloadavg(), "marks": {}}
+    # The Metal cache of the app that boots, and whether this boot is already known to be cold (see metalcache.py).
+    cache = metalcache.cache_dir(app)
+    mc_before = metalcache.snapshot(app)
+    cold_note = metalcache.expect_cold(mc_before, bool(spec.get("cold_metal_cache")))
+    res["metal_cache"] = {"macos_build": metalcache.macos_build(), "before": mc_before}
+    if cold_note:
+        print(f"{spec['label']}: COLD boot expected: {cold_note}", flush=True)
     if h.root:
         res["home"] = str(h.root)
     old_log_ino = LOG.stat().st_ino if LOG.exists() else None
@@ -681,8 +688,9 @@ def _one_run(spec, out, attempt="1/1"):
     desc = (spec.get("desc") or f"Check frame time at the spawn with {spec['label']}")[:120]
     # Every step reported is a sign of progress: it renews the lock's lease (30 minutes, or the spec's "lock_minutes",
     # 5 to 90), so a run that hangs gives the emulator up after that long instead of holding it for ever.
+    cold_tag = f" \u00b7 COLD: {cold_note}" if cold_note else ""
     title = lambda step: (emulock.renew_lock(spec.get("lock_minutes")),
-                          hook(f"title {session} \u00b7 {spec['label']} \u00b7 {attempt} \u00b7 {step} \u2016 {desc}"))
+                          hook(f"title {session} \u00b7 {spec['label']} \u00b7 {attempt} \u00b7 {step}{cold_tag} \u2016 {desc}"))
     mark = lambda name: (res["marks"].__setitem__(name, count()), title(name), tmark(res, name))
     try:
         t0 = time.time(); tmark(res, "start")
@@ -693,7 +701,7 @@ def _one_run(spec, out, attempt="1/1"):
         while count() < 300:
             if not alive():
                 raise RuntimeError("lichii died during boot")
-            title(boot_progress(t0, rd))              # from the start: a cold boot shows no frames for minutes
+            title(boot_progress(t0, rd, cache))              # from the start: a cold boot shows no frames for minutes
             if server and "speed_limit_off" not in res:
                 try:                                  # unlimited from the first moment the server answers (~1 s)
                     res["speed_limit_off"] = call("speed_limit", on=False, timeout=2)
@@ -712,10 +720,7 @@ def _one_run(spec, out, attempt="1/1"):
             stalled = time.time() - last_t
             # Progress without frames: a cold boot's shader compiles keep Lichii's log and stderr growing.
             grown = sum(f.stat().st_size for f in (LOG, rd / "stderr.log") if f.exists())
-            try:                                      # a cold compile can be silent for minutes; the cache grows
-                grown += sum(f.stat().st_size for f in METAL_CACHE.glob("*/*.data"))
-            except OSError:
-                pass
+            grown += metalcache.data_size(cache)      # a cold compile can be silent for minutes; the cache grows
             if grown != last_size:
                 last_size, last_grow_t = grown, time.time()
             quiet = time.time() - max(last_t, last_grow_t)
@@ -734,6 +739,10 @@ def _one_run(spec, out, attempt="1/1"):
         if not m:
             raise RuntimeError("main's load address is not in the log")
         dbg.MAIN = int(m.group(1), 16); res["main_base"] = m.group(1)   # ASLR: differs every boot
+        prof = runplan.profile(spec)
+        if prof == "boot":                            # the title screen is up: every cached shader is built
+            res["t_load_done"] = time.time()
+            raise ProfileDone()
         if server:
             save = spec.get("save", CONFIG["save"]); spawn = spec.get("expect_spawn", CONFIG.get("expect_spawn"))
             fixed = spec.get("save_index", CONFIG.get("save_index"))
@@ -791,7 +800,7 @@ def _one_run(spec, out, attempt="1/1"):
                 elif spec.get("after_hold") == "stop":
                     # a manual session: nothing after the hold is wanted (the walk would use a Link that may be gone)
                     raise HoldDone()
-        res["load_s"] = round(time.time() - t0, 1); tmark(res, "load_done")
+        res["load_s"] = round(time.time() - t0, 1); tmark(res, "load_done"); res["t_load_done"] = time.time()
         cur = None
         if server:
             title("settling"); cur = LogCursor(); settle(res, cur, quiet_s=spec.get("settle_s", 3)); tmark(res, "settled")
@@ -941,7 +950,9 @@ def _one_run(spec, out, attempt="1/1"):
                 res[ph("blowout")] = True
 
         variants = spec.get("variants")
-        if not variants:
+        if prof == "load":                            # no walk, no stand: one picture of where the save loads
+            wait_frames(60, alive); title("end"); hook(f"shot {rd}/run-end.png"); wait_frames(10, alive)
+        elif not variants:
             measure()
         else:
             ctl = rd / "hvf_ctl.txt"
@@ -973,7 +984,7 @@ def _one_run(spec, out, attempt="1/1"):
         # a GPU trace, a frame capture, whatever can be studied offline afterwards.
         try:
             import persist
-            shot = rd / "run-stand2.png"
+            shot = rd / ("run-end.png" if prof == "load" else "run-stand2.png")
             if shot.is_file():
                 res["picture"] = persist.picture_metrics(shot)
                 # "end_white_max" (a spec key, or config.json's for runs of the default save): a lower limit on
@@ -1010,6 +1021,8 @@ def _one_run(spec, out, attempt="1/1"):
         title("done"); res["outcome"] = "completed"
     except HoldDone:
         title("done"); res["outcome"] = "completed (held, then stopped)"
+    except ProfileDone:
+        title("done"); res["outcome"] = "completed"
     except Exception as e:
         res["outcome"] = "killed externally" if not alive() and not killed_by_us else f"error: {e}"
         if server and alive():
@@ -1026,6 +1039,19 @@ def _one_run(spec, out, attempt="1/1"):
             (rd / "eden_log.txt").write_bytes(LOG.read_bytes())
         CFG.write_text(MASTER.read_text())
         tool_binds_restore(h)
+        # Cold or warm, measured: what Metal's compiler was asked to build for this Lichii, during boot and load
+        # and over the whole run, and whether the cache's stamp changed (metalcache.py).
+        t_end = time.time(); t_loaded = res.pop("t_load_done", t_end)
+        mc = res["metal_cache"]
+        try:
+            mc["after"] = metalcache.snapshot(app)
+            mc["compile_requests_boot_load"] = metalcache.compile_requests(proc.pid, t0, t_loaded)
+            mc["compile_requests_run"] = metalcache.compile_requests(proc.pid, t0, t_end)
+            v = metalcache.verdict(mc_before, mc["after"], mc["compile_requests_boot_load"],
+                                   bool(spec.get("cold_metal_cache")))
+            res["cold"], res["cold_reasons"] = v["cold"], v["reasons"]
+        except Exception as e:                        # never lose a run's result over this
+            mc["error"] = str(e)
     fb = rd / "frames.bin"
     ts = list(struct.unpack(f"<{fb.stat().st_size // 8}Q", fb.read_bytes())) if fb.exists() else []
     m = res["marks"]
@@ -1045,6 +1071,10 @@ def _one_run(spec, out, attempt="1/1"):
 
 class HoldDone(Exception):
     """A held run with "after_hold": "stop" ends when the hold does."""
+
+
+class ProfileDone(Exception):
+    """A run with "profile": "boot" ends at the title screen."""
 
 
 def lichii_running():
@@ -1160,7 +1190,8 @@ def print_paths(h, spec=None):
     out = {"home": str(h.root) if h.root else None, "env": h.env(), "config": str(h.cfg), "master": str(h.master),
            "master_exists": h.master.exists(), "log": str(h.log), "save_dir": str(h.save_dir()),
            "save_library (shared by every root)": str(save_library()),
-           "metal_cache (macOS's, shared by every root)": str(METAL_CACHE), "hook": str(HOOK), "game": str(GAME),
+           "metal_cache (macOS's, one per bundle id, shared by every root)":
+           str(metalcache.cache_dir(Path((spec or [{}])[0].get("app", DEFAULT_APP)))), "hook": str(HOOK), "game": str(GAME),
            "app_default": str(DEFAULT_APP)}
     if h.root:
         inside = [str(v) for k, v in out.items() if k in ("config", "master", "log", "save_dir")] + list(h.env().values())
@@ -1180,6 +1211,9 @@ def preflight(spec):
                          "dump/ in this repository or beside it")
     if not HOOK.exists() or HOOK.stat().st_mtime < (REPO / "tools/verify/hook.m").stat().st_mtime:
         subprocess.run([sys.executable, str(REPO / "tools/verify/verify.py"), "build-hook"], check=True)
+    bad = [f"{s.get('label', '?')}: {e}" for s in spec for e in runplan.check(s)]
+    if bad:
+        raise SystemExit("spec refused (python3 runplan.py lists the keys and profiles):\n  " + "\n  ".join(bad))
     for s in spec:
         app = Path(s.get("app", DEFAULT_APP))
         if not (app / "Contents/MacOS/lichii").exists():
@@ -1218,9 +1252,47 @@ def main():
     if "--print-paths" in argv:
         files = [a for a in argv if a.endswith(".json")]
         return print_paths(Home(opt("--home") or os.environ.get("OOT26_LICHII_HOME")), load(files[0]) if files else None)
-    spec = load(argv[0])
-    only = sys.argv[sys.argv.index("--only") + 1:] if "--only" in sys.argv else None
+    if "--plan" in argv:
+        files = [a for a in argv if a.endswith(".json")]
+        if not files:
+            raise SystemExit("usage: ab.py --plan SPEC.json")
+        for s in load(files[0]):
+            print(runplan.text(s, CONFIG))
+            for e in runplan.check(s):
+                print(f"  REFUSED: {e}")
+        return
+    if "--warm" in argv:
+        return warm(argv)
+    run_batch(load(argv[0]), sys.argv[sys.argv.index("--only") + 1:] if "--only" in sys.argv else None)
+
+
+def warm(argv):
+    """--warm [--app APP] [HOME ...]: one boot-only run of each data root (none named: the real folders), so its
+    shader caches are built outside any measurement. Takes the emulator lock itself."""
+    if not os.environ.get(emulock.OWNER_ENV):         # not under the lock yet: run again under it
+        return sys.exit(subprocess.call(
+            [sys.executable, str(REPO / "tools/verify/verify.py"), "with-lock", "--lock-wait", "7200", "--",
+             sys.executable, str(Path(__file__).resolve()), *argv]))
+    app = argv[argv.index("--app") + 1] if "--app" in argv else None
+    homes = [a for i, a in enumerate(argv) if not a.startswith("--") and (i == 0 or argv[i - 1] != "--app")]
+    spec = []
+    for home in homes or [None]:
+        s = {"label": "warm-" + (Path(home).resolve().name if home else "real-folders"), "profile": "boot",
+             "build_wait": False, "lock_minutes": 45,
+             "desc": "Warm-up boot: build the shader caches, nothing measured | " + (str(home) if home else "the real folders")}
+        if home:
+            s["home"] = str(Path(home).expanduser().resolve())
+        if app:
+            s["app"] = str(Path(app).expanduser().resolve())
+        spec.append(s)
+    run_batch(spec, None)
+
+
+def run_batch(spec, only):
     preflight([s for s in spec if not only or s["label"] in only])
+    for s in spec:                                    # what each run will do, before the first boot
+        if not only or s["label"] in only:
+            print("plan:", runplan.text(s, CONFIG), flush=True)
     out = HERE / "runs" / time.strftime("ab-%Y%m%d-%H%M%S"); out.mkdir(parents=True)
     print("out", out, flush=True)
     # The window title counts the batch's runs: "3/9" is the third of nine (repeats included), "3/9 retry" its retry.
@@ -1247,6 +1319,8 @@ def main():
                 row["walk_stalled"] = True
             if r.get("blowout"):
                 row["BLOWOUT"] = True
+            if r.get("cold"):                         # boot, load and stutter numbers are not a warm run's
+                row["COLD"] = "; ".join(r["cold_reasons"])
             for a, _ in r.get("phases") or []:
                 if r.get(a):
                     row[a] = f"{r[a]['p50']}/{r[a]['p90']}/{r[a].get('p95', '-')}/{r[a]['p99']}/{r[a]['max']}"

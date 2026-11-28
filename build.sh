@@ -7,7 +7,8 @@
 #   lichii    build Lichii
 #   cli       build eden-cli, the command-line Lichii that replays recorded GPU traces (tools/statecheck needs it)
 #   app       assemble <build dir>/app/lichii.app: Lichii + this MoltenVK + the switches in config/
-#   install   copy the app to /Applications/lichii.app (the app there is kept as lichii.app.before-<time>)
+#   install   copy the app to /Applications/lichii.app (the app there is kept as lichii.app.before-<time>), then
+#             boot it once under the emulator lock so its shader caches are built (OOT26_NO_WARM=1 skips the boot)
 #   versions  print the tool versions on this machine next to the ones the pinned build was made with
 #   all       fetch verify mvk lichii app (the default; never installs)
 #
@@ -147,6 +148,14 @@ step_install() {
   [ -e "$dest" ] && mv "$dest" "$dest.before-$(date +%Y%m%d-%H%M%S)"
   ditto "$app" "$dest"
   say "installed $dest"
+  # A new build's first boot can be cold (minutes of shader compiles): have it now, not in a measurement.
+  local warm="python3 $HERE/tools/harness/ab.py --warm"
+  if [ "${OOT26_NO_WARM:-}" = 1 ]; then
+    say "no warm-up boot (OOT26_NO_WARM=1); before measuring, run: $warm"
+  else
+    say "warm-up boot, under the emulator lock (it waits for a run in progress)"
+    $warm --app "$app" || say "the warm-up boot did not finish; before measuring, run: $warm"
+  fi
 }
 
 step_versions() {

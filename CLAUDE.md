@@ -31,8 +31,8 @@ build and what was tried: [TRACKER.md](TRACKER.md). What is wrong with it: [KNOW
 5. **Only the pinned app on the real folders.** `build/app/lichii.app` (the same as `/Applications/lichii.app`) is
    the only app that may run against `~/.config/lichii`, `~/.local/share/lichii` and `~/.cache/lichii`. A different
    Lichii build, or a MoltenVK library with a different pipeline cache id, makes the next boot translate every shader
-   again (about 330 s), and so does coming back. Any other build runs in a private data root: `"home"` in the spec,
-   made with `python3 tools/harness/ab.py --make-home DIR`, and with its own bundle id.
+   again (about 330 s), and so does coming back. Any other build runs in a private data root (`"home"` in the spec)
+   and with its own bundle id: `python3 tools/harness/test_app.py make NAME --home` makes both.
 6. **Never execute a Lichii binary directly**, not even with `--help` or `--version`: it opens the GUI, rotates the
    log and rewrites the config. `eden-cli` is only run by `tools/statecheck/record.sh` and
    `tools/speckcheck/replay.sh`, which give it a private data folder.
@@ -46,7 +46,8 @@ A change is a commit on branch `gold` in `build/src/lichii` or `build/src/molten
 date, so `build.sh` reproduces the commit id), a re-export of the patch series, new ids in `versions.lock`, a row in
 `TRACKER.md`, and a comparison against the installed build in the harness with the pictures looked at. A MoltenVK
 change that touches shader translation also needs a new `MOLTENVK_CACHE_ID`. `./build.sh install` is the only way the
-app in `/Applications` changes.
+app in `/Applications` changes; it ends with a warm-up boot (`tools/harness/ab.py --warm`), which is also the step to
+run by hand after a macOS update, so that the cold boot is not a measured one.
 
 ## Where things go
 
