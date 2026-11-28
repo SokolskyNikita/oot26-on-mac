@@ -1,0 +1,35 @@
+From 17513e36877f36e5aabaa5d905181c7442dc5df5 Mon Sep 17 00:00:00 2001
+From: Nikita Sokolsky <sokolx@gmail.com>
+Date: Fri, 27 Nov 2026 20:54:13 -0800
+Subject: [PATCH] shader: MVK_P60_NO_LIFETIME_MARKERS passes
+ -disable-lifetime-markers to the Metal compiler
+
+Off unless the variable is set. Uses MTLCompileOptions' private additionalCompilerArguments.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+index a4f807be..c6fd8f3c 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKDevice.mm
+@@ -5064,6 +5064,14 @@ static uint32_t mvkGetEntryProperty(io_registry_entry_t entry, CFStringRef prope
+ 	}
+ 
+ 	mtlCompOpt.preserveInvariance = preserveInvariance || (getenv("MVK_DIAG_INVARIANT") != nullptr);
++
++	// MVK_P60_NO_LIFETIME_MARKERS=1 passes Clang's -disable-lifetime-markers to the Metal compiler, through the
++	// private free-text option it has for extra arguments. SPIRV-Cross declares its temporaries in nested scopes
++	// and loops; without the lifetime markers of those scopes the optimizer leaves far fewer merge nodes behind.
++	static const bool noLifetimeMarkers = getenv("MVK_P60_NO_LIFETIME_MARKERS") != nullptr;
++	if (noLifetimeMarkers && [mtlCompOpt respondsToSelector: NSSelectorFromString(@"setAdditionalCompilerArguments:")]) {
++		[mtlCompOpt setValue: @"-disable-lifetime-markers" forKey: @"additionalCompilerArguments"];
++	}
+ 	return [mtlCompOpt autorelease];
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

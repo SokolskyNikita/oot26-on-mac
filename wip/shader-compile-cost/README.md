@@ -10,7 +10,7 @@ is a cold compile through `MTLDevice` with Metal's disk cache off (`MTL_SHADER_C
 | Change | Serial gain on real cached fragment shaders | State |
 | --- | --- | --- |
 | Slim texture classes (section 2) | 258.6 → 147.8 ms per shader on 64 shaders (1.75×); front end alone 2.5×. In the game: cold boot 95.7 → 70.0 s | In the pinned build (patch 0012). GPU code byte-identical for all 2,816 sources |
-| `-disable-lifetime-markers` on top (sections 4, 6) | 147.8 → 138.4 ms (6%) | Offline. Changes the GPU code; pixels identical on the two shaders rendered |
+| `-disable-lifetime-markers` on top (sections 4, 6) | 147.8 → 138.4 ms (6%) | Tested in the game behind a switch: walk median 3.5% better, pictures clean; not adopted (under the 5% bar) |
 | Compile as Metal language 3.0 instead of 4.0 | 1.48× on 64 shaders; 1 of 2,816 sources fails | Alternative to slim classes, weaker. Generating at 3.0 instead would bring back un-inlinable helpers (SPIRV-Cross PR 2721) |
 | 8 compile threads | 5.7× alone, 8.8–11.5× with the above; scaling stops at 14 tasks | Metal gives byte-identical GPU code serially and at 8, 14 and 32 at once, so the picture corruption seen with concurrent compiles (TRACKER) is in MoltenVK or Lichii |
 | Skip the front end (`makeLibrary(data:)` with ready bitcode) | 196 → 66 ms on a median shader (3.0×), a ceiling | Bitcode written by LLVM 15 is accepted (section 5). No translator from Lichii's IR or SPIR-V to that bitcode exists; DXMT's `airconv` does it from DirectX bytecode |
@@ -188,6 +188,22 @@ session's scratch folder; it saturates the GPU, so it was stopped after these):
 
 LLVM 15's optimiser does not know what Apple's builtins mean, and its output is not safe as it is.
 
+`-disable-lifetime-markers` over every cached source, with slim classes (GPU code against the default):
+
+| Stage | Sources | Changed | GPU code of the changed ones | Median | Largest gain |
+| --- | --- | --- | --- | --- | --- |
+| Fragment | 1,408 | 905 | −4.8% | −4.2% | −29% |
+| Vertex | 1,026 | 9 | −0.4% | −0.1% | −1% |
+| Compute | 253 | 35 | −2.4% | −1.0% | −29% |
+| Mesh | 116 | 0 | – | – | – |
+| Object | 8 | 7 | −6.7% | −2.4% | −19% |
+
+Seven sources came out larger, by at most 0.7%. In the game (`MVK_P60_NO_LIFETIME_MARKERS=1` against the same
+library without it, two alternating pairs on a warm cache, 900-frame walk and 600-frame stand in Kokiri Forest):
+walk median 17.84 and 18.23 ms without, 17.49 and 17.33 ms with; walk p95 22.67 and 23.52 against 22.68 and
+22.31 ms; standing 16.5–16.7 ms in all four, which is the 60 fps cap; pictures clean. A 3.5% better walk median is
+under the pinned build's 5% bar, so the switch is not in it.
+
 ## Tools
 
 Build the Swift tools with `swiftc -O NAME.swift -o NAME` and `dumpopts.m` with
@@ -210,10 +226,9 @@ Build the Swift tools with `swiftc -O NAME.swift -o NAME` and `dumpopts.m` with
 
 ## Open
 
-- `-disable-lifetime-markers` in MoltenVK behind a switch: GPU code of every cached source with and without, then a
-  walk and stand A/B in the harness. Its run-time gain is measured on two shaders only.
-- Declaring SPIRV-Cross's temporaries at function scope, which should have the same effect as that option without a
-  private property: not tried.
+- Declaring SPIRV-Cross's temporaries at function scope, which should have the same effect as
+  `-disable-lifetime-markers` without a private property: not tried. The option itself is worth another look in a
+  heavier scene than Kokiri Forest, where standing is not at the frame cap.
 - The race behind the picture corruption with concurrent compiles: Metal is cleared, so a thread-sanitizer build of
   MoltenVK replaying a parallel cache load is the next step. Serial against concurrent GPU code was compared for
   fragment shaders only.
