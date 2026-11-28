@@ -325,6 +325,53 @@ def pos(actor):
     return [round(float(v), 3) for v in call("read_memory", address=hex(actor + 0x31c), size=12, **{"as": "f32"})["f32"]]
 
 
+def steer_route(actor, points, radius=1.5, leg_frames=900, chunk=10):
+    """Run Link to each [x, z] of points in turn. The left stick is relative to the camera, whose direction is not
+    read; it turns slowly while he runs. So the stick angle is corrected, not recomputed: after every chunk of
+    frames the direction he actually moved is compared with the bearing of the target, and the stick angle is
+    turned by the difference. Which way a stick turn moves his heading is measured at the start (forward, then
+    forward-right). A leg ends within radius metres of its point, after leg_frames, or when he stays blocked (then
+    the stick is swung aside, the other side each time). Returns the path and, per leg, whether he arrived, the
+    frames it took and the distance left."""
+    import math
+    wrap = lambda a: (a + math.pi) % (2 * math.pi) - math.pi
+    def push(phi, frames):
+        call("input_sequence", steps=[{"left_stick": [round(math.sin(phi), 3), round(math.cos(phi), 3)], "frames": frames}],
+             timeout_s=120)
+    def moved(a, b):
+        return math.atan2(b[0] - a[0], b[2] - a[2]), math.hypot(b[0] - a[0], b[2] - a[2])
+    call("input_sequence", steps=[{"buttons": ["StickR"], "frames": 4}, {"frames": 6}], timeout_s=60)   # camera behind him
+    p0 = pos(actor); push(0.0, 12); p1 = pos(actor); push(0.6, 12); p2 = pos(actor)
+    h0, d0 = moved(p0, p1); h1, d1 = moved(p1, p2)
+    sign = (1 if wrap(h1 - h0) > 0 else -1) if d0 > 0.15 and d1 > 0.15 else 1
+    phi, heading = (0.6, h1) if d1 > 0.15 else (0.0, h0)
+    path = [[round(v, 2) for v in p] for p in (p0, p1, p2)]; legs = []; frames = 34
+    for tx, tz in points:
+        used = stalls = blocked = 0; side = 1; arrived = False; here = pos(actor)
+        while used < leg_frames:
+            left = math.hypot(tx - here[0], tz - here[2])
+            if left < radius:
+                arrived = True; break
+            phi = wrap(phi + sign * 0.8 * wrap(math.atan2(tx - here[0], tz - here[2]) - heading))
+            push(phi, chunk); used += chunk
+            new = pos(actor); h, d = moved(here, new); here = new; path.append([round(v, 2) for v in new])
+            if d > 0.12:
+                heading = h; stalls = 0
+            else:
+                stalls += 1
+            if stalls >= 3:                 # blocked: swing the stick aside for a moment
+                push(phi + side * 1.2, 20); used += 20; side = -side; stalls = 0; blocked += 1
+                new = pos(actor); h, d = moved(here, new); here = new; path.append([round(v, 2) for v in new])
+                if d > 0.12:
+                    heading = h; phi = wrap(phi - side * 1.2)
+                if blocked >= 6:
+                    break
+        frames += used
+        legs.append({"to": [tx, tz], "arrived": arrived, "frames": used, "blocked": blocked,
+                     "left_m": round(math.hypot(tx - here[0], tz - here[2]), 2), "end": [round(v, 2) for v in here]})
+    return {"mode": "waypoints", "stick_sign": sign, "frames": frames, "legs": legs, "path": path}
+
+
 def stats(ts):
     d = [(b - a) / 1e6 for a, b in zip(ts, ts[1:])]
     if not d:
@@ -853,9 +900,22 @@ def _one_run(spec, out, attempt="1/1"):
                 mark(ph("stand1")); wait_frames(P // 2, alive); hook(f"shot {rd}/{prefix.strip('/') or 'run'}-stand1.png")
                 wait_frames(P - P // 2, alive)
                 res["builds"][ph("stand1")] = cur.builds()
+            if spec.get("walk") == "waypoints" and spec.get("waypoint_start"):
+                # Not measured: bring Link to the route's starting point first.
+                res[ph("walk_approach")] = steer_route(actor, [spec["waypoint_start"]],
+                                                       radius=float(spec.get("waypoint_radius_m", 1.5)),
+                                                       leg_frames=int(spec.get("waypoint_frames", 900)))
+                hook(f"shot {rd}/{prefix.strip('/') or 'run'}-walkstart.png")
+                cur.builds()
             mark(ph("walk"))
             start = pos(actor)
-            if spec.get("walk", "bounce") == "bounce":
+            if spec.get("walk") == "waypoints":
+                res[ph("walk_call")] = steer_route(actor, spec["waypoints"], radius=float(spec.get("waypoint_radius_m", 1.5)),
+                                                   leg_frames=int(spec.get("waypoint_frames", 900)))
+                missed = [leg["to"] for leg in res[ph("walk_call")]["legs"] if not leg["arrived"]]
+                if missed:
+                    print(f"{spec['label']}: route points not reached: {missed}", flush=True)
+            elif spec.get("walk", "bounce") == "bounce":
                 # Run forward in short chunks and read Link's position after each: when a chunk barely moves him
                 # (a cliff, a wall), turn him round and keep pushing forward, so he runs back the way he came. Pulling
                 # the left stick back doesn't rotate him (he backs away facing the wall), so the turn is two quarter
@@ -916,7 +976,7 @@ def _one_run(spec, out, attempt="1/1"):
             hook(f"shot {rd}/{prefix.strip('/') or 'run'}-walkend.png")
             moved = sum((x - y) ** 2 for x, y in zip(pos(actor), start)) ** 0.5
             wc = res[ph("walk_call")]
-            if isinstance(wc, dict) and wc.get("mode") == "bounce":      # it may end where it began: use the path
+            if isinstance(wc, dict) and wc.get("mode") in ("bounce", "waypoints"):   # it may end where it began: use the path
                 moved = sum(sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5 for a, b in zip(wc["path"], wc["path"][1:]))
             res[ph("walk_moved_m")] = round(moved, 2)
             if moved < 0.5:

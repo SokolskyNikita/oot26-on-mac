@@ -166,6 +166,17 @@ run's app's own one held aside and restored), `save` / `expect_spawn` / `save_in
 data root, see below), `jsdbg` (`attach` / `arm`, see below), `flicker`, `capture`, `profile` (above), and these, each off unless set:
 
 - `stand_frames`: length of the stand after the walk (default `phase_frames`).
+- `walk: "waypoints"` with `waypoints` (a list of `[x, z]` points in the game's coordinates): Link is steered to each
+  point in turn and the walk phase is that route, however many frames it takes. The left stick is relative to the
+  camera, which is not read, so the stick angle is corrected by feedback: after every 10 frames the direction he
+  actually moved is compared with the bearing of the next point and the stick is turned by the difference; which
+  way a stick turn moves him is measured at the start. A point counts as reached within `waypoint_radius_m`
+  (default 1.5); a leg is given up after `waypoint_frames` (default 900) or six blocked attempts, and the run's line
+  says which points were missed. `waypoint_start` is a point he is brought to before the measured phase begins
+  (the debug server cannot write memory, so this stands in for a teleport); `run-walkstart.png` is taken there.
+  `result.json` gets the path and each leg's frames under `walk_call`. Positions come from the game's placement
+  data. A route used for the Kokiri Forest save: start `[10.0, -1.0]` (in the stream beside the spawn), then
+  `[[-29.5, 5.9], [10.0, -1.0]]` (Saria's placement and back): about 1,550 frames, crossing the stream bed twice.
 - `leash_m`: in a bounce walk, also turn round when Link is that far from where the walk began and still moving
   away, so a long walk stays in the area instead of leaving the map (which loads another one and autosaves).
 - `at_end`: steps run once Link has stopped where the walk ended (`../speckcheck/speckhunt.py`): window-capture
@@ -242,6 +253,17 @@ the cold boot is known before it starts the window title says so from the first 
 - `N shaders compiled during boot and load`: more than 500 compiler builds, whatever the cause.
 
 `python3 metalcache.py [APP …]` prints the same check for an app without booting it.
+
+### Judging a change by frame times
+
+`python3 accept.py RUNS_DIR CONTROL_PREFIX CHANGE_PREFIX [--phase walk]` applies the pinned build's frame-time rule
+to paired runs (`route-off-1` with `route-on-1`, and so on; run the pairs alternating, on a fixed route). For p50,
+p95 and p99 of the phase, a pair's ratio is (60 − fps of the control) ÷ (60 − fps of the change): how much of the
+shortfall from 60 fps the change closes. The change is accepted when the one-sided 90 % lower confidence bound of
+that ratio (Student t on the pairs' log ratios) is above 1.1 for at least one of the three, the mean ratio of none
+of the three is below 1.0, and no picture scored as corrupt. A percentile whose control is within 2 fps of 60 is at
+the target and is not scored, which is why the stand in Kokiri Forest cannot be used. Three pairs settle a large
+effect; add pairs only when a mean is above 1.1 and its bound is not.
 
 After a macOS update, or with a new build, have the cold boot outside any measurement:
 `python3 ab.py --warm [--app APP] [HOME …]` boots each data root once (none named: the real folders) with profile

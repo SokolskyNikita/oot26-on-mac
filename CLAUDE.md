@@ -42,6 +42,10 @@ build and what was tried: [TRACKER.md](TRACKER.md). What is wrong with it: [KNOW
 
 ## Changing the pinned build
 
+A change that is meant to improve frame times is judged by `tools/harness/accept.py` (the rule is in
+[tools/harness/README.md](tools/harness/README.md), "Judging a change by frame times"); faster loads (20 %) and a
+visible fault fixed are the other reasons to change the build.
+
 A change is a commit on branch `gold` in `build/src/lichii` or `build/src/moltenvk` (author date equal to committer
 date, so `build.sh` reproduces the commit id), a re-export of the patch series, new ids in `versions.lock`, a row in
 `TRACKER.md`, and a comparison against the installed build in the harness with the pictures looked at. A MoltenVK

@@ -23,7 +23,8 @@ AFTER_LOAD = {"save", "expect_spawn", "save_index", "resave", "settle_s", "jsdbg
               "flicker", "hold_file", "hold_max_s", "after_hold", "end_white_max", "cube_check",
               "keep_cube_captures", "on_corrupt"}
 MEASURED = {"phase_frames", "stand_frames", "stand_first", "walk", "walk_shots", "bounce_chunk", "bounce_min_m",
-            "leash_m", "turn_frames", "poll_hz", "variants", "at_end"}
+            "leash_m", "turn_frames", "poll_hz", "variants", "at_end", "waypoints", "waypoint_start",
+            "waypoint_radius_m", "waypoint_frames"}
 KEYS = EVERY_RUN | AFTER_LOAD | MEASURED
 ALLOWED = {"boot": EVERY_RUN, "load": EVERY_RUN | AFTER_LOAD, "measure": KEYS}
 
@@ -89,7 +90,12 @@ def plan(spec, config):
         times = f" x{len(spec['variants'])} variants" if spec.get("variants") else ""
         if spec.get("stand_first"):
             add(f"stand {frames} frames{times}", "spec")
-        add(f"walk {frames} frames ({spec.get('walk', 'bounce')}){times}", fsrc)
+        if spec.get("walk") == "waypoints":
+            if spec.get("waypoint_start"):
+                add(f"run to the route's start {spec['waypoint_start']} (not measured)", "spec")
+            add(f"run the route through {len(spec.get('waypoints') or [])} points (waypoints){times}", "spec")
+        else:
+            add(f"walk {frames} frames ({spec.get('walk', 'bounce')}){times}", fsrc)
         add(f"stand {spec.get('stand_frames', frames)} frames{times}", fsrc)
         if spec.get("at_end"):
             add("at_end steps", "spec")
