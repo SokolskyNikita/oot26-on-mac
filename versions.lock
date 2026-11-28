@@ -45,4 +45,4 @@ TOOL_BREW="qt=6.12.0 ffmpeg=9.0.2_1 boost=1.92.0_1 openssl@3=3.5.9 fmt=12.2.1 lz
 
 # The installed build these pins were taken from (sha1). A rebuild gives the same source, not the same bytes.
 GOLD_LICHII_SHA1=59bfe412d2f80940182ba95d7c79656d3ea05b8a
-GOLD_MOLTENVK_SHA1=17f76f69f2999cde1dccb9836920f72270a01554
+GOLD_MOLTENVK_SHA1=6ee8696dff616b5375f8979f39730c51c61adc6a
