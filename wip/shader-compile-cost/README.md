@@ -201,8 +201,11 @@ LLVM 15's optimiser does not know what Apple's builtins mean, and its output is 
 Seven sources came out larger, by at most 0.7%. In the game (`MVK_P60_NO_LIFETIME_MARKERS=1` against the same
 library without it, two alternating pairs on a warm cache, 900-frame walk and 600-frame stand in Kokiri Forest):
 walk median 17.84 and 18.23 ms without, 17.49 and 17.33 ms with; walk p95 22.67 and 23.52 against 22.68 and
-22.31 ms; standing 16.5–16.7 ms in all four, which is the 60 fps cap; pictures clean. A 3.5% better walk median is
-under the pinned build's 5% bar, so the switch is not in it.
+22.31 ms; standing 16.5–16.7 ms in all four, which is the 60 fps cap; pictures clean. On a fixed route through the
+stream to Saria's placement and back (`"walk": "waypoints"`, three alternating pairs), scored as the shortfall from
+60 fps by `tools/harness/accept.py`: p50 ratio 1.21 with a 90% lower bound of 1.075, p95 1.07 (1.046), p99 0.98
+(0.851). The switch shortens the GPU's work a little and so the typical frame by 0.2–0.6 ms; the slow frames come
+from the CPU side and do not move. No percentile clears the 1.1 bar, so the switch is not in the pinned build.
 
 ## Tools
 
@@ -227,8 +230,7 @@ Build the Swift tools with `swiftc -O NAME.swift -o NAME` and `dumpopts.m` with
 ## Open
 
 - Declaring SPIRV-Cross's temporaries at function scope, which should have the same effect as
-  `-disable-lifetime-markers` without a private property: not tried. The option itself is worth another look in a
-  heavier scene than Kokiri Forest, where standing is not at the frame cap.
+  `-disable-lifetime-markers` without a private property: not tried, and worth at most what that option gave.
 - The race behind the picture corruption with concurrent compiles: Metal is cleared, so a thread-sanitizer build of
   MoltenVK replaying a parallel cache load is the next step. Serial against concurrent GPU code was compared for
   fragment shaders only.
